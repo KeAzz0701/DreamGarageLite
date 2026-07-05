@@ -1,4 +1,21 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 export default function Home() {
+  const [status, setStatus] = useState("取得中...");
+
+  useEffect(() => {
+    fetch("http://localhost:3001/api/status")
+      .then((res) => res.json())
+      .then((data) => {
+        setStatus(`${data.system} Ver.${data.version} (${data.status})`);
+      })
+      .catch(() => {
+        setStatus("API接続失敗");
+      });
+  }, []);
+
   return (
     <main style={{ padding: "40px", fontFamily: "sans-serif" }}>
       <h1>🚗 Dream Garage Lite</h1>
@@ -11,13 +28,19 @@ export default function Home() {
 
       <ul>
         <li>✅ Next.js 起動</li>
-        <li>⬜ NestJS</li>
+        <li>✅ NestJS 起動</li>
         <li>⬜ PostgreSQL</li>
         <li>⬜ Prisma</li>
         <li>⬜ OCR</li>
         <li>⬜ OpenAI</li>
         <li>⬜ Gemini</li>
       </ul>
+
+      <hr />
+
+      <h2>API状態</h2>
+
+      <p>{status}</p>
 
       <hr />
 
