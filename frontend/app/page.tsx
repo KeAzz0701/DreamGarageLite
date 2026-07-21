@@ -1,54 +1,93 @@
-"use client";
+// frontend/app/page.tsx
 
-import { useEffect, useState } from "react";
+'use client';
+
+import { useEffect, useState } from 'react';
+import { api } from '@/lib/api';
+import { useCompany } from '@/hooks/useCompany';
+
+type Summary = {
+  customers: number;
+  vehicles: number;
+};
+
+type Customer = {
+  id: number;
+  customerName: string;
+  createdAt: string;
+  vehicles: unknown[];
+};
 
 export default function Home() {
-  const [status, setStatus] = useState("取得中...");
+  const { company } = useCompany();
+
+  const [summary, setSummary] = useState<Summary>({
+    customers: 0,
+    vehicles: 0,
+  });
+
+  const [recentCustomers, setRecentCustomers] = useState<Customer[]>([]);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/status")
-      .then((res) => res.json())
+    api<{ summary: Summary }>('')
+      .then((data) => setSummary(data.summary))
+      .catch(() => {});
+
+    api<Customer[]>('/customer')
       .then((data) => {
-        setStatus(`${data.system} Ver.${data.version} (${data.status})`);
+        const sorted = [...data].sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() -
+            new Date(a.createdAt).getTime(),
+        );
+
+        setRecentCustomers(sorted.slice(0, 4));
       })
-      .catch(() => {
-        setStatus("API接続失敗");
-      });
+      .catch(() => {});
   }, []);
 
+  const usedOcr = company?.license?.usedOcr ?? 0;
+  const maxOcr = company?.license?.maxOcrPerMonth ?? 0;
+  const ocrLabel = maxOcr === -1 ? '∞' : `${usedOcr}/${maxOcr}`;
+
   return (
-    <main style={{ padding: "40px", fontFamily: "sans-serif" }}>
-      <h1>🚗 Dream Garage Lite</h1>
+    <>
+      <div className="statgrid">
+        <div className="statcard">
+          <div className="num mono">{summary.customers}</div>
+          <div className="lbl">👥 登録顧客</div>
+        </div>
 
-      <p>整備工場向け AI業務支援システム</p>
+        <div className="statcard">
+          <div className="num mono">{summary.vehicles}</div>
+          <div className="lbl">🚗 登録車両</div>
+        </div>
 
-      <hr />
+        <div className="statcard">
+          <div className="num mono">{ocrLabel}</div>
+          <div className="lbl">📷 今月のOCR利用</div>
+        </div>
+      </div>
 
-      <h2>現在の開発状況</h2>
+      <div className="sectionhead">
+        <h3>📅 直近の予約</h3>
+      </div>
+      <div className="empty">直近の予約はありません。</div>
 
-      <ul>
-        <li>✅ Next.js 起動</li>
-        <li>✅ NestJS 起動</li>
-        <li>⬜ PostgreSQL</li>
-        <li>⬜ Prisma</li>
-        <li>⬜ OCR</li>
-        <li>⬜ OpenAI</li>
-        <li>⬜ Gemini</li>
-      </ul>
-
-      <hr />
-
-      <h2>API状態</h2>
-
-      <p>{status}</p>
-
-      <hr />
-
-      <button>車検証OCR（準備中）</button>
-
-      <button style={{ marginLeft: "10px" }}>
-        顧客管理（準備中）
-      </button>
-    </main>
+      <div className="sectionhead">
+        <h3>🕒 最近登録した顧客</h3>
+        <a href="/customers">一覧を見る →</a>
+      </div>
+      {recentCustomers.length === 0 ? (
+        <div className="empty">まだ顧客が登録されていません。</div>
+      ) : (
+        recentCustomers.map((c) => (
+          <div key={c.id} className="minirow">
+            <span className="l">{c.customerName}</span>
+            <span className="r">車両{c.vehicles.length}台</span>
+          </div>
+        ))
+      )}
+    </>
   );
 }

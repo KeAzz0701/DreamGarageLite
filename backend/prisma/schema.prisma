@@ -1,6 +1,5 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -8,10 +7,293 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Plan {
+  FREE
+  LITE
+  STANDARD
+  PRO
+  ENTERPRISE
+  DEMO
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+}
+
+enum LicenseStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  E_MONEY
+  CARRIER_BILLING
+}
+
+enum PlanChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum EstimateCategory {
+  SHAKEN
+  GENERAL
+}
+
+enum VehicleCategory {
+  KEI
+  REGULAR
+  LARGE
+  CARGO
+}
+
+model Company {
+  id            Int      @id @default(autoincrement())
+  name          String
+  companyName   String?
+  email         String?
+  phone         String?
+  address       String?
+  invoiceNumber String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  license     License?
+  settings    Settings?
+  apiKey      ApiKeyPool?
+
+  planChangeRequests PlanChangeRequest[]
+}
+
+model PlanChangeRequest {
+  id            Int               @id @default(autoincrement())
+
+  companyId     Int
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  targetPlan    Plan
+
+  paymentMethod PaymentMethod
+
+  status        PlanChangeStatus  @default(PENDING)
+
+  requestedAt   DateTime          @default(now())
+  approvedAt    DateTime?
+}
+
+model ApiKeyPool {
+  id         Int       @id @default(autoincrement())
+
+  provider   String    @default("GEMINI")
+
+  apiKey     String    @unique
+
+  companyId  Int?      @unique
+  company    Company?  @relation(fields: [companyId], references: [id])
+
+  assignedAt DateTime?
+
+  createdAt  DateTime  @default(now())
+}
+
+model License {
+  id              Int            @id @default(autoincrement())
+
+  companyId       Int            @unique
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  licenseKey      String         @unique
+
+  plan            Plan           @default(FREE)
+
+  status          LicenseStatus  @default(INACTIVE)
+
+  maxOcrPerMonth  Int            @default(30)
+
+  usedOcr         Int            @default(0)
+
+  usedOcrMonth    String?
+
+  activatedAt     DateTime?
+
+  expiresAt       DateTime?
+
+  createdAt       DateTime       @default(now())
+
+  updatedAt       DateTime       @updatedAt
+}
+
+model Settings {
+  id               Int       @id @default(autoincrement())
+
+  companyId        Int       @unique
+
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  apiUrl           String
+
+  geminiEndpoint   String
+
+  backupEnabled    Boolean   @default(true)
+
+  autoUpdate       Boolean   @default(true)
+
+  theme            String    @default("light")
+
+  estimateTerms    String?
+
+  createdAt        DateTime  @default(now())
+
+  updatedAt        DateTime  @updatedAt
+}
+
+model FeeRate {
+  id              Int             @id @default(autoincrement())
+
+  vehicleCategory VehicleCategory
+  itemName        String
+
+  price           Int             @default(0)
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([vehicleCategory, itemName])
+}
 model Customer {
-  id        Int      @id @default(autoincrement())
-  name      String
-  phone     String?
-  address   String?
-  createdAt DateTime @default(now())
+  id              Int      @id @default(autoincrement())
+
+  customerName    String
+  customerAddress String?
+
+  ownerName       String?
+  ownerAddress    String?
+
+  phone           String?
+
+  lineUserId      String?  @unique
+  lineLinkToken   String?  @unique
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  vehicles        Vehicle[]
+}
+
+model Vehicle {
+  id                 Int       @id @default(autoincrement())
+
+  customerId         Int?
+
+  customer           Customer? @relation(fields: [customerId], references: [id])
+
+  vin                String    @unique
+
+  registrationNumber String?
+
+  ownerName          String?
+  ownerAddress       String?
+
+  userName           String?
+  userAddress        String?
+
+  usageBase          String?
+
+  carName            String?
+  commonModelName    String?
+  model              String?
+  engineModel        String?
+
+  modelCode          String?
+  classificationCode String?
+
+  firstRegistration  String?
+  expirationDate     String?
+
+  vehicleWeight      String?
+  grossWeight        String?
+
+  seatingCapacity    String?
+  maxLoad            String?
+
+  length             String?
+  width              String?
+  height             String?
+
+  displacement       String?
+  fuel               String?
+
+  usage              String?
+  privateBusiness    String?
+
+  bodyType           String?
+  remarks            String?
+
+  createdAt          DateTime  @default(now())
+
+  updatedAt          DateTime  @updatedAt
+
+  serviceHistories   ServiceHistory[]
+  estimates          Estimate[]
+}
+
+model ServiceHistory {
+  id         Int       @id @default(autoincrement())
+
+  vehicleId  Int
+  vehicle    Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  date       DateTime
+  title      String
+
+  items      ServiceHistoryItem[]
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model ServiceHistoryItem {
+  id                Int             @id @default(autoincrement())
+
+  serviceHistoryId  Int
+  serviceHistory    ServiceHistory  @relation(fields: [serviceHistoryId], references: [id], onDelete: Cascade)
+
+  name              String
+  cost              Int             @default(0)
+}
+
+model Estimate {
+  id         Int       @id @default(autoincrement())
+
+  vehicleId  Int
+  vehicle    Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  date       DateTime  @default(now())
+  title      String
+
+  category   EstimateCategory @default(GENERAL)
+  staffName  String?
+
+  items      EstimateItem[]
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model EstimateItem {
+  id          Int       @id @default(autoincrement())
+
+  estimateId  Int
+  estimate    Estimate  @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+
+  name        String
+  cost        Int       @default(0)
 }

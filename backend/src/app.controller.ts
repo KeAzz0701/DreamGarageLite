@@ -1,26 +1,43 @@
+// backend/src/app.controller.ts
+
 import { Controller, Get } from '@nestjs/common';
+import { PrismaService } from './prisma/prisma.service';
 
 @Controller()
 export class AppController {
+  constructor(
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get()
-  getHello() {
-    return {
-      message: 'Dream Garage Lite API',
-    };
-  }
+  async health() {
+    const customerCount =
+      await this.prisma.customer.count();
 
-  @Get('api/status')
-  getStatus() {
+    const vehicleCount =
+      await this.prisma.vehicle.count();
+
+    const companyCount =
+      await this.prisma.company.count();
+
+    const licenseCount =
+      await this.prisma.license.count();
+
     return {
       status: 'OK',
       system: 'Dream Garage Lite',
-      version: '0.1.0',
-      ai: [
-        'OpenAI',
-        'Gemini'
-      ]
+      version: '1.0.0',
+
+      database: 'Connected',
+
+      summary: {
+        companies: companyCount,
+        customers: customerCount,
+        vehicles: vehicleCount,
+        licenses: licenseCount,
+      },
+
+      serverTime: new Date(),
     };
   }
-
 }
