@@ -1,13 +1,25 @@
 // backend/src/line/line.service.ts
 
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  forwardRef,
+} from '@nestjs/common';
 import { validateSignature, messagingApi, webhook } from '@line/bot-sdk';
 import { CustomerService } from '../customer/customer.service';
+import { ReservationService } from '../reservation/reservation.service';
+import { toJstDateOnly } from '../common/japanese-date';
+import { TenantContextService } from '../tenant/tenant-context.service';
 
 const LINK_TOKEN_PATTERN = /^GK-[A-Z0-9]{6}$/;
 const SERVICE_HISTORY_KEYWORD = '整備履歴';
+const RESERVATION_KEYWORD = '予約';
+const RESERVATION_ACTION_PICK_DATE = 'reserve_pick_date';
+const RESERVATION_ACTION_PICK_SLOT = 'reserve_pick_slot';
+const MAX_QUICK_REPLY_ITEMS = 13;
 
-const serviceHistoryQuickReply: messagingApi.QuickReply = {
+const mainMenuQuickReply: messagingApi.QuickReply = {
   items: [
     {
       type: 'action',
@@ -17,6 +29,14 @@ const serviceHistoryQuickReply: messagingApi.QuickReply = {
         text: SERVICE_HISTORY_KEYWORD,
       },
     },
+    {
+      type: 'action',
+      action: {
+        type: 'message',
+        label: '📅 ご予約',
+        text: RESERVATION_KEYWORD,
+      },
+    },
   ],
 };
 
@@ -24,22 +44,41 @@ const serviceHistoryQuickReply: messagingApi.QuickReply = {
 export class LineService {
   private readonly logger = new Logger(LineService.name);
 
-  constructor(private readonly customerService: CustomerService) {}
+  constructor(
+    private readonly customerService: CustomerService,
+    @Inject(forwardRef(() => ReservationService))
+    private readonly reservationService: ReservationService,
+    private readonly tenantContext: TenantContextService,
+  ) {}
 
-  private readonly client = process.env.LINE_CHANNEL_ACCESS_TOKEN
-    ? new messagingApi.MessagingApiClient({
-        channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
-      })
-    : null;
+  /** 会社ごとにMessagingApiClientをキャッシュする(companyAccountIdをキーに) */
+  private readonly clients = new Map<number, messagingApi.MessagingApiClient>();
 
+  private getClient(): messagingApi.MessagingApiClient | null {
+    const company = this.tenantContext.current()?.company;
+
+    if (!company?.lineChannelAccessToken) return null;
+
+    const cached = this.clients.get(company.id);
+
+    if (cached) return cached;
+
+    const client = new messagingApi.MessagingApiClient({
+      channelAccessToken: company.lineChannelAccessToken,
+    });
+
+    this.clients.set(company.id, client);
+
+    return client;
+  }
+
+  /** Webhookの署名検証は、この時点で解決済みの会社のチャンネルシークレットを使う */
   verifySignature(rawBody: Buffer, signature: string | undefined) {
-    if (!signature) return false;
+    const secret = this.tenantContext.current()?.company.lineChannelSecret;
 
-    return validateSignature(
-      rawBody,
-      process.env.LINE_CHANNEL_SECRET!,
-      signature,
-    );
+    if (!signature || !secret) return false;
+
+    return validateSignature(rawBody, secret, signature);
   }
 
   async handleEvents(events: webhook.Event[]) {
@@ -60,6 +99,15 @@ export class LineService {
         event.replyToken,
         event.source?.type === 'user' ? event.source.userId : undefined,
         event.message.text,
+      );
+      return;
+    }
+
+    if (event.type === 'postback') {
+      await this.handlePostback(
+        event.replyToken,
+        event.source?.type === 'user' ? event.source.userId : undefined,
+        event.postback,
       );
       return;
     }
@@ -148,7 +196,7 @@ export class LineService {
         {
           type: 'text',
           text: `${customer.customerName}様、連携が完了しました。\n車検満了日などをこちらのLINEでお知らせします。`,
-          quickReply: serviceHistoryQuickReply,
+          quickReply: mainMenuQuickReply,
         },
       ]);
       return;
@@ -173,7 +221,29 @@ export class LineService {
         {
           type: 'text',
           text: this.formatServiceHistoryReply(customer),
-          quickReply: serviceHistoryQuickReply,
+          quickReply: mainMenuQuickReply,
+        },
+      ]);
+      return;
+    }
+
+    if (text.trim() === RESERVATION_KEYWORD) {
+      if (!lineUserId) return;
+
+      const customer = await this.findLinkedCustomerOrPrompt(
+        replyToken,
+        lineUserId,
+      );
+
+      if (!customer) return;
+
+      const { min, max } = await this.reservationService.getBookableRange();
+
+      await this.reply(replyToken, [
+        {
+          type: 'text',
+          text: 'ご希望の来店日をお選びください。',
+          quickReply: this.buildDatePickerQuickReply(min, max),
         },
       ]);
       return;
@@ -183,34 +253,197 @@ export class LineService {
       {
         type: 'text',
         text: `受信しました:「${text}」`,
-        quickReply: serviceHistoryQuickReply,
+        quickReply: mainMenuQuickReply,
       },
     ]);
   }
 
+  private async handlePostback(
+    replyToken: string | undefined,
+    lineUserId: string | undefined,
+    postback: webhook.PostbackContent,
+  ) {
+    if (!replyToken || !lineUserId) return;
+
+    const params = new URLSearchParams(postback.data);
+    const action = params.get('action');
+
+    if (action === RESERVATION_ACTION_PICK_DATE) {
+      const date = postback.params?.date;
+
+      if (!date) return;
+
+      await this.replyOpenSlots(replyToken, lineUserId, date);
+      return;
+    }
+
+    if (action === RESERVATION_ACTION_PICK_SLOT) {
+      const start = params.get('start');
+
+      if (!start) return;
+
+      await this.confirmSlotSelection(replyToken, lineUserId, start);
+      return;
+    }
+  }
+
+  private async findLinkedCustomerOrPrompt(
+    replyToken: string,
+    lineUserId: string,
+  ) {
+    const customer = await this.customerService.findByLineUserId(lineUserId);
+
+    if (!customer) {
+      await this.reply(replyToken, [
+        {
+          type: 'text',
+          text: 'まだ連携が完了していません。お店で発行された連携コードを送信してください。',
+        },
+      ]);
+      return null;
+    }
+
+    return customer;
+  }
+
+  private buildDatePickerQuickReply(min: Date, max: Date): messagingApi.QuickReply {
+    return {
+      items: [
+        {
+          type: 'action',
+          action: {
+            type: 'datetimepicker',
+            label: '📅 日付を選択',
+            data: `action=${RESERVATION_ACTION_PICK_DATE}`,
+            mode: 'date',
+            min: toJstDateOnly(min),
+            max: toJstDateOnly(max),
+          },
+        },
+      ],
+    };
+  }
+
+  private async replyOpenSlots(
+    replyToken: string,
+    lineUserId: string,
+    dateStr: string,
+  ) {
+    const customer = await this.findLinkedCustomerOrPrompt(
+      replyToken,
+      lineUserId,
+    );
+
+    if (!customer) return;
+
+    const slots = await this.reservationService.getOpenSlots(dateStr);
+
+    const { min, max } = await this.reservationService.getBookableRange();
+
+    if (slots.length === 0) {
+      await this.reply(replyToken, [
+        {
+          type: 'text',
+          text: 'その日は空きがありません。別の日をお選びください。',
+          quickReply: this.buildDatePickerQuickReply(min, max),
+        },
+      ]);
+      return;
+    }
+
+    await this.reply(replyToken, [
+      {
+        type: 'text',
+        text: `${dateStr} の空き時間からお選びください。`,
+        quickReply: {
+          items: slots.slice(0, MAX_QUICK_REPLY_ITEMS).map((slot) => ({
+            type: 'action',
+            action: {
+              type: 'postback',
+              label: slot.label,
+              data: `action=${RESERVATION_ACTION_PICK_SLOT}&start=${encodeURIComponent(slot.start.toISOString())}`,
+              displayText: `${dateStr} ${slot.label}`,
+            },
+          })),
+        },
+      },
+    ]);
+  }
+
+  private async confirmSlotSelection(
+    replyToken: string,
+    lineUserId: string,
+    startIso: string,
+  ) {
+    const customer = await this.findLinkedCustomerOrPrompt(
+      replyToken,
+      lineUserId,
+    );
+
+    if (!customer) return;
+
+    try {
+      const reservation = await this.reservationService.createFromLineRequest(
+        customer.id,
+        new Date(startIso),
+      );
+
+      await this.reply(replyToken, [
+        {
+          type: 'text',
+          text:
+            `ご希望を受け付けました。\n` +
+            `${this.formatDateJst(reservation.scheduledStart)}\n` +
+            `店舗からの確定連絡をお待ちください。`,
+          quickReply: mainMenuQuickReply,
+        },
+      ]);
+    } catch (err: any) {
+      const { min, max } = await this.reservationService.getBookableRange();
+
+      await this.reply(replyToken, [
+        {
+          type: 'text',
+          text: `${err?.message ?? 'ご希望の時間帯では予約できませんでした。'}\n別の日時をお選びください。`,
+          quickReply: this.buildDatePickerQuickReply(min, max),
+        },
+      ]);
+    }
+  }
+
+  private formatDateJst(date: Date) {
+    const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+    const [datePart, timePart] = jst.toISOString().slice(0, 16).split('T');
+    return `${datePart} ${timePart}`;
+  }
+
   /** 予約プッシュ通知等、返信トークンを使わずメッセージを送る */
   async pushMessage(lineUserId: string, messages: messagingApi.Message[]) {
-    if (!this.client) {
+    const client = this.getClient();
+
+    if (!client) {
       this.logger.warn(
-        'LINE_CHANNEL_ACCESS_TOKEN未設定のため、プッシュ通知をスキップしました。',
+        'LINEチャンネルが未設定のため、プッシュ通知をスキップしました。',
       );
       return;
     }
 
-    await this.client.pushMessage({ to: lineUserId, messages });
+    await client.pushMessage({ to: lineUserId, messages });
   }
 
   private async reply(
     replyToken: string,
     messages: messagingApi.Message[],
   ) {
-    if (!this.client) {
+    const client = this.getClient();
+
+    if (!client) {
       this.logger.warn(
-        'LINE_CHANNEL_ACCESS_TOKEN未設定のため、返信をスキップしました。',
+        'LINEチャンネルが未設定のため、返信をスキップしました。',
       );
       return;
     }
 
-    await this.client.replyMessage({ replyToken, messages });
+    await client.replyMessage({ replyToken, messages });
   }
 }

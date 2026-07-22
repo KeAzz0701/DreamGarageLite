@@ -5,7 +5,6 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   Param,
   ParseIntPipe,
   Post,
@@ -29,12 +28,10 @@ export class EstimateController {
   async suggestShakenItems(
     @Param('vehicleId', ParseIntPipe) vehicleId: number,
     @Body() body: { vehicleCategory: VehicleCategory },
-    @Headers('x-company-id') companyId: string,
   ) {
     return this.estimateService.suggestShakenItems(
       vehicleId,
       body.vehicleCategory,
-      Number(companyId),
     );
   }
 

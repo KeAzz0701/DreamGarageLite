@@ -52,7 +52,6 @@ export class EstimateService {
   async suggestShakenItems(
     vehicleId: number,
     vehicleCategory: VehicleCategory,
-    companyId: number,
   ) {
     const vehicle = await this.prisma.vehicle.findUnique({
       where: { id: vehicleId },
@@ -62,7 +61,11 @@ export class EstimateService {
       throw new BadRequestException('Vehicle not found');
     }
 
-    const apiKey = await this.licenseService.getApiKey(companyId);
+    // クライアント自己申告のcompanyIdは信用せず、テナントDB内の会社から取得する
+    const company = await this.prisma.company.findFirst();
+    const apiKey = company
+      ? await this.licenseService.getApiKey(company.id)
+      : null;
 
     const legalFees = await this.geminiService.estimateLegalFees(
       vehicle,

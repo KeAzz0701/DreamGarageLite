@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, apiBaseUrl } from '@/lib/api';
+import GoogleCalendarIntegrationCard from '@/components/settings/GoogleCalendarIntegrationCard';
 
 const PLAN_ORDER = ['FREE', 'LITE', 'STANDARD', 'ENTERPRISE'];
 
@@ -175,6 +176,8 @@ export default function SettingsPage() {
           📊 Excelでエクスポート
         </a>
       </div>
+
+      <GoogleCalendarIntegrationCard />
 
       {planInfo && (
         <div className="panel mb-4">

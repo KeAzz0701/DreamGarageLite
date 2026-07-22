@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/master-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL_MASTER")
+}
+
+model CompanyAccount {
+  id           Int      @id @default(autoincrement())
+
+  companyCode  String   @unique
+  passwordHash String
+
+  displayName  String
+
+  dbName       String   @unique
+
+  lineChannelId          String?
+  lineChannelSecret      String?
+  lineChannelAccessToken String?
+  lineDestinationUserId  String?  @unique
+
+  isActive     Boolean  @default(true)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

@@ -2,11 +2,12 @@
 
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
+import { LineModule } from '../line/line.module';
 import { ServiceHistoryController } from './service-history.controller';
 import { ServiceHistoryService } from './service-history.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, LineModule],
   controllers: [ServiceHistoryController],
   providers: [ServiceHistoryService],
   exports: [ServiceHistoryService],

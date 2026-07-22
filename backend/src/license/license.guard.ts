@@ -6,11 +6,13 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import { LicenseService } from './license.service';
 
 @Injectable()
 export class LicenseGuard implements CanActivate {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly licenseService: LicenseService,
   ) {}
 
@@ -21,28 +23,27 @@ export class LicenseGuard implements CanActivate {
       .switchToHttp()
       .getRequest();
 
-    const companyId = Number(
-      request.headers['x-company-id'],
-    );
+    // クライアント自己申告のcompanyIdは信用せず、テナントDB内の会社から取得する
+    const company = await this.prisma.company.findFirst();
 
-    if (!companyId) {
+    if (!company) {
       throw new ForbiddenException(
-        '会社IDが必要です。',
+        '会社情報が見つかりません。',
       );
     }
 
-    const company =
+    const canUse =
       await this.licenseService.canUseOcr(
-        companyId,
+        company.id,
       );
 
-    if (!company) {
+    if (!canUse) {
       throw new ForbiddenException(
         '今月のOCR利用上限に達しています。プランのアップグレードが必要です。',
       );
     }
 
-    request.companyId = companyId;
+    request.companyId = company.id;
 
     return true;
   }

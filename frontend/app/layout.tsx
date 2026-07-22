@@ -2,7 +2,7 @@
 
 import type { Metadata } from 'next';
 import { Barlow_Condensed, Noto_Sans_JP, Zen_Kaku_Gothic_New, IBM_Plex_Mono } from 'next/font/google';
-import AppHeader from '@/components/layout/AppHeader';
+import AuthGate from '@/components/auth/AuthGate';
 import './globals.css';
 
 const barlowCondensed = Barlow_Condensed({
@@ -46,9 +46,7 @@ export default function RootLayout({
     >
       <body>
 
-        <AppHeader />
-
-        <main>{children}</main>
+        <AuthGate>{children}</AuthGate>
 
       </body>
     </html>

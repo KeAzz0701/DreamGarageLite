@@ -25,9 +25,9 @@ export class LicenseInterceptor implements NestInterceptor {
       .switchToHttp()
       .getRequest();
 
-    const companyId = Number(
-      request.headers['x-company-id'],
-    );
+    // LicenseGuardが先に実行され、テナントDB内の会社から取得したcompanyIdを
+    // request.companyIdへ設定済みのため、それを使う(クライアントの自己申告は信用しない)
+    const companyId = request.companyId;
 
     if (!companyId) {
       throw new ForbiddenException(

@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
     '192.168.3.6',
     'localhost',
     '127.0.0.1',
+    'app.dreamgaragelite.com',
   ],
 };
 

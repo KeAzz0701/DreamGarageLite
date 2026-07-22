@@ -6,12 +6,12 @@ function resolveApiUrl() {
   }
 
   if (typeof window !== 'undefined') {
-    const { protocol, hostname } = window.location;
+    const { hostname } = window.location;
 
-    // https://.../ (スマホ/タブレット向けHTTPSプロキシ経由) の場合は
-    // バックエンドもHTTPSプロキシ側(3444)を使う。それ以外はPC向けの通常HTTP(3001)。
-    if (protocol === 'https:') {
-      return `https://${hostname}:3444/api`;
+    // Cloudflareトンネル(app.dreamgaragelite.com)経由の場合はバックエンドも
+    // トンネル側(api.dreamgaragelite.com)を使う。それ以外はPC向けの通常HTTP(3001)。
+    if (hostname === 'app.dreamgaragelite.com') {
+      return 'https://api.dreamgaragelite.com/api';
     }
 
     return `http://${hostname}:3001/api`;
@@ -30,25 +30,16 @@ export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const companyId =
-    typeof window !== 'undefined'
-      ? document.cookie
-          .split('; ')
-          .find((c) => c.startsWith('companyId='))
-          ?.split('=')[1]
-      : undefined;
-
   const headers = new Headers(options.headers);
 
   headers.set('Content-Type', 'application/json');
 
-  if (companyId) {
-    headers.set('x-company-id', companyId);
-  }
-
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
+    // ログインセッション(httpOnly Cookie)をサーバーへ送るために必須。
+    // 会社の識別はこのCookieのみで行い、クライアントからは一切申告しない。
+    credentials: 'include',
   });
 
   if (!response.ok) {
@@ -70,24 +61,14 @@ export async function upload(
   path: string,
   file: File,
 ) {
-  const companyId =
-    document.cookie
-      .split('; ')
-      .find((c) => c.startsWith('companyId='))
-      ?.split('=')[1];
-
   const form = new FormData();
 
   form.append('file', file);
 
   const response = await fetch(`${API_URL}${path}`, {
     method: 'POST',
-    headers: companyId
-      ? {
-          'x-company-id': companyId,
-        }
-      : undefined,
     body: form,
+    credentials: 'include',
   });
 
   if (!response.ok) {

@@ -47,3 +47,24 @@ export function daysUntil(date: Date): number {
 
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
+
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+/**
+ * サーバーのタイムゾーンに関わらず、JST壁時計表記の"YYYY-MM-DDTHH:mm"を返す。
+ * LINEのdatetimepickerのmin/maxに渡す文字列の生成に使う。
+ */
+export function toJstDatetimeLocal(date: Date): string {
+  const shifted = new Date(date.getTime() + JST_OFFSET_MS);
+  return shifted.toISOString().slice(0, 16);
+}
+
+/** JST壁時計表記の"YYYY-MM-DD"を返す(datetimepickerのmode="date"用) */
+export function toJstDateOnly(date: Date): string {
+  return toJstDatetimeLocal(date).slice(0, 10);
+}
+
+/** LINEのdatetimepickerが返す"YYYY-MM-DDTHH:mm"(JST壁時計)を絶対時刻のDateに変換する */
+export function parseJstDatetimeLocal(value: string): Date {
+  return new Date(`${value}:00+09:00`);
+}

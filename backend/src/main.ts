@@ -2,14 +2,18 @@
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app.module';
-import { PrismaService } from './prisma/prisma.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
   });
+
+  app.enableShutdownHooks();
+
+  app.use(cookieParser());
 
   app.enableCors({
     origin: true,
@@ -25,9 +29,6 @@ async function bootstrap() {
   );
 
   app.setGlobalPrefix('api');
-
-  const prisma = app.get(PrismaService);
-  await prisma.enableShutdownHooks(app);
 
   const port = Number(process.env.PORT) || 3001;
 

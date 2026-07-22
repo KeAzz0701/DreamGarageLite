@@ -1,0 +1,90 @@
+// backend/src/reservation/business-hours.service.ts
+
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+
+const DEFAULT_HOURS = Array.from({ length: 7 }, (_, weekday) => ({
+  weekday,
+  isClosed: weekday === 0,
+  startTime: weekday === 0 ? null : '09:00',
+  endTime: weekday === 0 ? null : '18:00',
+}));
+
+@Injectable()
+export class BusinessHoursService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  /** 7曜日分の行が揃っていなければ不足分をデフォルト値で補って返す */
+  async list() {
+    const existing = await this.prisma.businessHours.findMany({
+      orderBy: { weekday: 'asc' },
+    });
+
+    if (existing.length === 7) {
+      return existing;
+    }
+
+    const existingWeekdays = new Set(existing.map((h) => h.weekday));
+    const missing = DEFAULT_HOURS.filter((h) => !existingWeekdays.has(h.weekday));
+
+    if (missing.length > 0) {
+      await this.prisma.businessHours.createMany({ data: missing });
+    }
+
+    return this.prisma.businessHours.findMany({ orderBy: { weekday: 'asc' } });
+  }
+
+  async getWeekday(weekday: number) {
+    const rows = await this.list();
+    return rows.find((r) => r.weekday === weekday) ?? null;
+  }
+
+  async update(
+    rows: {
+      weekday: number;
+      isClosed: boolean;
+      startTime?: string | null;
+      endTime?: string | null;
+    }[],
+  ) {
+    await this.prisma.$transaction(
+      rows.map((row) =>
+        this.prisma.businessHours.upsert({
+          where: { weekday: row.weekday },
+          update: {
+            isClosed: row.isClosed,
+            startTime: row.isClosed ? null : row.startTime,
+            endTime: row.isClosed ? null : row.endTime,
+          },
+          create: {
+            weekday: row.weekday,
+            isClosed: row.isClosed,
+            startTime: row.isClosed ? null : row.startTime,
+            endTime: row.isClosed ? null : row.endTime,
+          },
+        }),
+      ),
+    );
+
+    return this.list();
+  }
+
+  async listClosedDates() {
+    return this.prisma.closedDate.findMany({ orderBy: { date: 'asc' } });
+  }
+
+  async addClosedDate(dateStr: string, reason?: string) {
+    const date = new Date(dateStr);
+    date.setHours(0, 0, 0, 0);
+
+    return this.prisma.closedDate.upsert({
+      where: { date },
+      update: { reason },
+      create: { date, reason },
+    });
+  }
+
+  async removeClosedDate(id: number) {
+    return this.prisma.closedDate.delete({ where: { id } });
+  }
+}

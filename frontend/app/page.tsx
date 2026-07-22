@@ -2,14 +2,9 @@
 
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { useCompany } from '@/hooks/useCompany';
-
-type Summary = {
-  customers: number;
-  vehicles: number;
-};
 
 type Customer = {
   id: number;
@@ -18,21 +13,27 @@ type Customer = {
   vehicles: unknown[];
 };
 
+type Reservation = {
+  id: number;
+  status: 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'CANCELLED';
+  scheduledStart: string;
+  customer: { customerName: string } | null;
+};
+
+const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
+
+function fmt(iso: string) {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_LABELS[d.getDay()]}) ${String(
+    d.getHours(),
+  ).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 export default function Home() {
-  const { company } = useCompany();
-
-  const [summary, setSummary] = useState<Summary>({
-    customers: 0,
-    vehicles: 0,
-  });
-
   const [recentCustomers, setRecentCustomers] = useState<Customer[]>([]);
+  const [upcomingReservations, setUpcomingReservations] = useState<Reservation[]>([]);
 
   useEffect(() => {
-    api<{ summary: Summary }>('')
-      .then((data) => setSummary(data.summary))
-      .catch(() => {});
-
     api<Customer[]>('/customer')
       .then((data) => {
         const sorted = [...data].sort(
@@ -44,35 +45,59 @@ export default function Home() {
         setRecentCustomers(sorted.slice(0, 4));
       })
       .catch(() => {});
-  }, []);
 
-  const usedOcr = company?.license?.usedOcr ?? 0;
-  const maxOcr = company?.license?.maxOcrPerMonth ?? 0;
-  const ocrLabel = maxOcr === -1 ? '∞' : `${usedOcr}/${maxOcr}`;
+    api<Reservation[]>('/reservation')
+      .then((data) => {
+        const upcoming = data
+          .filter((r) => r.status === 'PENDING' || r.status === 'CONFIRMED')
+          .sort(
+            (a, b) =>
+              new Date(a.scheduledStart).getTime() -
+              new Date(b.scheduledStart).getTime(),
+          );
+
+        setUpcomingReservations(upcoming.slice(0, 4));
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <>
       <div className="statgrid">
-        <div className="statcard">
-          <div className="num mono">{summary.customers}</div>
-          <div className="lbl">👥 登録顧客</div>
-        </div>
+        <Link href="/ocr" className="statcard block">
+          <div className="num">📷</div>
+          <div className="lbl">車検証OCR</div>
+        </Link>
 
-        <div className="statcard">
-          <div className="num mono">{summary.vehicles}</div>
-          <div className="lbl">🚗 登録車両</div>
-        </div>
+        <Link href="/reservations" className="statcard block">
+          <div className="num">📅</div>
+          <div className="lbl">予約管理</div>
+        </Link>
 
-        <div className="statcard">
-          <div className="num mono">{ocrLabel}</div>
-          <div className="lbl">📷 今月のOCR利用</div>
-        </div>
+        <Link href="/customers" className="statcard block">
+          <div className="num">👥</div>
+          <div className="lbl">顧客一覧</div>
+        </Link>
       </div>
 
       <div className="sectionhead">
         <h3>📅 直近の予約</h3>
+        <a href="/reservations">一覧を見る →</a>
       </div>
-      <div className="empty">直近の予約はありません。</div>
+      {upcomingReservations.length === 0 ? (
+        <div className="empty">直近の予約はありません。</div>
+      ) : (
+        upcomingReservations.map((r) => (
+          <div key={r.id} className="minirow">
+            <span className="l">
+              {fmt(r.scheduledStart)} {r.customer?.customerName ?? '不明な顧客'}
+            </span>
+            <span className="r">
+              {r.status === 'PENDING' ? '未確定' : '確定済み'}
+            </span>
+          </div>
+        ))
+      )}
 
       <div className="sectionhead">
         <h3>🕒 最近登録した顧客</h3>

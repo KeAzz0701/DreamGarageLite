@@ -5,6 +5,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { LineService } from '../line/line.service';
 import { parseFlexibleDate, daysUntil } from '../common/japanese-date';
+import { MasterPrismaService } from '../prisma/master-prisma.service';
+import { TenantContextService } from '../tenant/tenant-context.service';
 
 const NOTIFY_THRESHOLDS = [30, 7, 0];
 
@@ -15,10 +17,32 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly lineService: LineService,
+    private readonly masterPrisma: MasterPrismaService,
+    private readonly tenantContext: TenantContextService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async checkExpirations() {
+    const companies = await this.masterPrisma.companyAccount.findMany({
+      where: { isActive: true },
+    });
+
+    let totalChecked = 0;
+    let totalSent = 0;
+
+    for (const company of companies) {
+      const result = await this.tenantContext.run(company, () =>
+        this.checkExpirationsForCurrentTenant(),
+      );
+
+      totalChecked += result.checked;
+      totalSent += result.sent;
+    }
+
+    return { checked: totalChecked, sent: totalSent };
+  }
+
+  private async checkExpirationsForCurrentTenant() {
     const vehicles = await this.prisma.vehicle.findMany({
       where: {
         expirationDate: { not: null },

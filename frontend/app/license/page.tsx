@@ -20,15 +20,10 @@ export default function LicensePage() {
     setMessage('');
 
     try {
-      const company = await api<{ companyId: string }>(
-        '/license/activate',
-        {
-          method: 'POST',
-          body: JSON.stringify({ licenseKey }),
-        },
-      );
-
-      document.cookie = `companyId=${company.companyId};path=/;max-age=31536000`;
+      await api('/license/activate', {
+        method: 'POST',
+        body: JSON.stringify({ licenseKey }),
+      });
 
       setMessage('認証成功');
 

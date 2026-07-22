@@ -54,6 +54,13 @@ enum VehicleCategory {
   CARGO
 }
 
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+  CANCELLED
+}
+
 model Company {
   id            Int      @id @default(autoincrement())
   name          String
@@ -69,6 +76,7 @@ model Company {
   license     License?
   settings    Settings?
   apiKey      ApiKeyPool?
+  googleCalendarCredential GoogleCalendarCredential?
 
   planChangeRequests PlanChangeRequest[]
 }
@@ -150,9 +158,45 @@ model Settings {
 
   estimateTerms    String?
 
+  reservationSlotMinutes     Int @default(60)
+  reservationLeadHours       Int @default(24)
+  reservationMaxAdvanceDays  Int @default(30)
+
   createdAt        DateTime  @default(now())
 
   updatedAt        DateTime  @updatedAt
+}
+
+model GoogleCalendarCredential {
+  id                   Int       @id @default(autoincrement())
+
+  companyId            Int       @unique
+  company              Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  calendarId           String?
+  refreshToken         String
+  accessToken          String?
+  accessTokenExpiresAt DateTime?
+  connectedEmail       String?
+
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+model BusinessHours {
+  id        Int      @id @default(autoincrement())
+
+  weekday   Int      @unique
+  isClosed  Boolean  @default(false)
+  startTime String?
+  endTime   String?
+}
+
+model ClosedDate {
+  id     Int      @id @default(autoincrement())
+
+  date   DateTime @unique @db.Date
+  reason String?
 }
 
 model FeeRate {
@@ -186,6 +230,7 @@ model Customer {
   updatedAt       DateTime @updatedAt
 
   vehicles        Vehicle[]
+  reservations    Reservation[]
 }
 
 model Vehicle {
@@ -243,6 +288,7 @@ model Vehicle {
 
   serviceHistories   ServiceHistory[]
   estimates          Estimate[]
+  reservations       Reservation[]
 }
 
 model ServiceHistory {
@@ -296,4 +342,29 @@ model EstimateItem {
 
   name        String
   cost        Int       @default(0)
+}
+
+model Reservation {
+  id              Int               @id @default(autoincrement())
+
+  customerId      Int
+  customer        Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  vehicleId       Int?
+  vehicle         Vehicle?          @relation(fields: [vehicleId], references: [id])
+
+  status          ReservationStatus @default(PENDING)
+
+  scheduledStart  DateTime
+  scheduledEnd    DateTime
+
+  staffNote       String?
+  declineReason   String?
+
+  icsToken        String            @unique
+  googleEventId   String?
+  reminderSentAt  DateTime?
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 }

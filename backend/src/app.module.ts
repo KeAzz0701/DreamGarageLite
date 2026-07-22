@@ -1,11 +1,14 @@
 // backend/src/app.module.ts
 
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { AppController } from './app.controller';
 
 import { PrismaModule } from './prisma/prisma.module';
+import { TenantModule } from './tenant/tenant.module';
+import { AuthModule } from './auth/auth.module';
+import { TenantMiddleware } from './auth/tenant.middleware';
 
 import { GeminiModule } from './gemini/gemini.module';
 import { OcrModule } from './ocr/ocr.module';
@@ -22,12 +25,16 @@ import { ServiceHistoryModule } from './service-history/service-history.module';
 import { EstimateModule } from './estimate/estimate.module';
 import { ExportModule } from './export/export.module';
 import { FeeRateModule } from './fee-rate/fee-rate.module';
+import { ReservationModule } from './reservation/reservation.module';
+import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
 
+    TenantModule,
     PrismaModule,
+    AuthModule,
 
     GeminiModule,
     OcrModule,
@@ -44,7 +51,13 @@ import { FeeRateModule } from './fee-rate/fee-rate.module';
     EstimateModule,
     ExportModule,
     FeeRateModule,
+    ReservationModule,
+    GoogleCalendarModule,
   ],
   controllers: [AppController],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(TenantMiddleware).forRoutes('*');
+  }
+}
