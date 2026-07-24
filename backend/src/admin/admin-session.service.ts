@@ -17,16 +17,27 @@ export class AdminSessionService {
     return secret;
   }
 
-  sign(): string {
-    return jwt.sign({ admin: true }, this.secret, { expiresIn: '7d' });
+  sign(adminUser?: { id: number; username: string }): string {
+    return jwt.sign(
+      { admin: true, adminUserId: adminUser?.id, username: adminUser?.username },
+      this.secret,
+      { expiresIn: '7d' },
+    );
   }
 
-  verify(token: string): boolean {
+  verify(token: string): { adminUserId?: number; username?: string } | null {
     try {
-      const payload = jwt.verify(token, this.secret) as { admin?: boolean };
-      return payload.admin === true;
+      const payload = jwt.verify(token, this.secret) as {
+        admin?: boolean;
+        adminUserId?: number;
+        username?: string;
+      };
+
+      if (payload.admin !== true) return null;
+
+      return { adminUserId: payload.adminUserId, username: payload.username };
     } catch {
-      return false;
+      return null;
     }
   }
 }

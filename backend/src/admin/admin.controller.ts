@@ -3,21 +3,26 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator';
 import { AdminService } from './admin.service';
 import { AdminSessionService, ADMIN_SESSION_COOKIE } from './admin-session.service';
 import { AdminAuthGuard } from './admin-auth.guard';
+import { LoginRateLimitGuard } from '../common/login-rate-limit.guard';
 
 const isProd = process.env.NODE_ENV === 'production';
+
+type AdminRequest = Request & { admin?: { adminUserId?: number; username?: string } };
 
 @Public()
 @Controller('admin')
@@ -27,14 +32,15 @@ export class AdminController {
     private readonly adminSessionService: AdminSessionService,
   ) {}
 
+  @UseGuards(LoginRateLimitGuard)
   @Post('login')
   async login(
-    @Body() body: { password: string },
+    @Body() body: { username?: string; password: string },
     @Res({ passthrough: true }) res: Response,
   ) {
-    this.adminService.login(body?.password ?? '');
+    const adminUser = await this.adminService.login(body?.username, body?.password ?? '');
 
-    const token = this.adminSessionService.sign();
+    const token = this.adminSessionService.sign(adminUser ?? undefined);
 
     res.cookie(ADMIN_SESSION_COOKIE, token, {
       httpOnly: true,
@@ -55,8 +61,8 @@ export class AdminController {
 
   @UseGuards(AdminAuthGuard)
   @Get('me')
-  async me() {
-    return { ok: true };
+  async me(@Req() req: AdminRequest) {
+    return { ok: true, username: req.admin?.username ?? null };
   }
 
   @UseGuards(AdminAuthGuard)
@@ -84,5 +90,50 @@ export class AdminController {
   @Post('companies/:id/reset-password')
   async resetPassword(@Param('id', ParseIntPipe) id: number) {
     return this.adminService.resetPassword(id);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Get('users')
+  async listAdminUsers() {
+    return this.adminService.listAdminUsers();
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post('users')
+  async createAdminUser(@Body() body: { username: string; displayName?: string }) {
+    return this.adminService.createAdminUser(body?.username, body?.displayName);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post('users/:id/reset-password')
+  async resetAdminUserPassword(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.resetAdminUserPassword(id);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Delete('users/:id')
+  async deleteAdminUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: AdminRequest,
+  ) {
+    return this.adminService.deleteAdminUser(id, req.admin?.adminUserId);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Get('api-keys')
+  async listApiKeys() {
+    return this.adminService.listApiKeys();
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post('api-keys')
+  async addApiKey(@Body() body: { apiKey: string; tier?: string }) {
+    return this.adminService.addApiKey(body?.apiKey, body?.tier);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Delete('api-keys/:id/assignment')
+  async unassignApiKey(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.unassignApiKey(id);
   }
 }

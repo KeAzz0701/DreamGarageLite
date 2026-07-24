@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "ApiKeyPool" ADD COLUMN     "tier" TEXT NOT NULL DEFAULT 'FREE';

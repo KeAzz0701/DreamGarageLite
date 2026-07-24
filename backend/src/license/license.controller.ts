@@ -89,10 +89,11 @@ export class LicenseController {
 
   @Post('api-keys')
   async addApiKey(
-    @Body() body: { apiKey: string },
+    @Body() body: { apiKey: string; tier?: 'FREE' | 'PAID' },
   ) {
     return this.licenseService.addApiKeyToPool(
       body.apiKey,
+      body.tier,
     );
   }
 

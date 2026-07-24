@@ -22,6 +22,7 @@ import { execSync } from 'node:child_process';
 import { Client } from 'pg';
 import bcrypt from 'bcrypt';
 import { PrismaClient as MasterPrismaClient } from '.prisma/master-client';
+import { PrismaClient as OperationalPrismaClient } from '@prisma/client';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PASSWORD_CHARS =
@@ -91,6 +92,19 @@ async function main() {
       env: { ...process.env, DATABASE_URL: newDbUrl },
       stdio: 'inherit',
     });
+
+    // (2.5) 新しいテナントDBに会社情報の初期行を作る
+    const tenantPrisma = new OperationalPrismaClient({
+      datasources: { db: { url: newDbUrl } },
+    });
+
+    try {
+      await tenantPrisma.company.create({
+        data: { name: displayName, companyName: displayName },
+      });
+    } finally {
+      await tenantPrisma.$disconnect();
+    }
 
     // (3) ログイン情報を発行してマスターDBへ登録
     const password = randomString(PASSWORD_CHARS, 12);

@@ -8,6 +8,8 @@ import { api, extractErrorMessage } from '@/lib/api';
 type Reservation = {
   id: number;
   status: 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'CANCELLED';
+  category: string | null;
+  needsLoanerCar: boolean | null;
   scheduledStart: string;
   scheduledEnd: string;
   staffNote: string | null;
@@ -27,6 +29,8 @@ type BusinessHour = {
   isClosed: boolean;
   startTime: string | null;
   endTime: string | null;
+  breakStartTime: string | null;
+  breakEndTime: string | null;
 };
 
 type ClosedDate = {
@@ -196,6 +200,10 @@ export default function ReservationsPage() {
               <div className="flex justify-between items-center">
                 <div>
                   <span className="mono text-xs text-[var(--muted)]">{fmt(r.scheduledStart)}</span>{' '}
+                  {r.category && <span className="expbadge exp-warn mr-2">{r.category}</span>}
+                  {r.needsLoanerCar === true && (
+                    <span className="expbadge exp-danger mr-2">🚗 代車必要</span>
+                  )}
                   <span className="font-semibold">{r.customer?.customerName ?? '不明な顧客'}</span>
                   {r.vehicle && (
                     <span className="ml-2 text-xs text-[var(--muted)]">
@@ -228,6 +236,10 @@ export default function ReservationsPage() {
               <div className="flex justify-between items-center">
                 <div>
                   <span className="mono text-xs text-[var(--muted)]">{fmt(r.scheduledStart)}</span>{' '}
+                  {r.category && <span className="expbadge exp-warn mr-2">{r.category}</span>}
+                  {r.needsLoanerCar === true && (
+                    <span className="expbadge exp-danger mr-2">🚗 代車必要</span>
+                  )}
                   <span className="font-semibold">{r.customer?.customerName ?? '不明な顧客'}</span>
                   {r.vehicle && (
                     <span className="ml-2 text-xs text-[var(--muted)]">
@@ -294,7 +306,7 @@ export default function ReservationsPage() {
               </label>
 
               {!h.isClosed && (
-                <div className="flex gap-2 items-center">
+                <div className="flex flex-wrap gap-2 items-center">
                   <input
                     type="time"
                     className="input"
@@ -307,6 +319,20 @@ export default function ReservationsPage() {
                     className="input"
                     value={h.endTime ?? ''}
                     onChange={(e) => updateHour(h.weekday, { endTime: e.target.value })}
+                  />
+                  <span className="text-xs text-[var(--muted)] ml-2">休憩(任意)</span>
+                  <input
+                    type="time"
+                    className="input"
+                    value={h.breakStartTime ?? ''}
+                    onChange={(e) => updateHour(h.weekday, { breakStartTime: e.target.value || null })}
+                  />
+                  〜
+                  <input
+                    type="time"
+                    className="input"
+                    value={h.breakEndTime ?? ''}
+                    onChange={(e) => updateHour(h.weekday, { breakEndTime: e.target.value || null })}
                   />
                 </div>
               )}

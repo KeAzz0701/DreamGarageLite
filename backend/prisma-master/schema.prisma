@@ -23,7 +23,79 @@ model CompanyAccount {
   lineChannelAccessToken String?
   lineDestinationUserId  String?  @unique
 
+  staffJoinCode String? @unique
+
   isActive     Boolean  @default(true)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  apiKey       ApiKeyPool?
+  lineLinks    LineCompanyLink[]
+  staffLineLinks LineStaffLink[]
+}
+
+// 全社共有のGemini APIキープール。会社ごとにDBが分かれているため、
+// このキー管理だけは会社を横断できるようマスターDB側に置く。
+model ApiKeyPool {
+  id               Int             @id @default(autoincrement())
+
+  provider         String          @default("GEMINI")
+  tier             String          @default("FREE")
+
+  apiKey           String          @unique
+
+  companyAccountId Int?            @unique
+  companyAccount   CompanyAccount? @relation(fields: [companyAccountId], references: [id])
+
+  assignedAt       DateTime?
+
+  createdAt        DateTime        @default(now())
+}
+
+// 全社共有のLINE公式アカウント経由で、1人のLINEユーザーが複数社と連携できるようにする
+// 横断インデックス。実際の顧客データ(Customer)は各社のテナントDBに残したまま、
+// 「このLINEユーザーはどの会社と連携しているか」だけをここで引く。
+model LineCompanyLink {
+  id               Int            @id @default(autoincrement())
+
+  lineUserId       String
+
+  companyAccountId Int
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id])
+
+  tenantCustomerId Int
+
+  linkedAt         DateTime       @default(now())
+  lastActiveAt     DateTime       @default(now())
+
+  @@unique([lineUserId, companyAccountId])
+}
+
+// 社員用のLINE連携。会社に1つの参加コード(staffJoinCode)を共有して使う。
+// 顧客(LineCompanyLink)とは別枠で、毎朝の一括通知の送信先として使う。
+model LineStaffLink {
+  id               Int            @id @default(autoincrement())
+
+  lineUserId       String
+
+  companyAccountId Int
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id])
+
+  joinedAt         DateTime       @default(now())
+
+  @@unique([lineUserId, companyAccountId])
+}
+
+// 運営管理画面(/admin)にログインする担当者アカウント。ADMIN_PASSWORD(共有パスワード)の
+// 代わりに、担当者ごとの個別ログインを可能にする。
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+
+  username     String   @unique
+  passwordHash String
+
+  displayName  String?
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

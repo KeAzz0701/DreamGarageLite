@@ -8,6 +8,8 @@ import { useRouter } from 'next/navigation';
 import { api, apiBaseUrl } from '@/lib/api';
 import GoogleCalendarIntegrationCard from '@/components/settings/GoogleCalendarIntegrationCard';
 
+const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID;
+
 const PLAN_ORDER = ['FREE', 'LITE', 'STANDARD', 'ENTERPRISE'];
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -28,6 +30,7 @@ export default function SettingsPage() {
   const [planRequests, setPlanRequests] = useState<any[]>([]);
   const [processingRequest, setProcessingRequest] = useState<number | null>(null);
   const [feeRates, setFeeRates] = useState<any[]>([]);
+  const [staffJoinCode, setStaffJoinCode] = useState('');
 
   useEffect(() => {
     load();
@@ -40,11 +43,13 @@ export default function SettingsPage() {
 
     if (!companyJson) return;
 
-    const licenseJson = await api<any>(
-      `/license/${companyJson.license.licenseKey}`,
-    );
+    if (companyJson.license?.licenseKey) {
+      const licenseJson = await api<any>(
+        `/license/${companyJson.license.licenseKey}`,
+      );
 
-    setLicense(licenseJson);
+      setLicense(licenseJson);
+    }
 
     const settingsJson = await api<any>(
       `/settings/${companyJson.id}`,
@@ -66,6 +71,9 @@ export default function SettingsPage() {
 
     const rates = await api<any[]>('/fee-rates');
     setFeeRates(rates);
+
+    const staffLineInfo = await api<{ joinCode: string }>('/company/staff-line-info');
+    setStaffJoinCode(staffLineInfo.joinCode);
   }
 
   function goToPaymentScreen(plan: string) {
@@ -177,128 +185,35 @@ export default function SettingsPage() {
         </a>
       </div>
 
+      <div className="panel mb-4">
+        <h2 className="disp text-xl mb-3">社員用LINE通知</h2>
+        <p className="note mb-3">
+          このQRコードを社員のLINEで読み取っていただくと、毎朝6時ごろに本日のご予約と、車検満了日が2ヶ月以内のお客様一覧(お名前・車両名・電話番号・住所)が届きます。
+          お客様用の連携コードとは別枠なので、お客様には表示しないでください。
+        </p>
+
+        {staffJoinCode && (
+          LINE_BASIC_ID ? (
+            <div className="text-center">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                  `https://line.me/R/oaMessage/${LINE_BASIC_ID}/?${encodeURIComponent('GKSTAFF-' + staffJoinCode)}`,
+                )}`}
+                alt="社員用LINE参加QRコード"
+                className="mx-auto"
+                style={{ width: 180, height: 180 }}
+              />
+              <div className="mono mt-2 text-sm">GKSTAFF-{staffJoinCode}</div>
+            </div>
+          ) : (
+            <div className="text-sm">
+              参加コード：<span className="mono font-bold">GKSTAFF-{staffJoinCode}</span>
+            </div>
+          )
+        )}
+      </div>
+
       <GoogleCalendarIntegrationCard />
-
-      {planInfo && (
-        <div className="panel mb-4">
-          <h2 className="disp text-xl mb-3">料金プラン</h2>
-
-          {planInfo.current && (
-            <div className="empty mb-4 text-left">
-              現在：<span className="font-bold text-[var(--ink)]">{planInfo.current.limits.label}</span>
-              {' '}(¥{planInfo.current.limits.priceYen.toLocaleString()}/月)
-              　OCR利用：{planInfo.current.usedOcr}/{planInfo.current.limits.maxOcrPerMonth}件
-            </div>
-          )}
-
-          <div className="grid2">
-            {PLAN_ORDER.map((key) => {
-              const plan = planInfo.plans[key];
-              const isCurrent = planInfo.current?.plan === key;
-
-              return (
-                <div key={key} className="veh">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-bold">{plan.label}</div>
-                      <div className="mono text-lg">
-                        ¥{plan.priceYen.toLocaleString()}
-                        <span className="text-xs text-[var(--muted)]">/月</span>
-                      </div>
-                    </div>
-
-                    {isCurrent && <span className="expbadge exp-ok">利用中</span>}
-                  </div>
-
-                  <div className="mt-2 text-xs text-[var(--muted)] space-y-1">
-                    <div>OCR 月{plan.maxOcrPerMonth}件</div>
-                    <div>顧客登録 {plan.maxCustomers ? `${plan.maxCustomers}件まで` : '無制限'}</div>
-                    <div>{plan.predictiveMaintenance ? '✓' : '✕'} タイヤ/オイル予測通知</div>
-                    <div>{plan.aiChat ? '✓' : '✕'} LINE AIチャット</div>
-                    <div>{plan.webReservation ? '✓' : '✕'} Web予約</div>
-                  </div>
-
-                  {!isCurrent && (
-                    <button
-                      onClick={() => goToPaymentScreen(key)}
-                      className="btn btn-blue btn-sm mt-3 w-full justify-center"
-                    >
-                      このプランに切り替える
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {planInfo.plans.DEMO && (
-            <div className="veh mt-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="font-bold">
-                    🎁 {planInfo.plans.DEMO.label}
-                    <span className="ml-2 text-xs text-[var(--muted)]">
-                      （先着{planInfo.demoSlots.capacity}社限定・全機能無料）
-                    </span>
-                  </div>
-                  <div className="text-xs text-[var(--muted)] mt-1">
-                    残り枠：{Math.max(planInfo.demoSlots.capacity - planInfo.demoSlots.used, 0)}
-                    /{planInfo.demoSlots.capacity}
-                  </div>
-                </div>
-
-                {planInfo.current?.plan === 'DEMO' && (
-                  <span className="expbadge exp-ok">利用中</span>
-                )}
-              </div>
-
-              {planInfo.current?.plan !== 'DEMO' && (
-                <button
-                  onClick={switchToDemo}
-                  disabled={planInfo.demoSlots.used >= planInfo.demoSlots.capacity}
-                  className="btn btn-primary btn-sm mt-3"
-                >
-                  {planInfo.demoSlots.used >= planInfo.demoSlots.capacity
-                    ? '満枠です'
-                    : 'デモプレイ版に切り替える'}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {planRequests.some((r) => r.status === 'PENDING') && (
-        <div className="panel mb-4">
-          <h2 className="disp text-xl mb-3">承認待ちのプラン変更申請</h2>
-
-          {planRequests
-            .filter((r) => r.status === 'PENDING')
-            .map((r) => (
-              <div key={r.id} className="minirow">
-                <span className="l">
-                  {r.targetPlan}プランへ変更（{PAYMENT_METHOD_LABELS[r.paymentMethod]}）
-                </span>
-                <span className="r flex gap-2">
-                  <button
-                    onClick={() => approveRequest(r.id)}
-                    disabled={processingRequest === r.id}
-                    className="btn btn-primary btn-sm"
-                  >
-                    入金確認・承認
-                  </button>
-                  <button
-                    onClick={() => rejectRequest(r.id)}
-                    disabled={processingRequest === r.id}
-                    className="btn btn-ghost btn-sm"
-                  >
-                    却下
-                  </button>
-                </span>
-              </div>
-            ))}
-        </div>
-      )}
 
       <div className="panel space-y-5 mb-4">
         <h2 className="disp text-xl">会社情報（見積書・請求書に使用）</h2>
@@ -483,6 +398,23 @@ export default function SettingsPage() {
         </label>
 
         <label className="field-label">
+          工賃(1時間あたり)
+          <input
+            className="input"
+            type="number"
+            step="100"
+            placeholder="例: 7500"
+            value={settings.laborRatePerHour ?? ''}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                laborRatePerHour: e.target.value === '' ? null : Number(e.target.value),
+              })
+            }
+          />
+        </label>
+
+        <label className="field-label">
           API URL
           <input
             className="input"
@@ -542,6 +474,127 @@ export default function SettingsPage() {
           保存
         </button>
       </div>
+
+      {planInfo && (
+        <div className="panel mb-4">
+          <h2 className="disp text-xl mb-3">料金プラン</h2>
+
+          {planInfo.current && (
+            <div className="empty mb-4 text-left">
+              現在：<span className="font-bold text-[var(--ink)]">{planInfo.current.limits.label}</span>
+              {' '}(¥{planInfo.current.limits.priceYen.toLocaleString()}/月)
+              　OCR利用：{planInfo.current.usedOcr}/{planInfo.current.limits.maxOcrPerMonth}件
+            </div>
+          )}
+
+          <div className="grid2">
+            {PLAN_ORDER.map((key) => {
+              const plan = planInfo.plans[key];
+              const isCurrent = planInfo.current?.plan === key;
+
+              return (
+                <div key={key} className="veh">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-bold">{plan.label}</div>
+                      <div className="mono text-lg">
+                        ¥{plan.priceYen.toLocaleString()}
+                        <span className="text-xs text-[var(--muted)]">/月</span>
+                      </div>
+                    </div>
+
+                    {isCurrent && <span className="expbadge exp-ok">利用中</span>}
+                  </div>
+
+                  <div className="mt-2 text-xs text-[var(--muted)] space-y-1">
+                    <div>OCR 月{plan.maxOcrPerMonth}件</div>
+                    <div>顧客登録 {plan.maxCustomers ? `${plan.maxCustomers}件まで` : '無制限'}</div>
+                    <div>{plan.predictiveMaintenance ? '✓' : '✕'} タイヤ/オイル予測通知</div>
+                    <div>{plan.aiChat ? '✓' : '✕'} LINE AIチャット</div>
+                    <div>{plan.webReservation ? '✓' : '✕'} Web予約</div>
+                  </div>
+
+                  {!isCurrent && (
+                    <button
+                      onClick={() => goToPaymentScreen(key)}
+                      className="btn btn-blue btn-sm mt-3 w-full justify-center"
+                    >
+                      このプランに切り替える
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {planInfo.plans.DEMO && (
+            <div className="veh mt-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="font-bold">
+                    🎁 {planInfo.plans.DEMO.label}
+                    <span className="ml-2 text-xs text-[var(--muted)]">
+                      （先着{planInfo.demoSlots.capacity}社限定・全機能無料）
+                    </span>
+                  </div>
+                  <div className="text-xs text-[var(--muted)] mt-1">
+                    残り枠：{Math.max(planInfo.demoSlots.capacity - planInfo.demoSlots.used, 0)}
+                    /{planInfo.demoSlots.capacity}
+                  </div>
+                </div>
+
+                {planInfo.current?.plan === 'DEMO' && (
+                  <span className="expbadge exp-ok">利用中</span>
+                )}
+              </div>
+
+              {planInfo.current?.plan !== 'DEMO' && (
+                <button
+                  onClick={switchToDemo}
+                  disabled={planInfo.demoSlots.used >= planInfo.demoSlots.capacity}
+                  className="btn btn-primary btn-sm mt-3"
+                >
+                  {planInfo.demoSlots.used >= planInfo.demoSlots.capacity
+                    ? '満枠です'
+                    : 'デモプレイ版に切り替える'}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {planRequests.some((r) => r.status === 'PENDING') && (
+        <div className="panel mb-4">
+          <h2 className="disp text-xl mb-3">承認待ちのプラン変更申請</h2>
+
+          {planRequests
+            .filter((r) => r.status === 'PENDING')
+            .map((r) => (
+              <div key={r.id} className="minirow">
+                <span className="l">
+                  {r.targetPlan}プランへ変更（{PAYMENT_METHOD_LABELS[r.paymentMethod]}）
+                </span>
+                <span className="r flex gap-2">
+                  <button
+                    onClick={() => approveRequest(r.id)}
+                    disabled={processingRequest === r.id}
+                    className="btn btn-primary btn-sm"
+                  >
+                    入金確認・承認
+                  </button>
+                  <button
+                    onClick={() => rejectRequest(r.id)}
+                    disabled={processingRequest === r.id}
+                    className="btn btn-ghost btn-sm"
+                  >
+                    却下
+                  </button>
+                </span>
+              </div>
+            ))}
+        </div>
+      )}
     </>
   );
 }

@@ -9,6 +9,7 @@ import { api, extractErrorMessage } from '@/lib/api';
 export default function AdminLoginPage() {
   const router = useRouter();
 
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -23,7 +24,7 @@ export default function AdminLoginPage() {
     try {
       await api('/admin/login', {
         method: 'POST',
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username: username.trim() || undefined, password }),
       });
 
       router.replace('/admin');
@@ -45,10 +46,20 @@ export default function AdminLoginPage() {
           </p>
         </div>
 
+        <input
+          className="input mb-4 text-center text-xl"
+          placeholder="ユーザー名(担当者アカウントのみ)"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+        />
+
         <div className="relative mb-6">
           <input
             className="input pr-12 text-center text-xl"
-            placeholder="管理者パスワード"
+            placeholder="パスワード"
             type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}

@@ -263,6 +263,7 @@ export default function CustomerDetailPage() {
           <div>
             <p className="note mb-3">
               下のQRコードをお客様のLINEで読み取っていただくと、友だち追加と連携コードの送信画面が開きます。あとは送信ボタンを押すだけで連携完了です。
+              他の店舗と既に連携済みのLINEアカウントでも、そのまま追加で連携できます。
             </p>
 
             {LINE_BASIC_ID ? (

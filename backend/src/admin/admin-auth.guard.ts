@@ -15,10 +15,13 @@ export class AdminAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const token = request.cookies?.[ADMIN_SESSION_COOKIE];
+    const payload = token ? this.adminSessionService.verify(token) : null;
 
-    if (!token || !this.adminSessionService.verify(token)) {
+    if (!payload) {
       throw new UnauthorizedException('管理者ログインが必要です。');
     }
+
+    request.admin = payload;
 
     return true;
   }

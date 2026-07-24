@@ -157,6 +157,55 @@ commonModelName には、carName（車名/メーカー名）と model（型式�
     return response.text ?? '';
   }
 
+  /** スタッフの自由文(例:「それ終わってる」)が、車検リマインド候補のどの車両を指しているか判定する */
+  async matchDismissedVehicle(
+    candidates: { vehicleId: number; customerName: string; vehicleLabel: string }[],
+    message: string,
+    apiKey?: string,
+  ): Promise<number | null> {
+    if (candidates.length === 0) return null;
+
+    const ai = new GoogleGenAI({
+      apiKey: apiKey || process.env.GOOGLE_API_KEY!,
+    });
+
+    const list = candidates
+      .map((c) => `- vehicleId=${c.vehicleId}: ${c.customerName}様 ${c.vehicleLabel}`)
+      .join('\n');
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          text: `
+あなたは自動車整備工場の車検リマインド管理を手伝うアシスタントです。
+スタッフから「それ終わってる」のように、リマインド対象の中の1件が対応済みだと伝えるメッセージが届きます。
+以下の候補リストと、スタッフのメッセージを照らし合わせて、該当する車両のvehicleIdを1つだけ判定してください。
+名前や車種名が明示されていなくても、直前の文脈上1件しか該当しないと考えられる場合は、その1件を選んでください。
+複数該当しうる場合や、どれにも該当しないと判断した場合はnullにしてください。
+
+候補リスト:
+${list}
+
+スタッフのメッセージ: 「${message}」
+
+必ずJSONのみで回答してください。
+{
+  "vehicleId": 0
+}
+          `,
+        },
+      ],
+    });
+
+    const json = JSON.parse(this.extractJsonText(response.text ?? '{}'));
+    const vehicleId = Number(json.vehicleId);
+
+    if (!vehicleId) return null;
+
+    return candidates.some((c) => c.vehicleId === vehicleId) ? vehicleId : null;
+  }
+
   private extractJsonText(text: string) {
     text = text
       .replace(/```json/gi, '')

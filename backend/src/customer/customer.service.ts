@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { getEffectivePlanLimits } from '../common/plans';
 import { LineService } from '../line/line.service';
+import { TenantContextService } from '../tenant/tenant-context.service';
 
 interface FindOrCreateCustomerDto {
   customerName: string;
@@ -22,6 +23,7 @@ export class CustomerService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => LineService))
     private readonly lineService: LineService,
+    private readonly tenantContext: TenantContextService,
   ) {}
 
   async findOrCreate(data: FindOrCreateCustomerDto) {
@@ -154,11 +156,16 @@ export class CustomerService {
       throw new BadRequestException('Customer not found');
     }
 
-    if (customer.lineLinkToken) {
+    // 全社共有のLINE公式アカウント経由でどの会社宛てのコードか判別できるよう、
+    // 会社コードをトークンに埋め込む(GK-<companyCode>-XXXXXX)
+    const companyCode = this.tenantContext.current()?.company.companyCode;
+
+    if (customer.lineLinkToken?.startsWith(`GK-${companyCode}-`)) {
       return customer.lineLinkToken;
     }
 
-    const token = `GK-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const token = companyCode ? `GK-${companyCode}-${suffix}` : `GK-${suffix}`;
 
     await this.prisma.customer.update({
       where: { id },

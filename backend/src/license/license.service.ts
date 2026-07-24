@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Plan, License, PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MasterPrismaService } from '../prisma/master-prisma.service';
+import { TenantContextService } from '../tenant/tenant-context.service';
 import {
   PLAN_LIMITS,
   getEffectivePlanLimits,
@@ -19,10 +21,19 @@ function currentMonthKey() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+type KeyTier = 'FREE' | 'PAID';
+
+/** 有料プランに切り替わったら、上位(PAID)のAPIキーを優先して割り当てる */
+function tierForPlan(plan: Plan): KeyTier {
+  return plan === 'FREE' || plan === 'DEMO' ? 'FREE' : 'PAID';
+}
+
 @Injectable()
 export class LicenseService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly masterPrisma: MasterPrismaService,
+    private readonly tenantContext: TenantContextService,
   ) {}
 
   async getLicense() {
@@ -82,66 +93,98 @@ export class LicenseService {
 
     });
 
-    await this.assignApiKey(company.id);
+    const companyAccountId = this.tenantContext.current()?.company.id;
+
+    if (companyAccountId) {
+      await this.assignApiKey(companyAccountId, tierForPlan(license.plan as Plan));
+    }
 
     return license;
 
   }
 
-  /** 会社にAPIキーが未割り当てなら、プールから未使用のキーを1件自動で割り当てる */
-  private async assignApiKey(companyId: number) {
+  /**
+   * 会社にAPIキーを割り当てる。APIキーは会社ごとにDBが分かれているため
+   * マスターDB側の共有プールで管理する(companyAccountIdはテナントの
+   * company.idではなく、マスターDBのCompanyAccount.id)。
+   * すでに割り当て済みで、希望のtier(有料プラン等)に満たない場合は、
+   * 該当tierの空きキーがあれば入れ替える。
+   */
+  private async assignApiKey(companyAccountId: number, desiredTier: KeyTier = 'FREE') {
 
-    const existing = await this.prisma.apiKeyPool.findUnique({
-      where: {
-        companyId,
-      },
+    const existing = await this.masterPrisma.apiKeyPool.findUnique({
+      where: { companyAccountId },
     });
 
+    if (existing && (existing.tier === desiredTier || desiredTier === 'FREE')) {
+      return existing;
+    }
+
+    // 既存より上位のtierへ入れ替えられるか探す
+    const upgrade = await this.masterPrisma.apiKeyPool.findFirst({
+      where: { companyAccountId: null, tier: desiredTier },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (upgrade) {
+      if (existing) {
+        await this.masterPrisma.apiKeyPool.update({
+          where: { id: existing.id },
+          data: { companyAccountId: null, assignedAt: null },
+        });
+      }
+
+      return this.masterPrisma.apiKeyPool.update({
+        where: { id: upgrade.id },
+        data: { companyAccountId, assignedAt: new Date() },
+      });
+    }
+
+    // 希望tierの在庫が無い場合、既存の割り当てがあればそのまま維持する
     if (existing) {
       return existing;
     }
 
-    const unassigned = await this.prisma.apiKeyPool.findFirst({
-      where: {
-        companyId: null,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
+    // 何も割り当てが無い場合は、tierを問わず空いているキーを割り当てる
+    const anyUnassigned = await this.masterPrisma.apiKeyPool.findFirst({
+      where: { companyAccountId: null },
+      orderBy: { createdAt: 'asc' },
     });
 
-    if (!unassigned) {
+    if (!anyUnassigned) {
       return null;
     }
 
-    return this.prisma.apiKeyPool.update({
-      where: {
-        id: unassigned.id,
-      },
-      data: {
-        companyId,
-        assignedAt: new Date(),
-      },
+    return this.masterPrisma.apiKeyPool.update({
+      where: { id: anyUnassigned.id },
+      data: { companyAccountId, assignedAt: new Date() },
     });
 
   }
 
+  /** companyIdは呼び出し元の互換のため残しているが、実際の割り当ては
+   * 現在のテナントコンテキスト(マスターDBのCompanyAccount)を使って引く */
   async getApiKey(companyId: number) {
 
-    const assignment = await this.prisma.apiKeyPool.findUnique({
-      where: {
-        companyId,
-      },
+    const companyAccountId = this.tenantContext.current()?.company.id;
+
+    if (!companyAccountId) {
+      return null;
+    }
+
+    const assignment = await this.masterPrisma.apiKeyPool.findUnique({
+      where: { companyAccountId },
     });
 
     return assignment?.apiKey ?? null;
 
   }
 
-  async addApiKeyToPool(apiKey: string) {
-    return this.prisma.apiKeyPool.create({
+  async addApiKeyToPool(apiKey: string, tier: KeyTier = 'FREE') {
+    return this.masterPrisma.apiKeyPool.create({
       data: {
         apiKey,
+        tier,
       },
     });
   }
@@ -307,7 +350,7 @@ export class LicenseService {
       }
     }
 
-    return this.prisma.license.update({
+    const updated = await this.prisma.license.update({
       where: { id: company.license.id },
       data: {
         plan,
@@ -317,6 +360,15 @@ export class LicenseService {
         ).maxOcrPerMonth,
       },
     });
+
+    // 有料プランに切り替わったら、プールに上位キーの空きがあれば入れ替える
+    const companyAccountId = this.tenantContext.current()?.company.id;
+
+    if (companyAccountId) {
+      await this.assignApiKey(companyAccountId, tierForPlan(plan));
+    }
+
+    return updated;
 
   }
 

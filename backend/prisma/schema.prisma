@@ -158,6 +158,8 @@ model Settings {
 
   estimateTerms    String?
 
+  laborRatePerHour Int?
+
   reservationSlotMinutes     Int @default(60)
   reservationLeadHours       Int @default(24)
   reservationMaxAdvanceDays  Int @default(30)
@@ -196,6 +198,8 @@ model BusinessHours {
   isClosed  Boolean  @default(false)
   startTime String?
   endTime   String?
+  breakStartTime String?
+  breakEndTime   String?
 }
 
 model ClosedDate {
@@ -270,6 +274,7 @@ model Vehicle {
 
   firstRegistration  String?
   expirationDate     String?
+  shakenReminderDismissedFor String?
 
   vehicleWeight      String?
   grossWeight        String?
@@ -349,7 +354,7 @@ model ServiceHistoryItem {
   name              String
   cost              Int             @default(0)
 
-  quantity          Int             @default(1)
+  quantity          Float           @default(1)
   unitPrice         Int             @default(0)
   isFee             Boolean         @default(false)
 }
@@ -387,7 +392,7 @@ model EstimateItem {
   name        String
   cost        Int       @default(0)
 
-  quantity    Int       @default(1)
+  quantity    Float     @default(1)
   unitPrice   Int       @default(0)
   isFee       Boolean   @default(false)
 }
@@ -402,6 +407,8 @@ model Reservation {
   vehicle         Vehicle?          @relation(fields: [vehicleId], references: [id])
 
   status          ReservationStatus @default(PENDING)
+  category        String?
+  needsLoanerCar  Boolean?
 
   scheduledStart  DateTime
   scheduledEnd    DateTime

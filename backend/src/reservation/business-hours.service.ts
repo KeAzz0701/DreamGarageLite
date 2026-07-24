@@ -45,6 +45,8 @@ export class BusinessHoursService {
       isClosed: boolean;
       startTime?: string | null;
       endTime?: string | null;
+      breakStartTime?: string | null;
+      breakEndTime?: string | null;
     }[],
   ) {
     await this.prisma.$transaction(
@@ -55,12 +57,16 @@ export class BusinessHoursService {
             isClosed: row.isClosed,
             startTime: row.isClosed ? null : row.startTime,
             endTime: row.isClosed ? null : row.endTime,
+            breakStartTime: row.isClosed ? null : row.breakStartTime || null,
+            breakEndTime: row.isClosed ? null : row.breakEndTime || null,
           },
           create: {
             weekday: row.weekday,
             isClosed: row.isClosed,
             startTime: row.isClosed ? null : row.startTime,
             endTime: row.isClosed ? null : row.endTime,
+            breakStartTime: row.isClosed ? null : row.breakStartTime || null,
+            breakEndTime: row.isClosed ? null : row.breakEndTime || null,
           },
         }),
       ),
@@ -86,5 +92,21 @@ export class BusinessHoursService {
 
   async removeClosedDate(id: number) {
     return this.prisma.closedDate.delete({ where: { id } });
+  }
+
+  /** 指定日が営業日か(定休日・臨時休業日でないか)を判定する */
+  async isBusinessDay(date: Date): Promise<boolean> {
+    const dateOnly = new Date(date);
+    dateOnly.setHours(0, 0, 0, 0);
+
+    const hours = await this.getWeekday(dateOnly.getDay());
+
+    if (!hours || hours.isClosed) return false;
+
+    const closedDate = await this.prisma.closedDate.findUnique({
+      where: { date: dateOnly },
+    });
+
+    return !closedDate;
   }
 }

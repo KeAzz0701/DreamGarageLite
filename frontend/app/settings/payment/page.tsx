@@ -20,12 +20,16 @@ export default function PaymentMethodPage() {
   const targetPlan = searchParams.get('plan') ?? '';
 
   const [companyId, setCompanyId] = useState<number | null>(null);
+  const [settings, setSettings] = useState<any>(null);
   const [selected, setSelected] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    api<any>('/company').then((c) => setCompanyId(c.id));
+    api<any>('/company').then((c) => {
+      setCompanyId(c.id);
+      api<any>(`/settings/${c.id}`).then(setSettings);
+    });
   }, []);
 
   async function submit() {
@@ -66,6 +70,22 @@ export default function PaymentMethodPage() {
             <br />
             店舗にて入金確認後、プランが切り替わります。
           </p>
+
+          {selected === 'BANK_TRANSFER' && settings?.bankName && (
+            <div className="veh mt-4 text-left inline-block">
+              <div className="text-xs text-[var(--muted)] mb-1">お振込み先</div>
+              <div className="text-sm">
+                {settings.bankName}
+                {settings.bankBranchName && ` ${settings.bankBranchName}支店`}
+                {settings.bankAccountType && ` ${settings.bankAccountType}`}
+                {settings.bankAccountNumber && ` ${settings.bankAccountNumber}`}
+              </div>
+              {settings.bankAccountHolder && (
+                <div className="text-sm">名義: {settings.bankAccountHolder}</div>
+              )}
+            </div>
+          )}
+
           <Link href="/settings" className="btn btn-primary mt-4">
             設定に戻る
           </Link>
@@ -118,6 +138,21 @@ export default function PaymentMethodPage() {
             </button>
           ))}
         </div>
+
+        {selected === 'BANK_TRANSFER' && settings?.bankName && (
+          <div className="veh mt-4">
+            <div className="text-xs text-[var(--muted)] mb-1">お振込み先</div>
+            <div className="text-sm">
+              {settings.bankName}
+              {settings.bankBranchName && ` ${settings.bankBranchName}支店`}
+              {settings.bankAccountType && ` ${settings.bankAccountType}`}
+              {settings.bankAccountNumber && ` ${settings.bankAccountNumber}`}
+            </div>
+            {settings.bankAccountHolder && (
+              <div className="text-sm">名義: {settings.bankAccountHolder}</div>
+            )}
+          </div>
+        )}
 
         <button
           onClick={submit}

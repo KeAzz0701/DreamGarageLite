@@ -354,6 +354,14 @@ button.card:hover {
   white-space: nowrap;
 }
 @media (max-width: 640px) {
+  /* iOSはフォーカス中のフォーム要素が16px未満だと自動でズームし、
+     操作後もズームが戻らないことがあるため、モバイルでは16px以上にする */
+  .input,
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
   .shitemrow-detail {
     grid-template-columns: 1fr 1fr;
     row-gap: 4px;

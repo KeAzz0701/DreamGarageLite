@@ -78,6 +78,15 @@ export default function EstimatePrintPage() {
         .print-table th {
           background: #eae7e0;
         }
+        @media screen and (max-width: 560px) {
+          .print-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          .print-table {
+            min-width: 480px;
+          }
+        }
       `}</style>
 
       <div className="no-print mb-4 text-right">

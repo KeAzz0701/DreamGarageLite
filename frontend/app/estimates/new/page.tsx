@@ -9,6 +9,7 @@ import { api, extractErrorMessage } from '@/lib/api';
 import {
   EstimateItemRow,
   emptyEstimateItem,
+  laborEstimateItem,
   type EstimateItemDraft,
 } from '@/components/estimate/EstimateItemRow';
 
@@ -35,10 +36,20 @@ export default function NewEstimatePage() {
   const [items, setItems] = useState<EstimateItemDraft[]>([emptyEstimateItem()]);
   const [suggesting, setSuggesting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [laborRatePerHour, setLaborRatePerHour] = useState<number | null>(null);
 
   useEffect(() => {
     api<any[]>('/vehicle').then(setVehicles).catch(() => {});
     api<any[]>('/customer').then(setCustomers).catch(() => {});
+
+    (async () => {
+      try {
+        const company = await api<any>('/company');
+        if (!company) return;
+        const settings = await api<any>(`/settings/${company.id}`);
+        setLaborRatePerHour(settings?.laborRatePerHour ?? null);
+      } catch {}
+    })();
   }, []);
 
   const filteredVehicles = vehicles.filter((v) => {
@@ -324,12 +335,20 @@ export default function NewEstimatePage() {
           />
         ))}
 
-        <button
-          onClick={() => setItems((prev) => [...prev, emptyEstimateItem()])}
-          className="btn-dashed"
-        >
-          ➕ 項目を追加
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setItems((prev) => [...prev, emptyEstimateItem()])}
+            className="btn-dashed"
+          >
+            ➕ 項目を追加
+          </button>
+          <button
+            onClick={() => setItems((prev) => [...prev, laborEstimateItem(laborRatePerHour)])}
+            className="btn-dashed"
+          >
+            ➕ 工賃を追加
+          </button>
+        </div>
 
         <div className="flex justify-between items-center mt-4 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
           <span className="font-bold">合計</span>

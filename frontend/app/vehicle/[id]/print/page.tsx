@@ -118,6 +118,15 @@ export default function VehiclePrintPage() {
         .print-table th {
           background: #eae7e0;
         }
+        @media screen and (max-width: 560px) {
+          .print-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          .print-table {
+            min-width: 480px;
+          }
+        }
       `}</style>
 
       <div className="no-print mb-4 flex justify-between items-center">
@@ -214,39 +223,41 @@ export default function VehiclePrintPage() {
             <div className="font-bold text-sm mb-1" style={{ color: '#c0392b' }}>
               🔴 赤伝（取消）— {redEntry.date.slice(0, 10)} {redEntry.title}
             </div>
-            <table className="print-table" style={{ color: '#c0392b' }}>
-              <thead>
-                <tr>
-                  <th>項目</th>
-                  <th style={{ width: 50, textAlign: 'center' }}>数量</th>
-                  <th style={{ width: 90, textAlign: 'right' }}>単価</th>
-                  <th style={{ width: 100, textAlign: 'right' }}>金額</th>
-                </tr>
-              </thead>
-              <tbody>
-                {redEntry.items.map((it: any) => (
-                  <tr key={it.id}>
-                    <td style={{ textDecoration: 'line-through' }}>{it.name}</td>
-                    <td style={{ textAlign: 'center' }}>{it.quantity}</td>
-                    <td style={{ textAlign: 'right' }}>¥{it.unitPrice.toLocaleString()}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      -¥{it.cost.toLocaleString()}
+            <div className="print-table-wrap">
+              <table className="print-table" style={{ color: '#c0392b' }}>
+                <thead>
+                  <tr>
+                    <th>項目</th>
+                    <th style={{ width: 50, textAlign: 'center' }}>数量</th>
+                    <th style={{ width: 90, textAlign: 'right' }}>単価</th>
+                    <th style={{ width: 100, textAlign: 'right' }}>金額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {redEntry.items.map((it: any) => (
+                    <tr key={it.id}>
+                      <td style={{ textDecoration: 'line-through' }}>{it.name}</td>
+                      <td style={{ textAlign: 'center' }}>{it.quantity}</td>
+                      <td style={{ textAlign: 'right' }}>¥{it.unitPrice.toLocaleString()}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        -¥{it.cost.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td colSpan={3} className="font-bold">
+                      赤伝合計
+                    </td>
+                    <td className="font-bold mono" style={{ textAlign: 'right' }}>
+                      -¥
+                      {redEntry.items
+                        .reduce((s: number, i: any) => s + i.cost, 0)
+                        .toLocaleString()}
                     </td>
                   </tr>
-                ))}
-                <tr>
-                  <td colSpan={3} className="font-bold">
-                    赤伝合計
-                  </td>
-                  <td className="font-bold mono" style={{ textAlign: 'right' }}>
-                    -¥
-                    {redEntry.items
-                      .reduce((s: number, i: any) => s + i.cost, 0)
-                      .toLocaleString()}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
 
             <div className="font-bold text-sm mt-6 mb-1">
               ⚫ 黒伝（訂正後）— {selectedCorrection.date.slice(0, 10)} {selectedCorrection.title}
@@ -291,41 +302,43 @@ export default function VehiclePrintPage() {
             </div>
           </div>
 
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th>日付</th>
-                <th>作業内容</th>
-                <th style={{ width: 120, textAlign: 'right' }}>金額</th>
-              </tr>
-            </thead>
-            <tbody>
-              {histories.length === 0 ? (
+          <div className="print-table-wrap">
+            <table className="print-table">
+              <thead>
                 <tr>
-                  <td colSpan={3}>整備履歴はまだありません。</td>
+                  <th>日付</th>
+                  <th>作業内容</th>
+                  <th style={{ width: 120, textAlign: 'right' }}>金額</th>
                 </tr>
-              ) : (
-                histories.map((h) => {
-                  const subtotal = h.items.reduce((s: number, i: any) => s + i.cost, 0);
-                  return (
-                    <tr key={h.id}>
-                      <td>{h.date.slice(0, 10)}</td>
-                      <td>{h.title}</td>
-                      <td style={{ textAlign: 'right' }}>¥{subtotal.toLocaleString()}</td>
-                    </tr>
-                  );
-                })
-              )}
-              <tr>
-                <td colSpan={2} className="font-bold">
-                  合計
-                </td>
-                <td className="font-bold mono" style={{ textAlign: 'right' }}>
-                  ¥{salesTotal.toLocaleString()}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {histories.length === 0 ? (
+                  <tr>
+                    <td colSpan={3}>整備履歴はまだありません。</td>
+                  </tr>
+                ) : (
+                  histories.map((h) => {
+                    const subtotal = h.items.reduce((s: number, i: any) => s + i.cost, 0);
+                    return (
+                      <tr key={h.id}>
+                        <td>{h.date.slice(0, 10)}</td>
+                        <td>{h.title}</td>
+                        <td style={{ textAlign: 'right' }}>¥{subtotal.toLocaleString()}</td>
+                      </tr>
+                    );
+                  })
+                )}
+                <tr>
+                  <td colSpan={2} className="font-bold">
+                    合計
+                  </td>
+                  <td className="font-bold mono" style={{ textAlign: 'right' }}>
+                    ¥{salesTotal.toLocaleString()}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </>
       ) : !selected ? (
         <div className="empty">整備履歴がまだないため、納品書・請求書を作成できません。</div>

@@ -32,6 +32,25 @@ function randomIcsToken(companyCode: string, length = 24) {
   return `${companyCode}.${random}`;
 }
 
+function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/** 指定した[startMinutes, endMinutes)が、休憩時間帯と重なるか */
+function overlapsBreak(
+  startMinutes: number,
+  endMinutes: number,
+  hours: { breakStartTime?: string | null; breakEndTime?: string | null },
+): boolean {
+  if (!hours.breakStartTime || !hours.breakEndTime) return false;
+
+  const breakStart = toMinutes(hours.breakStartTime);
+  const breakEnd = toMinutes(hours.breakEndTime);
+
+  return startMinutes < breakEnd && endMinutes > breakStart;
+}
+
 @Injectable()
 export class ReservationService {
   private readonly logger = new Logger(ReservationService.name);
@@ -123,6 +142,10 @@ export class ReservationService {
       if (startMinutes < openMinutes || endMinutes > closeMinutes) {
         return `営業時間(${hours.startTime}〜${hours.endTime})の範囲内でお選びください。`;
       }
+
+      if (overlapsBreak(startMinutes, endMinutes, hours)) {
+        return `休憩時間(${hours.breakStartTime}〜${hours.breakEndTime})は予約できません。`;
+      }
     }
 
     const dateOnly = new Date(start);
@@ -207,6 +230,11 @@ export class ReservationService {
 
       if (overlap) continue;
 
+      const slotStartMinutes = t.getHours() * 60 + t.getMinutes();
+      const slotEndMinutes = slotEnd.getHours() * 60 + slotEnd.getMinutes();
+
+      if (overlapsBreak(slotStartMinutes, slotEndMinutes, hours)) continue;
+
       slots.push({
         start: t,
         end: slotEnd,
@@ -217,7 +245,144 @@ export class ReservationService {
     return slots;
   }
 
-  async createFromLineRequest(customerId: number, start: Date) {
+  /** 指定日の営業時間内の全コマを、空き/埋まりの状態付きで列挙する(LINEの時間帯○×表示用) */
+  async getAllSlotsWithStatus(
+    dateStr: string,
+  ): Promise<{ start: Date; end: Date; label: string; available: boolean }[]> {
+    const { min, max, slotMinutes } = await this.getBookableRange();
+
+    const date = new Date(dateStr);
+    date.setHours(0, 0, 0, 0);
+
+    const hours = await this.businessHoursService.getWeekday(date.getDay());
+
+    if (!hours || hours.isClosed || !hours.startTime || !hours.endTime) {
+      return [];
+    }
+
+    const closedDate = await this.prisma.closedDate.findUnique({ where: { date } });
+
+    if (closedDate) return [];
+
+    const [openH, openM] = hours.startTime.split(':').map(Number);
+    const [closeH, closeM] = hours.endTime.split(':').map(Number);
+
+    const dayStart = new Date(date);
+    dayStart.setHours(openH, openM, 0, 0);
+
+    const dayEnd = new Date(date);
+    dayEnd.setHours(closeH, closeM, 0, 0);
+
+    const nextDate = new Date(date);
+    nextDate.setDate(nextDate.getDate() + 1);
+
+    const existing = await this.prisma.reservation.findMany({
+      where: {
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        scheduledStart: { gte: date, lt: nextDate },
+      },
+    });
+
+    const slots: { start: Date; end: Date; label: string; available: boolean }[] = [];
+
+    for (
+      let t = new Date(dayStart);
+      t.getTime() + slotMinutes * 60000 <= dayEnd.getTime();
+      t = new Date(t.getTime() + slotMinutes * 60000)
+    ) {
+      const slotEnd = new Date(t.getTime() + slotMinutes * 60000);
+      const slotStartMinutes = t.getHours() * 60 + t.getMinutes();
+      const slotEndMinutes = slotEnd.getHours() * 60 + slotEnd.getMinutes();
+
+      const overlapReservation = existing.some(
+        (r) => t < r.scheduledEnd && slotEnd > r.scheduledStart,
+      );
+      const inBreak = overlapsBreak(slotStartMinutes, slotEndMinutes, hours);
+      const outOfRange = t < min || t > max;
+
+      slots.push({
+        start: t,
+        end: slotEnd,
+        label: `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`,
+        available: !overlapReservation && !inBreak && !outOfRange,
+      });
+    }
+
+    return slots;
+  }
+
+  /**
+   * 範囲内の各日について、空き具合を4段階で判定する(LINEカレンダー表示用)。
+   * OPEN=十分空きあり、FEW=残りわずか、FULL=満枠、CLOSED=定休日/受付範囲外/休業日
+   */
+  async getAvailabilityByDate(
+    min: Date,
+    max: Date,
+  ): Promise<Map<string, 'OPEN' | 'FEW' | 'FULL' | 'CLOSED'>> {
+    const result = new Map<string, 'OPEN' | 'FEW' | 'FULL' | 'CLOSED'>();
+    const { slotMinutes } = await this.getBookableRange();
+
+    const cursor = new Date(min);
+    cursor.setHours(0, 0, 0, 0);
+
+    const lastDay = new Date(max);
+    lastDay.setHours(0, 0, 0, 0);
+
+    while (cursor <= lastDay) {
+      const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+      const hours = await this.businessHoursService.getWeekday(cursor.getDay());
+
+      if (!hours || hours.isClosed || !hours.startTime || !hours.endTime) {
+        result.set(dateStr, 'CLOSED');
+        cursor.setDate(cursor.getDate() + 1);
+        continue;
+      }
+
+      const dateOnly = new Date(cursor);
+      const closedDate = await this.prisma.closedDate.findUnique({
+        where: { date: dateOnly },
+      });
+
+      if (closedDate) {
+        result.set(dateStr, 'CLOSED');
+        cursor.setDate(cursor.getDate() + 1);
+        continue;
+      }
+
+      const openMinutes = toMinutes(hours.startTime);
+      const closeMinutes = toMinutes(hours.endTime);
+      const breakMinutes =
+        hours.breakStartTime && hours.breakEndTime
+          ? Math.max(0, toMinutes(hours.breakEndTime) - toMinutes(hours.breakStartTime))
+          : 0;
+
+      const totalCapacity = Math.max(
+        0,
+        Math.floor((closeMinutes - openMinutes - breakMinutes) / slotMinutes),
+      );
+
+      const slots = await this.getOpenSlots(dateStr);
+
+      if (totalCapacity === 0 || slots.length === 0) {
+        result.set(dateStr, 'FULL');
+      } else if (slots.length / totalCapacity < 0.34) {
+        result.set(dateStr, 'FEW');
+      } else {
+        result.set(dateStr, 'OPEN');
+      }
+
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return result;
+  }
+
+  async createFromLineRequest(
+    customerId: number,
+    start: Date,
+    category?: string | null,
+    needsLoanerCar?: boolean | null,
+  ) {
     const { slotMinutes } = await this.getBookableRange();
     const end = new Date(start.getTime() + slotMinutes * 60 * 1000);
 
@@ -227,9 +392,11 @@ export class ReservationService {
       throw new BadRequestException(error);
     }
 
-    return this.prisma.reservation.create({
+    const reservation = await this.prisma.reservation.create({
       data: {
         customerId,
+        category: category || undefined,
+        needsLoanerCar: needsLoanerCar ?? undefined,
         scheduledStart: start,
         scheduledEnd: end,
         status: 'PENDING',
@@ -237,6 +404,20 @@ export class ReservationService {
       },
       include: { customer: true, vehicle: true },
     });
+
+    const vehicleLabel = reservation.vehicle
+      ? [reservation.vehicle.carName, reservation.vehicle.commonModelName].filter(Boolean).join(' ')
+      : '';
+
+    await this.lineService.notifyStaffOfNewReservation({
+      customerName: reservation.customer?.customerName ?? '不明',
+      vehicleLabel,
+      category: category || null,
+      needsLoanerCar: needsLoanerCar ?? null,
+      scheduledStart: reservation.scheduledStart,
+    });
+
+    return reservation;
   }
 
   async confirm(

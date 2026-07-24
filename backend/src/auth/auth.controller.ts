@@ -1,11 +1,12 @@
 // backend/src/auth/auth.controller.ts
 
-import { Body, Controller, Get, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from './public.decorator';
 import { SESSION_COOKIE } from './session.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
+import { LoginRateLimitGuard } from '../common/login-rate-limit.guard';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -17,6 +18,7 @@ export class AuthController {
   ) {}
 
   @Public()
+  @UseGuards(LoginRateLimitGuard)
   @Post('login')
   async login(
     @Body() body: { companyCode: string; password: string },

@@ -10,16 +10,12 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { LineService } from './line.service';
-import { MasterPrismaService } from '../prisma/master-prisma.service';
-import { TenantContextService } from '../tenant/tenant-context.service';
 import { Public } from '../auth/public.decorator';
 
 @Controller('line')
 export class LineController {
   constructor(
     private readonly lineService: LineService,
-    private readonly masterPrisma: MasterPrismaService,
-    private readonly tenantContext: TenantContextService,
   ) {}
 
   @Public()
@@ -29,31 +25,16 @@ export class LineController {
     @Req() req: Request & { rawBody: Buffer },
     @Headers('x-line-signature') signature: string,
   ) {
-    const destination = req.body?.destination;
-
-    if (!destination) {
-      throw new BadRequestException('Missing destination');
+    // 全社共有チャンネルなので、テナント解決より前に共有シークレットで検証できる
+    if (!(await this.lineService.verifySignatureShared(req.rawBody, signature))) {
+      throw new BadRequestException('Invalid signature');
     }
 
-    const company = await this.masterPrisma.companyAccount.findUnique({
-      where: { lineDestinationUserId: destination },
-    });
+    const events = req.body?.events ?? [];
 
-    if (!company || !company.isActive) {
-      throw new BadRequestException('Unknown LINE channel');
-    }
+    // LINEは数秒以内の200応答を要求するため、処理は待たずに返す
+    void this.lineService.handleEvents(events);
 
-    return this.tenantContext.run(company, async () => {
-      if (!this.lineService.verifySignature(req.rawBody, signature)) {
-        throw new BadRequestException('Invalid signature');
-      }
-
-      const events = req.body?.events ?? [];
-
-      // LINEは数秒以内の200応答を要求するため、処理は待たずに返す
-      void this.lineService.handleEvents(events);
-
-      return { status: 'ok' };
-    });
+    return { status: 'ok' };
   }
 }

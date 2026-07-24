@@ -13,6 +13,16 @@ export function emptyEstimateItem(): EstimateItemDraft {
   return { name: '', quantity: '1', unitPrice: '', isFee: false };
 }
 
+/** 工賃項目のひな形。数量欄を工数(時間)として使い、単価には保存済みの時間単価を入れておく */
+export function laborEstimateItem(hourlyRate: number | null | undefined): EstimateItemDraft {
+  return {
+    name: '工賃',
+    quantity: '1',
+    unitPrice: hourlyRate ? String(hourlyRate) : '',
+    isFee: false,
+  };
+}
+
 export function EstimateItemRow({
   item,
   onChange,
@@ -35,8 +45,9 @@ export function EstimateItemRow({
       <input
         className="input"
         type="number"
-        min={1}
-        placeholder="数量"
+        min={0}
+        step="0.5"
+        placeholder="数量(工賃は工数)"
         value={item.quantity}
         onChange={(e) => onChange({ quantity: e.target.value })}
       />

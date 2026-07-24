@@ -9,6 +9,7 @@ import { api, extractErrorMessage } from '@/lib/api';
 import {
   EstimateItemRow,
   emptyEstimateItem,
+  laborEstimateItem,
   type EstimateItemDraft,
 } from '@/components/estimate/EstimateItemRow';
 
@@ -100,11 +101,22 @@ export default function VehicleDetailPage() {
   const [estimateStaffName, setEstimateStaffName] = useState('');
   const [estimateVehicleCategory, setEstimateVehicleCategory] = useState('REGULAR');
   const [suggesting, setSuggesting] = useState(false);
+  const [laborRatePerHour, setLaborRatePerHour] = useState<number | null>(null);
 
   useEffect(() => {
     load();
     loadEstimates();
+    loadLaborRate();
   }, []);
+
+  async function loadLaborRate() {
+    try {
+      const company = await api<any>('/company');
+      if (!company) return;
+      const settings = await api<any>(`/settings/${company.id}`);
+      setLaborRatePerHour(settings?.laborRatePerHour ?? null);
+    } catch {}
+  }
 
   async function load() {
     try {
@@ -281,10 +293,29 @@ export default function VehicleDetailPage() {
     await loadEstimates();
   }
 
-  function convertAndPrint(id: number) {
-    // ポップアップブロック対策のため、クリック直後(await前)に同期的にタブを開く
-    window.open(`/estimates/${id}/print`, '_blank');
-    convertEstimate(id);
+  async function convertAndPrint(id: number) {
+    // ポップアップブロック対策のため、クリック直後(await前)に同期的に空タブを開いておく。
+    // 変換すると見積は削除されるため、見積側の印刷ページを開くと削除と競合して
+    // 読み込みが止まってしまう。変換後にできる整備履歴(納品書・請求書)の方へ
+    // 後から遷移させる。
+    const win = window.open('', '_blank');
+
+    try {
+      const serviceHistory = await api<{ id: number }>(
+        `/estimates/${id}/convert-to-service-history`,
+        { method: 'POST' },
+      );
+
+      await load();
+      await loadEstimates();
+
+      if (win) {
+        win.location.href = `/vehicle/${params.id}/print?tab=invoice&historyId=${serviceHistory.id}`;
+      }
+    } catch (e: any) {
+      win?.close();
+      alert(extractErrorMessage(e));
+    }
   }
 
   function updateServiceItem(index: number, field: 'name' | 'cost', value: string) {
@@ -594,14 +625,27 @@ export default function VehicleDetailPage() {
                       />
                     ))}
 
-                    <button
-                      onClick={() =>
-                        setCorrectionItems((items) => [...items, emptyEstimateItem()])
-                      }
-                      className="btn-dashed"
-                    >
-                      ➕ 項目を追加
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() =>
+                          setCorrectionItems((items) => [...items, emptyEstimateItem()])
+                        }
+                        className="btn-dashed"
+                      >
+                        ➕ 項目を追加
+                      </button>
+                      <button
+                        onClick={() =>
+                          setCorrectionItems((items) => [
+                            ...items,
+                            laborEstimateItem(laborRatePerHour),
+                          ])
+                        }
+                        className="btn-dashed"
+                      >
+                        ➕ 工賃を追加
+                      </button>
+                    </div>
 
                     <div className="btnrow flex gap-2 mt-3">
                       <button
@@ -715,12 +759,22 @@ export default function VehicleDetailPage() {
               />
             ))}
 
-            <button
-              onClick={() => setEstimateItems((items) => [...items, emptyEstimateItem()])}
-              className="btn-dashed"
-            >
-              ➕ 項目を追加
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEstimateItems((items) => [...items, emptyEstimateItem()])}
+                className="btn-dashed"
+              >
+                ➕ 項目を追加
+              </button>
+              <button
+                onClick={() =>
+                  setEstimateItems((items) => [...items, laborEstimateItem(laborRatePerHour)])
+                }
+                className="btn-dashed"
+              >
+                ➕ 工賃を追加
+              </button>
+            </div>
 
             <div className="btnrow flex gap-2 mt-3">
               <button onClick={saveEstimate} className="btn btn-blue btn-sm">
