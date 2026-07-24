@@ -16,6 +16,12 @@ import { EstimateService } from './estimate.service';
 export class EstimateController {
   constructor(private readonly estimateService: EstimateService) {}
 
+  /** 車両を選ばない/選べない見積作成(ホーム画面の「見積書作成」から) */
+  @Post('estimates')
+  async createStandalone(@Body() body: any) {
+    return this.estimateService.createStandalone(body);
+  }
+
   @Post('vehicle/:vehicleId/estimates')
   async create(
     @Param('vehicleId', ParseIntPipe) vehicleId: number,

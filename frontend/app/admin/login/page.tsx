@@ -1,4 +1,4 @@
-// frontend/app/login/page.tsx
+// frontend/app/admin/login/page.tsx
 
 'use client';
 
@@ -6,28 +6,27 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, extractErrorMessage } from '@/lib/api';
 
-export default function LoginPage() {
+export default function AdminLoginPage() {
   const router = useRouter();
 
-  const [companyCode, setCompanyCode] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
   async function login() {
-    if (!companyCode.trim() || !password) return;
+    if (!password) return;
 
     setLoading(true);
     setMessage('');
 
     try {
-      await api('/auth/login', {
+      await api('/admin/login', {
         method: 'POST',
-        body: JSON.stringify({ companyCode: companyCode.toUpperCase(), password }),
+        body: JSON.stringify({ password }),
       });
 
-      router.replace('/');
+      router.replace('/admin');
     } catch (e: any) {
       setMessage(extractErrorMessage(e) || 'ログインに失敗しました');
     } finally {
@@ -39,31 +38,17 @@ export default function LoginPage() {
     <div className="license-shell">
       <div className="panel license-card">
         <div className="mb-8 text-center">
-          <div className="license-logo">🔧</div>
-
-          <h1 className="gk-apptitle license-title">
-            <span className="gk-apptitle-accent">ガレージ</span>・カルテ
-          </h1>
-
+          <div className="license-logo">🛠️</div>
+          <h1 className="gk-apptitle license-title">運営管理画面</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">
-            会社ログイン
+            会社ログインとは別の、運営者用のログインです
           </p>
         </div>
-
-        <input
-          className="input mb-4 text-center text-xl uppercase"
-          placeholder="会社コード"
-          value={companyCode}
-          onChange={(e) => setCompanyCode(e.target.value)}
-          autoCapitalize="characters"
-          autoCorrect="off"
-          spellCheck={false}
-        />
 
         <div className="relative mb-6">
           <input
             className="input pr-12 text-center text-xl"
-            placeholder="パスワード"
+            placeholder="管理者パスワード"
             type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -89,9 +74,7 @@ export default function LoginPage() {
           {loading ? 'ログイン中...' : 'ログイン'}
         </button>
 
-        <div className="mt-6 text-center text-sm text-[var(--muted)]">
-          {message}
-        </div>
+        <div className="mt-6 text-center text-sm text-[var(--muted)]">{message}</div>
       </div>
     </div>
   );

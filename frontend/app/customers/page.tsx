@@ -20,6 +20,7 @@ type Customer = {
   customerName: string;
   customerAddress: string;
   phone: string;
+  lineUserId: string | null;
   vehicles: Vehicle[];
 };
 
@@ -79,12 +80,27 @@ export default function CustomerPage() {
                   </div>
                 </div>
 
-                <Link
-                  href={`/customers/${customer.id}`}
-                  className="btn btn-blue btn-sm h-fit"
-                >
-                  詳細
-                </Link>
+                <div className="flex flex-col items-end gap-2">
+                  <span
+                    className={customer.lineUserId ? 'badge-ok text-xs' : 'expbadge exp-warn text-xs'}
+                  >
+                    {customer.lineUserId ? '✅ LINE連携済み' : 'LINE未連携'}
+                  </span>
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/customers/${customer.id}/line`}
+                      className="btn btn-ghost btn-sm h-fit"
+                    >
+                      💬 LINE
+                    </Link>
+                    <Link
+                      href={`/customers/${customer.id}`}
+                      className="btn btn-blue btn-sm h-fit"
+                    >
+                      詳細
+                    </Link>
+                  </div>
+                </div>
               </div>
 
               <hr className="my-4 border-[var(--line)]" />

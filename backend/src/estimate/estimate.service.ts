@@ -9,14 +9,37 @@ import { FeeRateService, SHOP_SHAKEN_ITEMS } from '../fee-rate/fee-rate.service'
 
 interface EstimateItemDto {
   name: string;
-  cost: number;
+  quantity?: number;
+  unitPrice?: number;
+  isFee?: boolean;
 }
 
 interface CreateEstimateDto {
+  vehicleId?: number;
+  customerId?: number;
+  customerNameFreeText?: string;
+  vehicleDescription?: string;
   title: string;
   category?: 'SHAKEN' | 'GENERAL';
   staffName?: string;
   items: EstimateItemDto[];
+}
+
+function buildItemsData(items: EstimateItemDto[]) {
+  return (items ?? [])
+    .filter((i) => i.name?.trim())
+    .map((i) => {
+      const quantity = Math.max(1, Number(i.quantity) || 1);
+      const unitPrice = Number(i.unitPrice) || 0;
+
+      return {
+        name: i.name.trim(),
+        quantity,
+        unitPrice,
+        cost: quantity * unitPrice,
+        isFee: Boolean(i.isFee),
+      };
+    });
 }
 
 @Injectable()
@@ -28,23 +51,41 @@ export class EstimateService {
     private readonly feeRateService: FeeRateService,
   ) {}
 
+  /** 車両詳細ページからの作成(vehicleId必須)。既存フォーム用 */
   async create(vehicleId: number, data: CreateEstimateDto) {
+    return this.createEstimate({ ...data, vehicleId });
+  }
+
+  /** 車両を選ばない/選べない見積作成の入り口(ホーム画面「見積書作成」用) */
+  async createStandalone(data: CreateEstimateDto) {
+    if (!data.vehicleId && !data.customerId && !data.customerNameFreeText?.trim()) {
+      throw new BadRequestException(
+        '車両・顧客のいずれかを選ぶか、お客様名を入力してください。',
+      );
+    }
+
+    return this.createEstimate(data);
+  }
+
+  private async createEstimate(data: CreateEstimateDto) {
     return this.prisma.estimate.create({
       data: {
-        vehicleId,
+        vehicleId: data.vehicleId ?? undefined,
+        customerId: data.customerId ?? undefined,
+        customerNameFreeText: data.customerNameFreeText?.trim() || undefined,
+        vehicleDescription: data.vehicleDescription?.trim() || undefined,
         title: data.title,
         category: data.category ?? 'GENERAL',
         staffName: data.staffName,
         items: {
-          create: (data.items ?? [])
-            .filter((i) => i.name?.trim())
-            .map((i) => ({
-              name: i.name.trim(),
-              cost: Number(i.cost) || 0,
-            })),
+          create: buildItemsData(data.items),
         },
       },
-      include: { items: true, vehicle: { include: { customer: true } } },
+      include: {
+        items: true,
+        vehicle: { include: { customer: true } },
+        customer: true,
+      },
     });
   }
 
@@ -76,12 +117,14 @@ export class EstimateService {
     const rateMap = new Map(shopRates.map((r) => [r.itemName, r.price]));
 
     const items = [
-      { name: '自動車重量税', cost: legalFees.weightTax },
-      { name: '自賠責保険料', cost: legalFees.insuranceFee },
-      { name: '印紙代', cost: legalFees.stampFee },
+      { name: '自動車重量税', unitPrice: legalFees.weightTax, quantity: 1, isFee: true },
+      { name: '自賠責保険料', unitPrice: legalFees.insuranceFee, quantity: 1, isFee: true },
+      { name: '印紙代', unitPrice: legalFees.stampFee, quantity: 1, isFee: true },
       ...SHOP_SHAKEN_ITEMS.map((name) => ({
         name,
-        cost: rateMap.get(name) ?? 0,
+        unitPrice: rateMap.get(name) ?? 0,
+        quantity: 1,
+        isFee: true,
       })),
     ];
 
@@ -99,11 +142,15 @@ export class EstimateService {
   async getById(id: number) {
     return this.prisma.estimate.findUnique({
       where: { id },
-      include: { items: true, vehicle: { include: { customer: true } } },
+      include: {
+        items: true,
+        vehicle: { include: { customer: true } },
+        customer: true,
+      },
     });
   }
 
-  /** 見積の内容をそのまま整備履歴(完了記録)に変換して保存する */
+  /** 見積の内容をそのまま整備履歴(完了記録)に変換して保存する。車両未登録の見積は変換不可 */
   async convertToServiceHistory(id: number) {
     const estimate = await this.prisma.estimate.findUnique({
       where: { id },
@@ -114,20 +161,35 @@ export class EstimateService {
       throw new Error('Estimate not found');
     }
 
-    return this.prisma.serviceHistory.create({
-      data: {
-        vehicleId: estimate.vehicleId,
-        date: new Date(),
-        title: estimate.title,
-        items: {
-          create: estimate.items.map((i) => ({
-            name: i.name,
-            cost: i.cost,
-          })),
+    if (!estimate.vehicleId) {
+      throw new BadRequestException(
+        '車両が未登録のため整備履歴に変換できません。車両を登録してから変換してください。',
+      );
+    }
+
+    // 変換後は見積書側に残さない(整備履歴への昇格として扱う)
+    const [serviceHistory] = await this.prisma.$transaction([
+      this.prisma.serviceHistory.create({
+        data: {
+          vehicleId: estimate.vehicleId,
+          date: new Date(),
+          title: estimate.title,
+          items: {
+            create: estimate.items.map((i) => ({
+              name: i.name,
+              cost: i.cost,
+              quantity: i.quantity,
+              unitPrice: i.unitPrice,
+              isFee: i.isFee,
+            })),
+          },
         },
-      },
-      include: { items: true },
-    });
+        include: { items: true },
+      }),
+      this.prisma.estimate.delete({ where: { id } }),
+    ]);
+
+    return serviceHistory;
   }
 
   async delete(id: number) {

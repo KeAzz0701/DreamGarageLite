@@ -561,7 +561,7 @@ export class ReservationService {
       end: this.toIcsDateArray(reservation.scheduledEnd),
       endInputType: 'utc',
       endOutputType: 'utc',
-      title: 'ご予約 - ガレージカルテ',
+      title: 'ご予約 - ガレージ・カルテ',
       description: [
         reservation.customer
           ? `お客様: ${reservation.customer.customerName}`

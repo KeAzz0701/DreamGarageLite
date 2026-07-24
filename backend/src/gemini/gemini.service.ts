@@ -126,6 +126,37 @@ commonModelName には、carName（車名/メーカー名）と model（型式�
     };
   }
 
+  /** 会話履歴とコンテキスト(当日の予約・顧客情報等)を踏まえたチャット応答を生成する */
+  async chat(
+    history: { role: 'user' | 'model'; content: string }[],
+    message: string,
+    context: string,
+    apiKey?: string,
+  ): Promise<string> {
+    const ai = new GoogleGenAI({
+      apiKey: apiKey || process.env.GOOGLE_API_KEY!,
+    });
+
+    const contents = [
+      ...history.map((h) => ({ role: h.role, parts: [{ text: h.content }] })),
+      { role: 'user' as const, parts: [{ text: message }] },
+    ];
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents,
+      config: {
+        systemInstruction:
+          'あなたは日本の自動車整備工場向け業務アプリ「ガレージ・カルテ」に組み込まれたAIアシスタントです。' +
+          '整備内容の相談、見積の考え方、接客、一般的な業務相談に、丁寧で簡潔な日本語で答えてください。' +
+          '不確かなことは断定せず、確認を促してください。\n\n' +
+          `--- 現在参照できる業務データ ---\n${context}`,
+      },
+    });
+
+    return response.text ?? '';
+  }
+
   private extractJsonText(text: string) {
     text = text
       .replace(/```json/gi, '')

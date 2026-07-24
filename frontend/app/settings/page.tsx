@@ -399,6 +399,68 @@ export default function SettingsPage() {
         })}
       </div>
 
+      <div className="panel space-y-5 mb-4">
+        <h2 className="disp text-xl">振込先情報（納品書・請求書に印刷されます）</h2>
+
+        <div className="grid2">
+          <label className="field-label">
+            金融機関名
+            <input
+              className="input"
+              placeholder="例: 楽天銀行"
+              value={settings.bankName ?? ''}
+              onChange={(e) => setSettings({ ...settings, bankName: e.target.value })}
+            />
+          </label>
+
+          <label className="field-label">
+            支店名
+            <input
+              className="input"
+              placeholder="例: 229"
+              value={settings.bankBranchName ?? ''}
+              onChange={(e) => setSettings({ ...settings, bankBranchName: e.target.value })}
+            />
+          </label>
+
+          <label className="field-label">
+            口座種別
+            <select
+              className="input"
+              value={settings.bankAccountType ?? '普通'}
+              onChange={(e) => setSettings({ ...settings, bankAccountType: e.target.value })}
+            >
+              <option value="普通">普通</option>
+              <option value="当座">当座</option>
+            </select>
+          </label>
+
+          <label className="field-label">
+            口座番号
+            <input
+              className="input"
+              placeholder="例: 2002958"
+              value={settings.bankAccountNumber ?? ''}
+              onChange={(e) => setSettings({ ...settings, bankAccountNumber: e.target.value })}
+            />
+          </label>
+
+          <label className="field-label">
+            口座名義
+            <input
+              className="input"
+              placeholder="例: カ）ドリームガレージ"
+              value={settings.bankAccountHolder ?? ''}
+              onChange={(e) => setSettings({ ...settings, bankAccountHolder: e.target.value })}
+            />
+          </label>
+        </div>
+
+        <button onClick={save} className="btn btn-primary">
+          振込先を保存
+        </button>
+      </div>
+
       <div className="panel space-y-5">
         <h2 className="disp text-xl">見積書設定</h2>
 

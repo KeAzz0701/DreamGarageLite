@@ -74,9 +74,9 @@ export default function Home() {
           <div className="lbl">予約管理</div>
         </Link>
 
-        <Link href="/customers" className="statcard block">
-          <div className="num">👥</div>
-          <div className="lbl">顧客一覧</div>
+        <Link href="/ai-chat" className="statcard block">
+          <div className="num">🤖</div>
+          <div className="lbl">AIチャット</div>
         </Link>
       </div>
 

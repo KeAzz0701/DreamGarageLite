@@ -5,6 +5,7 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  Post,
   Put,
 } from '@nestjs/common';
 import { CustomerService } from './customer.service';
@@ -55,5 +56,20 @@ export class CustomerController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.customerService.unlinkLineUser(id);
+  }
+
+  @Get(':id/line-messages')
+  async getLineMessages(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.customerService.getLineMessages(id);
+  }
+
+  @Post(':id/line-message')
+  async sendLineMessage(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { text: string },
+  ) {
+    return this.customerService.sendLineMessage(id, body?.text ?? '');
   }
 }

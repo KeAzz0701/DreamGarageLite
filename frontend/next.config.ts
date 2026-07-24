@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
@@ -7,6 +8,9 @@ const nextConfig: NextConfig = {
     '127.0.0.1',
     'app.dreamgaragelite.com',
   ],
+  turbopack: {
+    root: path.join(__dirname),
+  },
 };
 
 export default nextConfig;

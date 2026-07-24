@@ -233,6 +233,10 @@ export default function CustomerDetailPage() {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="badge-ok">✅ LINEと連携済みです。車検満了などの通知が届きます。</div>
 
+            <Link href={`/customers/${params.id}/line`} className="btn btn-blue btn-sm">
+              💬 メッセージのやり取り
+            </Link>
+
             {confirmUnlink ? (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-[var(--danger)]">解除しますか？</span>

@@ -9,6 +9,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { TenantModule } from './tenant/tenant.module';
 import { AuthModule } from './auth/auth.module';
 import { TenantMiddleware } from './auth/tenant.middleware';
+import { AdminModule } from './admin/admin.module';
+import { ChatModule } from './chat/chat.module';
 
 import { GeminiModule } from './gemini/gemini.module';
 import { OcrModule } from './ocr/ocr.module';
@@ -35,6 +37,8 @@ import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
     TenantModule,
     PrismaModule,
     AuthModule,
+    AdminModule,
+    ChatModule,
 
     GeminiModule,
     OcrModule,

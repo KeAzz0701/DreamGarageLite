@@ -12,8 +12,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [authed, setAuthed] = useState(false);
 
+  const isAdminRoute = pathname.startsWith('/admin');
+
   useEffect(() => {
-    if (pathname === '/login') return;
+    if (pathname === '/login' || isAdminRoute) return;
 
     let cancelled = false;
 
@@ -32,6 +34,27 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (pathname === '/login') {
     return <main>{children}</main>;
+  }
+
+  if (isAdminRoute) {
+    if (pathname === '/admin/login') {
+      return <main>{children}</main>;
+    }
+
+    return (
+      <>
+        <div className="admin-header">
+          <div className="title">
+            <div className="icon">🛠️</div>
+            <div>
+              <div className="label">運営管理画面</div>
+              <div className="sub">ガレージ・カルテ / 会社ログインとは別物</div>
+            </div>
+          </div>
+        </div>
+        <main>{children}</main>
+      </>
+    );
   }
 
   if (!authed) {

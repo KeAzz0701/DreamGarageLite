@@ -71,7 +71,7 @@ export class GoogleCalendarService {
 
       const created = await calendar.calendars.insert({
         requestBody: {
-          summary: `ガレージカルテ予約 - ${company.companyName ?? company.name}`,
+          summary: `ガレージ・カルテ予約 - ${company.companyName ?? company.name}`,
           timeZone: 'Asia/Tokyo',
         },
       });

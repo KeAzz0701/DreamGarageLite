@@ -162,6 +162,12 @@ model Settings {
   reservationLeadHours       Int @default(24)
   reservationMaxAdvanceDays  Int @default(30)
 
+  bankName          String?
+  bankBranchName    String?
+  bankAccountType   String?
+  bankAccountNumber String?
+  bankAccountHolder String?
+
   createdAt        DateTime  @default(now())
 
   updatedAt        DateTime  @updatedAt
@@ -231,6 +237,8 @@ model Customer {
 
   vehicles        Vehicle[]
   reservations    Reservation[]
+  estimates       Estimate[]
+  lineMessages    LineMessage[]
 }
 
 model Vehicle {
@@ -300,10 +308,36 @@ model ServiceHistory {
   date       DateTime
   title      String
 
+  voided          Boolean          @default(false)
+  correctedFromId Int?
+  correctedFrom   ServiceHistory?  @relation("Correction", fields: [correctedFromId], references: [id])
+  corrections     ServiceHistory[] @relation("Correction")
+
   items      ServiceHistoryItem[]
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+}
+
+model ChatMessage {
+  id        Int      @id @default(autoincrement())
+
+  role      String
+  content   String
+
+  createdAt DateTime @default(now())
+}
+
+model LineMessage {
+  id         Int      @id @default(autoincrement())
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  direction  String
+  text       String
+
+  createdAt  DateTime @default(now())
 }
 
 model ServiceHistoryItem {
@@ -314,13 +348,23 @@ model ServiceHistoryItem {
 
   name              String
   cost              Int             @default(0)
+
+  quantity          Int             @default(1)
+  unitPrice         Int             @default(0)
+  isFee             Boolean         @default(false)
 }
 
 model Estimate {
   id         Int       @id @default(autoincrement())
 
-  vehicleId  Int
-  vehicle    Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicleId  Int?
+  vehicle    Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  customerId          Int?
+  customer            Customer? @relation(fields: [customerId], references: [id])
+
+  customerNameFreeText String?
+  vehicleDescription    String?
 
   date       DateTime  @default(now())
   title      String
@@ -342,6 +386,10 @@ model EstimateItem {
 
   name        String
   cost        Int       @default(0)
+
+  quantity    Int       @default(1)
+  unitPrice   Int       @default(0)
+  isFee       Boolean   @default(false)
 }
 
 model Reservation {

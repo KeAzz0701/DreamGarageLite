@@ -1,18 +1,43 @@
 // backend/src/service-history/service-history.service.ts
 
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LineService } from '../line/line.service';
 
 interface ServiceHistoryItemDto {
   name: string;
   cost: number;
+  quantity?: number;
+  unitPrice?: number;
+  isFee?: boolean;
 }
 
 interface CreateServiceHistoryDto {
   date: string;
   title: string;
   items: ServiceHistoryItemDto[];
+}
+
+interface CorrectServiceHistoryDto {
+  title?: string;
+  items: ServiceHistoryItemDto[];
+}
+
+function buildCorrectionItemsData(items: ServiceHistoryItemDto[]) {
+  return (items ?? [])
+    .filter((i) => i.name?.trim())
+    .map((i) => {
+      const quantity = Math.max(1, Number(i.quantity) || 1);
+      const unitPrice = Number(i.unitPrice) || 0;
+
+      return {
+        name: i.name.trim(),
+        quantity,
+        unitPrice,
+        cost: quantity * unitPrice,
+        isFee: Boolean(i.isFee),
+      };
+    });
 }
 
 @Injectable()
@@ -102,5 +127,50 @@ export class ServiceHistoryService {
     return this.prisma.serviceHistory.delete({
       where: { id },
     });
+  }
+
+  /** 確定済みの整備履歴を訂正する。元の行は赤伝(voided)として残し、訂正後の内容を黒伝として新規作成する */
+  async correct(id: number, data: CorrectServiceHistoryDto) {
+    const original = await this.prisma.serviceHistory.findUnique({
+      where: { id },
+    });
+
+    if (!original) {
+      throw new BadRequestException('対象の整備履歴が見つかりません。');
+    }
+
+    if (original.voided) {
+      throw new BadRequestException('この整備履歴はすでに訂正済みです。');
+    }
+
+    const items = buildCorrectionItemsData(data.items);
+
+    if (items.length === 0) {
+      throw new BadRequestException('訂正後の項目を1件以上入力してください。');
+    }
+
+    const [, corrected] = await this.prisma.$transaction([
+      this.prisma.serviceHistory.update({
+        where: { id },
+        data: { voided: true },
+      }),
+      this.prisma.serviceHistory.create({
+        data: {
+          vehicleId: original.vehicleId,
+          date: original.date,
+          title: data.title?.trim() || original.title,
+          correctedFromId: original.id,
+          items: {
+            create: items,
+          },
+        },
+        include: {
+          items: true,
+          correctedFrom: { include: { items: true } },
+        },
+      }),
+    ]);
+
+    return corrected;
   }
 }

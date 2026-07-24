@@ -5,9 +5,14 @@ import { LineController } from './line.controller';
 import { LineService } from './line.service';
 import { CustomerModule } from '../customer/customer.module';
 import { ReservationModule } from '../reservation/reservation.module';
+import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-  imports: [CustomerModule, forwardRef(() => ReservationModule)],
+  imports: [
+    forwardRef(() => CustomerModule),
+    forwardRef(() => ReservationModule),
+    PrismaModule,
+  ],
   controllers: [LineController],
   providers: [LineService],
   exports: [LineService],

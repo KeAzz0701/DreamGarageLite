@@ -22,7 +22,7 @@ export default function LicensePage() {
     try {
       await api('/license/activate', {
         method: 'POST',
-        body: JSON.stringify({ licenseKey }),
+        body: JSON.stringify({ licenseKey: licenseKey.toUpperCase() }),
       });
 
       setMessage('認証成功');
@@ -45,7 +45,7 @@ export default function LicensePage() {
           <div className="license-logo">🔧</div>
 
           <h1 className="gk-apptitle license-title">
-            <span className="gk-apptitle-accent">ガレージ</span>カルテ
+            <span className="gk-apptitle-accent">ガレージ</span>・カルテ
           </h1>
 
           <p className="mt-2 text-sm text-[var(--muted)]">
@@ -57,11 +57,10 @@ export default function LicensePage() {
           className="input mb-6 text-center text-xl uppercase"
           placeholder="DG-XXXX-XXXX"
           value={licenseKey}
-          onChange={(e) =>
-            setLicenseKey(
-              e.target.value.toUpperCase(),
-            )
-          }
+          onChange={(e) => setLicenseKey(e.target.value)}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
         />
 
         <button

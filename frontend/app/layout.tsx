@@ -30,7 +30,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ガレージカルテ',
+  title: 'ガレージ・カルテ',
   description: 'Dream Garage Lite',
 };
 
@@ -43,6 +43,7 @@ export default function RootLayout({
     <html
       lang="ja"
       className={`${barlowCondensed.variable} ${notoSansJp.variable} ${zenKakuGothicNew.variable} ${ibmPlexMono.variable}`}
+      suppressHydrationWarning
     >
       <body>
 

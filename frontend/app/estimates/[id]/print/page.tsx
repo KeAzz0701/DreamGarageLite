@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
+import { PrintItemsTable } from '@/components/estimate/PrintItemsTable';
 
 const CATEGORY_LABEL: Record<string, string> = {
   SHAKEN: '車検',
@@ -31,15 +32,22 @@ export default function EstimatePrintPage() {
 
     const s = await api<any>(`/settings/${c.id}`);
     setSettings(s);
+
+    const customerName =
+      es.vehicle?.customer?.customerName ?? es.customer?.customerName ?? es.customerNameFreeText;
+    const dateStr = (es.date as string).slice(0, 10).replace(/-/g, '');
+    document.title = `${customerName ?? '見積'}_${dateStr}_概算見積`;
   }
 
   if (!estimate || !company || !settings) {
     return <div className="text-center text-[var(--muted)] py-10">読み込み中...</div>;
   }
 
-  const total = estimate.items.reduce((s: number, i: any) => s + i.cost, 0);
-  const customer = estimate.vehicle?.customer;
+  const customer = estimate.vehicle?.customer ?? estimate.customer;
   const vehicle = estimate.vehicle;
+  const vehicleLabel = vehicle
+    ? `${vehicle.carName ?? ''} ${vehicle.commonModelName ?? ''}（${vehicle.registrationNumber ?? '登録番号未登録'}）`
+    : estimate.vehicleDescription || '未登録';
 
   return (
     <div className="print-sheet">
@@ -87,13 +95,13 @@ export default function EstimatePrintPage() {
       <div className="flex justify-between mb-6">
         <div>
           <div className="text-xs text-[var(--muted)]">お客様</div>
-          <div className="font-bold text-lg">{customer?.customerName ?? '-'} 様</div>
+          <div className="font-bold text-lg">
+            {customer?.customerName ?? estimate.customerNameFreeText ?? '-'} 様
+          </div>
           <div className="text-sm">{customer?.customerAddress}</div>
 
           <div className="mt-3 text-xs text-[var(--muted)]">対象車両</div>
-          <div className="text-sm">
-            {vehicle?.carName} {vehicle?.commonModelName}（{vehicle?.registrationNumber}）
-          </div>
+          <div className="text-sm">{vehicleLabel}</div>
         </div>
 
         <div className="text-right text-sm">
@@ -107,28 +115,7 @@ export default function EstimatePrintPage() {
         </div>
       </div>
 
-      <table className="print-table">
-        <thead>
-          <tr>
-            <th>項目</th>
-            <th style={{ width: 120, textAlign: 'right' }}>金額</th>
-          </tr>
-        </thead>
-        <tbody>
-          {estimate.items.map((item: any) => (
-            <tr key={item.id}>
-              <td>{item.name}</td>
-              <td style={{ textAlign: 'right' }}>¥{item.cost.toLocaleString()}</td>
-            </tr>
-          ))}
-          <tr>
-            <td className="font-bold">合計</td>
-            <td className="font-bold mono" style={{ textAlign: 'right' }}>
-              ¥{total.toLocaleString()}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <PrintItemsTable items={estimate.items} />
 
       {settings.estimateTerms && (
         <div className="mt-6 text-xs text-[var(--muted)] whitespace-pre-wrap">

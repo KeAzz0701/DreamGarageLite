@@ -13,6 +13,7 @@ const TABS = [
   { href: '/customers', icon: '👥', label: '顧客一覧' },
   { href: '/vehicle', icon: '🚗', label: '車両管理' },
   { href: '/reservations', icon: '📅', label: '予約管理' },
+  { href: '/estimates/new', icon: '📝', label: '見積作成' },
   { href: '/ocr', icon: '📷', label: '車検証OCR' },
   { href: '/settings', icon: '⚙️', label: '設定' },
 ];
@@ -48,7 +49,7 @@ export default function AppHeader() {
 
         <div>
           <div className="gk-apptitle">
-            <span className="gk-apptitle-accent">ガレージ</span>カルテ
+            <span className="gk-apptitle-accent">ガレージ</span>・カルテ
           </div>
           <div className="gk-subtitle">整備工場向け顧客・車両管理</div>
         </div>

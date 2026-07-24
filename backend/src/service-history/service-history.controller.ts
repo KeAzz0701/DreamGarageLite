@@ -38,4 +38,12 @@ export class ServiceHistoryController {
   ) {
     return this.serviceHistoryService.delete(id);
   }
+
+  @Post('service-history/:id/correct')
+  async correct(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: any,
+  ) {
+    return this.serviceHistoryService.correct(id, body);
+  }
 }

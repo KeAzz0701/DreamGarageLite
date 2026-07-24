@@ -11,6 +11,7 @@ import { CustomerService } from '../customer/customer.service';
 import { ReservationService } from '../reservation/reservation.service';
 import { toJstDateOnly } from '../common/japanese-date';
 import { TenantContextService } from '../tenant/tenant-context.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 const LINK_TOKEN_PATTERN = /^GK-[A-Z0-9]{6}$/;
 const SERVICE_HISTORY_KEYWORD = '整備履歴';
@@ -45,10 +46,12 @@ export class LineService {
   private readonly logger = new Logger(LineService.name);
 
   constructor(
+    @Inject(forwardRef(() => CustomerService))
     private readonly customerService: CustomerService,
     @Inject(forwardRef(() => ReservationService))
     private readonly reservationService: ReservationService,
     private readonly tenantContext: TenantContextService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /** 会社ごとにMessagingApiClientをキャッシュする(companyAccountIdをキーに) */
@@ -117,7 +120,7 @@ export class LineService {
         {
           type: 'text',
           text:
-            'ガレージカルテの公式アカウントを友だち追加いただきありがとうございます。\n' +
+            'ガレージ・カルテの公式アカウントを友だち追加いただきありがとうございます。\n' +
             'お店で発行された連携コード(GK-から始まる文字列)をこのトークに送信すると、お車の情報と連携されます。',
         },
       ]);
@@ -176,6 +179,14 @@ export class LineService {
   ) {
     const token = text.trim().toUpperCase();
 
+    const knownCustomer = lineUserId
+      ? await this.customerService.findByLineUserId(lineUserId)
+      : null;
+
+    if (knownCustomer) {
+      await this.logMessage(knownCustomer.id, 'IN', text);
+    }
+
     if (lineUserId && LINK_TOKEN_PATTERN.test(token)) {
       const customer = await this.customerService.findByLineLinkToken(token);
 
@@ -190,6 +201,7 @@ export class LineService {
       }
 
       await this.customerService.linkLineUser(customer.id, lineUserId);
+      await this.logMessage(customer.id, 'IN', text);
 
       // replyTokenは有効期限が短く失効しやすいため、連携完了の通知はpushで確実に送る
       await this.pushMessage(lineUserId, [
@@ -217,13 +229,17 @@ export class LineService {
         return;
       }
 
-      await this.reply(replyToken, [
-        {
-          type: 'text',
-          text: this.formatServiceHistoryReply(customer),
-          quickReply: mainMenuQuickReply,
-        },
-      ]);
+      await this.reply(
+        replyToken,
+        [
+          {
+            type: 'text',
+            text: this.formatServiceHistoryReply(customer),
+            quickReply: mainMenuQuickReply,
+          },
+        ],
+        customer.id,
+      );
       return;
     }
 
@@ -239,23 +255,31 @@ export class LineService {
 
       const { min, max } = await this.reservationService.getBookableRange();
 
-      await this.reply(replyToken, [
-        {
-          type: 'text',
-          text: 'ご希望の来店日をお選びください。',
-          quickReply: this.buildDatePickerQuickReply(min, max),
-        },
-      ]);
+      await this.reply(
+        replyToken,
+        [
+          {
+            type: 'text',
+            text: 'ご希望の来店日をお選びください。',
+            quickReply: this.buildDatePickerQuickReply(min, max),
+          },
+        ],
+        customer.id,
+      );
       return;
     }
 
-    await this.reply(replyToken, [
-      {
-        type: 'text',
-        text: `受信しました:「${text}」`,
-        quickReply: mainMenuQuickReply,
-      },
-    ]);
+    await this.reply(
+      replyToken,
+      [
+        {
+          type: 'text',
+          text: `受信しました:「${text}」`,
+          quickReply: mainMenuQuickReply,
+        },
+      ],
+      knownCustomer?.id,
+    );
   }
 
   private async handlePostback(
@@ -341,33 +365,41 @@ export class LineService {
     const { min, max } = await this.reservationService.getBookableRange();
 
     if (slots.length === 0) {
-      await this.reply(replyToken, [
-        {
-          type: 'text',
-          text: 'その日は空きがありません。別の日をお選びください。',
-          quickReply: this.buildDatePickerQuickReply(min, max),
-        },
-      ]);
+      await this.reply(
+        replyToken,
+        [
+          {
+            type: 'text',
+            text: 'その日は空きがありません。別の日をお選びください。',
+            quickReply: this.buildDatePickerQuickReply(min, max),
+          },
+        ],
+        customer.id,
+      );
       return;
     }
 
-    await this.reply(replyToken, [
-      {
-        type: 'text',
-        text: `${dateStr} の空き時間からお選びください。`,
-        quickReply: {
-          items: slots.slice(0, MAX_QUICK_REPLY_ITEMS).map((slot) => ({
-            type: 'action',
-            action: {
-              type: 'postback',
-              label: slot.label,
-              data: `action=${RESERVATION_ACTION_PICK_SLOT}&start=${encodeURIComponent(slot.start.toISOString())}`,
-              displayText: `${dateStr} ${slot.label}`,
-            },
-          })),
+    await this.reply(
+      replyToken,
+      [
+        {
+          type: 'text',
+          text: `${dateStr} の空き時間からお選びください。`,
+          quickReply: {
+            items: slots.slice(0, MAX_QUICK_REPLY_ITEMS).map((slot) => ({
+              type: 'action',
+              action: {
+                type: 'postback',
+                label: slot.label,
+                data: `action=${RESERVATION_ACTION_PICK_SLOT}&start=${encodeURIComponent(slot.start.toISOString())}`,
+                displayText: `${dateStr} ${slot.label}`,
+              },
+            })),
+          },
         },
-      },
-    ]);
+      ],
+      customer.id,
+    );
   }
 
   private async confirmSlotSelection(
@@ -388,26 +420,34 @@ export class LineService {
         new Date(startIso),
       );
 
-      await this.reply(replyToken, [
-        {
-          type: 'text',
-          text:
-            `ご希望を受け付けました。\n` +
-            `${this.formatDateJst(reservation.scheduledStart)}\n` +
-            `店舗からの確定連絡をお待ちください。`,
-          quickReply: mainMenuQuickReply,
-        },
-      ]);
+      await this.reply(
+        replyToken,
+        [
+          {
+            type: 'text',
+            text:
+              `ご希望を受け付けました。\n` +
+              `${this.formatDateJst(reservation.scheduledStart)}\n` +
+              `店舗からの確定連絡をお待ちください。`,
+            quickReply: mainMenuQuickReply,
+          },
+        ],
+        customer.id,
+      );
     } catch (err: any) {
       const { min, max } = await this.reservationService.getBookableRange();
 
-      await this.reply(replyToken, [
-        {
-          type: 'text',
-          text: `${err?.message ?? 'ご希望の時間帯では予約できませんでした。'}\n別の日時をお選びください。`,
-          quickReply: this.buildDatePickerQuickReply(min, max),
-        },
-      ]);
+      await this.reply(
+        replyToken,
+        [
+          {
+            type: 'text',
+            text: `${err?.message ?? 'ご希望の時間帯では予約できませんでした。'}\n別の日時をお選びください。`,
+            quickReply: this.buildDatePickerQuickReply(min, max),
+          },
+        ],
+        customer.id,
+      );
     }
   }
 
@@ -429,11 +469,18 @@ export class LineService {
     }
 
     await client.pushMessage({ to: lineUserId, messages });
+
+    const customer = await this.customerService.findByLineUserId(lineUserId);
+
+    if (customer) {
+      await this.logOutgoing(customer.id, messages);
+    }
   }
 
   private async reply(
     replyToken: string,
     messages: messagingApi.Message[],
+    customerId?: number,
   ) {
     const client = this.getClient();
 
@@ -445,5 +492,25 @@ export class LineService {
     }
 
     await client.replyMessage({ replyToken, messages });
+
+    if (customerId) {
+      await this.logOutgoing(customerId, messages);
+    }
+  }
+
+  private async logOutgoing(customerId: number, messages: messagingApi.Message[]) {
+    for (const m of messages) {
+      if (m.type === 'text') {
+        await this.logMessage(customerId, 'OUT', m.text);
+      }
+    }
+  }
+
+  private async logMessage(customerId: number, direction: 'IN' | 'OUT', text: string) {
+    try {
+      await this.prisma.lineMessage.create({ data: { customerId, direction, text } });
+    } catch (err) {
+      this.logger.error('Failed to log LINE message', err as Error);
+    }
   }
 }

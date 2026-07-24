@@ -6,6 +6,11 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, extractErrorMessage } from '@/lib/api';
+import {
+  EstimateItemRow,
+  emptyEstimateItem,
+  type EstimateItemDraft,
+} from '@/components/estimate/EstimateItemRow';
 
 const FIELD_GROUPS = [
   {
@@ -81,9 +86,16 @@ export default function VehicleDetailPage() {
   const [serviceTitle, setServiceTitle] = useState('');
   const [serviceItems, setServiceItems] = useState([emptyItem()]);
 
+  const [correctingId, setCorrectingId] = useState<number | null>(null);
+  const [correctionTitle, setCorrectionTitle] = useState('');
+  const [correctionItems, setCorrectionItems] = useState<EstimateItemDraft[]>([]);
+  const [correcting, setCorrecting] = useState(false);
+
   const [showEstimateForm, setShowEstimateForm] = useState(false);
   const [estimateTitle, setEstimateTitle] = useState('');
-  const [estimateItems, setEstimateItems] = useState([emptyItem()]);
+  const [estimateItems, setEstimateItems] = useState<EstimateItemDraft[]>([
+    emptyEstimateItem(),
+  ]);
   const [estimateCategory, setEstimateCategory] = useState<'GENERAL' | 'SHAKEN'>('GENERAL');
   const [estimateStaffName, setEstimateStaffName] = useState('');
   const [estimateVehicleCategory, setEstimateVehicleCategory] = useState('REGULAR');
@@ -142,6 +154,55 @@ export default function VehicleDetailPage() {
     await load();
   }
 
+  function openCorrection(sh: any) {
+    setCorrectingId(sh.id);
+    setCorrectionTitle(sh.title);
+    setCorrectionItems(
+      sh.items.map((it: any) => ({
+        name: it.name,
+        quantity: String(it.quantity ?? 1),
+        unitPrice: String(it.unitPrice ?? it.cost ?? 0),
+        isFee: !!it.isFee,
+      })),
+    );
+  }
+
+  function updateCorrectionItem(index: number, patch: Partial<EstimateItemDraft>) {
+    setCorrectionItems((items) =>
+      items.map((it, i) => (i === index ? { ...it, ...patch } : it)),
+    );
+  }
+
+  async function saveCorrection() {
+    if (!correctingId) return;
+
+    setCorrecting(true);
+
+    try {
+      await api(`/service-history/${correctingId}/correct`, {
+        method: 'POST',
+        body: JSON.stringify({
+          title: correctionTitle,
+          items: correctionItems
+            .filter((i) => i.name.trim())
+            .map((i) => ({
+              name: i.name,
+              quantity: Number(i.quantity) || 1,
+              unitPrice: Number(i.unitPrice) || 0,
+              isFee: i.isFee,
+            })),
+        }),
+      });
+
+      setCorrectingId(null);
+      await load();
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    } finally {
+      setCorrecting(false);
+    }
+  }
+
   async function saveEstimate() {
     try {
       await api(`/vehicle/${params.id}/estimates`, {
@@ -150,7 +211,14 @@ export default function VehicleDetailPage() {
           title: estimateTitle,
           category: estimateCategory,
           staffName: estimateStaffName,
-          items: estimateItems.filter((i) => i.name.trim()),
+          items: estimateItems
+            .filter((i) => i.name.trim())
+            .map((i) => ({
+              name: i.name,
+              quantity: Number(i.quantity) || 1,
+              unitPrice: Number(i.unitPrice) || 0,
+              isFee: i.isFee,
+            })),
         }),
       });
 
@@ -158,7 +226,7 @@ export default function VehicleDetailPage() {
       setEstimateTitle('');
       setEstimateStaffName('');
       setEstimateCategory('GENERAL');
-      setEstimateItems([emptyItem()]);
+      setEstimateItems([emptyEstimateItem()]);
       await loadEstimates();
     } catch (e: any) {
       alert(extractErrorMessage(e));
@@ -178,7 +246,12 @@ export default function VehicleDetailPage() {
       );
 
       setEstimateItems(
-        result.items.map((i) => ({ name: i.name, cost: String(i.cost) })),
+        result.items.map((i) => ({
+          name: i.name,
+          quantity: String(i.quantity ?? 1),
+          unitPrice: String(i.unitPrice ?? i.cost ?? 0),
+          isFee: i.isFee ?? true,
+        })),
       );
 
       if (!estimateTitle) setEstimateTitle('車検見積');
@@ -205,6 +278,7 @@ export default function VehicleDetailPage() {
 
     alert('整備履歴に登録しました');
     await load();
+    await loadEstimates();
   }
 
   function convertAndPrint(id: number) {
@@ -219,9 +293,9 @@ export default function VehicleDetailPage() {
     );
   }
 
-  function updateEstimateItem(index: number, field: 'name' | 'cost', value: string) {
+  function updateEstimateItem(index: number, patch: Partial<EstimateItemDraft>) {
     setEstimateItems((items) =>
-      items.map((it, i) => (i === index ? { ...it, [field]: value } : it)),
+      items.map((it, i) => (i === index ? { ...it, ...patch } : it)),
     );
   }
 
@@ -348,14 +422,19 @@ export default function VehicleDetailPage() {
       <div className="panel mt-4">
         <div className="flex justify-between items-center mb-3">
           <h2 className="disp text-xl">整備履歴</h2>
-          {!showServiceForm && (
-            <button
-              onClick={() => setShowServiceForm(true)}
-              className="btn btn-blue btn-sm"
-            >
-              ➕ 記録を追加
-            </button>
-          )}
+          <div className="flex gap-2">
+            <Link href={`/vehicle/${params.id}/print`} className="btn btn-primary btn-sm">
+              🧾 売上表・納品書/請求書を印刷
+            </Link>
+            {!showServiceForm && (
+              <button
+                onClick={() => setShowServiceForm(true)}
+                className="btn btn-blue btn-sm"
+              >
+                ➕ 記録を追加
+              </button>
+            )}
+          </div>
         </div>
 
         {showServiceForm && (
@@ -435,18 +514,41 @@ export default function VehicleDetailPage() {
           vehicle.serviceHistories.map((sh: any) => {
             const total = sh.items.reduce((s: number, i: any) => s + i.cost, 0);
             return (
-              <div key={sh.id} className="veh mb-2">
+              <div key={sh.id} className={`veh mb-2 ${sh.voided ? 'opacity-60' : ''}`}>
                 <div className="flex justify-between items-center">
                   <div>
                     <span className="mono text-xs text-[var(--muted)]">
                       {sh.date.slice(0, 10)}
                     </span>{' '}
-                    <span className="font-semibold">{sh.title}</span>
+                    <span
+                      className="font-semibold"
+                      style={sh.voided ? { textDecoration: 'line-through' } : undefined}
+                    >
+                      {sh.title}
+                    </span>
+                    {sh.voided && (
+                      <span className="expbadge exp-warn ml-2">🔴 訂正済み(赤伝)</span>
+                    )}
+                    {sh.correctedFromId && (
+                      <span className="expbadge ml-2">⚫ 訂正後(黒伝)</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="mono text-[var(--blue)] font-bold">
+                    <span
+                      className="mono text-[var(--blue)] font-bold"
+                      style={sh.voided ? { textDecoration: 'line-through' } : undefined}
+                    >
                       ¥{total.toLocaleString()}
                     </span>
+                    {!sh.voided && (
+                      <button
+                        className="btn-icon"
+                        title="訂正する"
+                        onClick={() => openCorrection(sh)}
+                      >
+                        ✏️
+                      </button>
+                    )}
                     <button
                       className="btn-icon"
                       onClick={() => deleteServiceHistory(sh.id)}
@@ -463,6 +565,59 @@ export default function VehicleDetailPage() {
                         <span className="mono">¥{it.cost.toLocaleString()}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {correctingId === sh.id && (
+                  <div className="mt-3 pt-3 border-t border-dashed border-[var(--line)]">
+                    <div className="kicker mono text-xs text-[var(--muted)] mb-2">
+                      訂正内容(黒伝として新規登録し、元の行は赤伝として残ります)
+                    </div>
+
+                    <label className="field-label mb-2 block">
+                      作業内容
+                      <input
+                        className="input"
+                        value={correctionTitle}
+                        onChange={(e) => setCorrectionTitle(e.target.value)}
+                      />
+                    </label>
+
+                    {correctionItems.map((item, i) => (
+                      <EstimateItemRow
+                        key={i}
+                        item={item}
+                        onChange={(patch) => updateCorrectionItem(i, patch)}
+                        onRemove={() =>
+                          setCorrectionItems((items) => items.filter((_, idx) => idx !== i))
+                        }
+                      />
+                    ))}
+
+                    <button
+                      onClick={() =>
+                        setCorrectionItems((items) => [...items, emptyEstimateItem()])
+                      }
+                      className="btn-dashed"
+                    >
+                      ➕ 項目を追加
+                    </button>
+
+                    <div className="btnrow flex gap-2 mt-3">
+                      <button
+                        onClick={saveCorrection}
+                        disabled={correcting}
+                        className="btn btn-primary btn-sm"
+                      >
+                        {correcting ? '訂正中...' : '訂正を確定する'}
+                      </button>
+                      <button
+                        onClick={() => setCorrectingId(null)}
+                        className="btn btn-ghost btn-sm"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -550,34 +705,18 @@ export default function VehicleDetailPage() {
 
             <div className="kicker mono mt-3 text-xs text-[var(--muted)]">項目</div>
             {estimateItems.map((item, i) => (
-              <div key={i} className="shitemrow">
-                <input
-                  className="input"
-                  placeholder="項目名"
-                  value={item.name}
-                  onChange={(e) => updateEstimateItem(i, 'name', e.target.value)}
-                />
-                <input
-                  className="input"
-                  type="number"
-                  step="100"
-                  placeholder="費用(円)"
-                  value={item.cost}
-                  onChange={(e) => updateEstimateItem(i, 'cost', e.target.value)}
-                />
-                <button
-                  className="btn-icon"
-                  onClick={() =>
-                    setEstimateItems((items) => items.filter((_, idx) => idx !== i))
-                  }
-                >
-                  ✕
-                </button>
-              </div>
+              <EstimateItemRow
+                key={i}
+                item={item}
+                onChange={(patch) => updateEstimateItem(i, patch)}
+                onRemove={() =>
+                  setEstimateItems((items) => items.filter((_, idx) => idx !== i))
+                }
+              />
             ))}
 
             <button
-              onClick={() => setEstimateItems((items) => [...items, emptyItem()])}
+              onClick={() => setEstimateItems((items) => [...items, emptyEstimateItem()])}
               className="btn-dashed"
             >
               ➕ 項目を追加
@@ -628,7 +767,15 @@ export default function VehicleDetailPage() {
                   <div className="mt-2 text-xs text-[var(--muted)] space-y-1">
                     {es.items.map((it: any) => (
                       <div key={it.id} className="flex justify-between">
-                        <span>{it.name}</span>
+                        <span>
+                          {it.name}
+                          {it.isFee && <span className="ml-1">（手数料）</span>}
+                          {it.quantity > 1 && (
+                            <span className="ml-1">
+                              × {it.quantity}（@¥{it.unitPrice.toLocaleString()}）
+                            </span>
+                          )}
+                        </span>
                         <span className="mono">¥{it.cost.toLocaleString()}</span>
                       </div>
                     ))}

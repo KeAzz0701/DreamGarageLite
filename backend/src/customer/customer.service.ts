@@ -1,6 +1,12 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  forwardRef,
+  Inject,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { getEffectivePlanLimits } from '../common/plans';
+import { LineService } from '../line/line.service';
 
 interface FindOrCreateCustomerDto {
   customerName: string;
@@ -12,7 +18,11 @@ interface FindOrCreateCustomerDto {
 
 @Injectable()
 export class CustomerService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => LineService))
+    private readonly lineService: LineService,
+  ) {}
 
   async findOrCreate(data: FindOrCreateCustomerDto) {
     const name = (data.customerName ?? '').trim();
@@ -197,5 +207,39 @@ export class CustomerService {
         lineLinkToken: null,
       },
     });
+  }
+
+  async getLineMessages(customerId: number) {
+    return this.prisma.lineMessage.findMany({
+      where: { customerId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /** スタッフが顧客のLINEへ手動でメッセージを送信する */
+  async sendLineMessage(customerId: number, text: string) {
+    const trimmed = text?.trim();
+
+    if (!trimmed) {
+      throw new BadRequestException('text is required.');
+    }
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      throw new BadRequestException('Customer not found');
+    }
+
+    if (!customer.lineUserId) {
+      throw new BadRequestException('この顧客はLINE連携されていません。');
+    }
+
+    await this.lineService.pushMessage(customer.lineUserId, [
+      { type: 'text', text: trimmed },
+    ]);
+
+    return { ok: true };
   }
 }
