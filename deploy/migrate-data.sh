@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-PG_BIN=""   # 例: "/c/Program Files/PostgreSQL/16/bin/" (末尾スラッシュ必須、通常は空でよい)
+PG_BIN="${PG_BIN:-}"   # 例: PG_BIN="/c/Program Files/PostgreSQL/16/bin/" (末尾スラッシュ必須、通常は空でよい。環境変数で上書き可能)
 LOCAL_PG_HOST="localhost"
 LOCAL_PG_PORT="5432"
 LOCAL_PG_USER="postgres"
