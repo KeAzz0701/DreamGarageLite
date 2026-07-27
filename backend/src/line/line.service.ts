@@ -16,6 +16,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MasterPrismaService } from '../prisma/master-prisma.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { OpenRouterService } from '../openrouter/openrouter.service';
+import { LicenseService } from '../license/license.service';
+import { AnnouncementService } from '../announcement/announcement.service';
 
 // 全社共有のLINE公式アカウントは、実際に稼働しているDream Garage社のチャンネルをそのまま使う
 const SHARED_LINE_CHANNEL_COMPANY_CODE = 'ZK5NBWM4';
@@ -25,6 +27,9 @@ const SHARED_LINE_CHANNEL_COMPANY_CODE = 'ZK5NBWM4';
 const LINK_TOKEN_PATTERN = /^GK-([A-Z0-9]{3,20})-([A-Z0-9]{6})$/;
 // GKSTAFF-<会社の社員用参加コード>。会社に1つの固定コードを社員間で使い回す
 const STAFF_JOIN_PATTERN = /^GKSTAFF-([A-Z0-9]{6,20})$/;
+// 「GKSTAFF-」を付けずコード部分だけ送ってしまうケースを拾うためのゆるいパターン。
+// 実際に既存の参加コードとDB上で一致した場合のみ有効にする(通常の自由文と誤判定しないように)
+const BARE_STAFF_CODE_PATTERN = /^[A-Z0-9]{6,20}$/;
 const STAFF_JOIN_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const SERVICE_HISTORY_KEYWORD = '整備履歴';
 const RESERVATION_KEYWORD = '予約';
@@ -33,6 +38,11 @@ const RESERVATION_ACTION_PICK_CATEGORY = 'reserve_pick_category';
 const RESERVATION_ACTION_PICK_DATE = 'reserve_pick_date';
 const RESERVATION_ACTION_PICK_SLOT = 'reserve_pick_slot';
 const RESERVATION_ACTION_SET_LOANER = 'reserve_set_loaner';
+const RESERVATION_ACTION_MAIN_CHOICE = 'reserve_main_choice';
+const ANNOUNCEMENT_ACTION_SHOW = 'announcement_show';
+const RECOMMEND_ACTION_SHOW = 'recommend_show';
+const IMAGE_ACTION_PICK_COMPANY = 'image_pick_company';
+const SWITCH_ACTION_PICK_COMPANY = 'switch_pick_company';
 const RESERVATION_CATEGORIES = [
   'オイル交換',
   'タイヤ交換',
@@ -44,6 +54,11 @@ const RESERVATION_CATEGORIES = [
 ];
 const MAX_QUICK_REPLY_ITEMS = 13;
 const SHAKEN_REMINDER_WINDOW_DAYS = 60;
+const MAINTENANCE_REMINDER_WINDOW_DAYS = 14;
+const MAINTENANCE_CATEGORY_LABEL: Record<'OIL' | 'TIRE', string> = {
+  OIL: 'オイル交換',
+  TIRE: 'タイヤ交換',
+};
 
 const mainMenuQuickReply: messagingApi.QuickReply = {
   items: [
@@ -81,12 +96,24 @@ type StaffLinkWithCompany = {
 
 export type ShakenReminderCandidate = {
   vehicleId: number;
+  customerId: number;
   customerName: string;
   vehicleLabel: string;
   registrationNumber: string | null;
   phone: string | null;
   address: string | null;
   expirationDate: string;
+  daysRemaining: number;
+};
+
+export type MaintenanceReminderCandidate = {
+  vehicleId: number;
+  customerId: number;
+  customerName: string;
+  vehicleLabel: string;
+  registrationNumber: string | null;
+  dueLabel: string;
+  recommendElement?: boolean;
 };
 
 @Injectable()
@@ -103,6 +130,8 @@ export class LineService {
     private readonly masterPrisma: MasterPrismaService,
     private readonly geminiService: GeminiService,
     private readonly openRouterService: OpenRouterService,
+    private readonly licenseService: LicenseService,
+    private readonly announcementService: AnnouncementService,
   ) {}
 
   /** 指定した会社をテナントコンテキストとして確立した状態でfnを実行する */
@@ -130,6 +159,23 @@ export class LineService {
     });
 
     return this.sharedClient;
+  }
+
+  private sharedBlobClient: messagingApi.MessagingApiBlobClient | null = null;
+
+  /** 画像等のメッセージコンテンツをダウンロードするための専用クライアント */
+  private async getBlobClient(): Promise<messagingApi.MessagingApiBlobClient | null> {
+    if (this.sharedBlobClient) return this.sharedBlobClient;
+
+    const company = await this.getSharedChannelCompany();
+
+    if (!company?.lineChannelAccessToken) return null;
+
+    this.sharedBlobClient = new messagingApi.MessagingApiBlobClient({
+      channelAccessToken: company.lineChannelAccessToken,
+    });
+
+    return this.sharedBlobClient;
   }
 
   /** 全社共有チャンネルの署名検証。テナント解決より前に行える */
@@ -162,6 +208,15 @@ export class LineService {
         event.replyToken,
         event.source?.type === 'user' ? event.source.userId : undefined,
         event.message.text,
+      );
+      return;
+    }
+
+    if (event.type === 'message' && event.message.type === 'image') {
+      await this.handleImageMessage(
+        event.replyToken,
+        event.source?.type === 'user' ? event.source.userId : undefined,
+        event.message.id,
       );
       return;
     }
@@ -245,12 +300,41 @@ export class LineService {
     return lines.join('\n');
   }
 
-  private async findLinksForUser(lineUserId: string): Promise<LinkWithCompany[]> {
+  /** links[0]が「最後にやり取りのあった店舗」になるよう、lastActiveAt降順で返す。顧客ポータルからも使う */
+  async findLinksForUser(lineUserId: string): Promise<LinkWithCompany[]> {
     return this.masterPrisma.lineCompanyLink.findMany({
       where: { lineUserId },
       include: { companyAccount: true },
-      orderBy: { linkedAt: 'asc' },
+      orderBy: { lastActiveAt: 'desc' },
     });
+  }
+
+  /** (lineUserId, companyAccountId)の組み合わせの最終活動日時を更新する。存在しない組み合わせなら黙って無視する */
+  async touchCompanyLinkActivity(lineUserId: string, companyAccountId: number) {
+    await this.masterPrisma.lineCompanyLink
+      .update({
+        where: { lineUserId_companyAccountId: { lineUserId, companyAccountId } },
+        data: { lastActiveAt: new Date() },
+      })
+      .catch(() => {});
+  }
+
+  /** LIFFから送られてきたIDトークンをLINE側で検証し、確認できたlineUserId(sub)を返す。失敗時はnull */
+  async verifyLiffIdToken(idToken: string): Promise<string | null> {
+    const liffChannelId = process.env.LIFF_CHANNEL_ID;
+
+    if (!liffChannelId) return null;
+
+    const res = await fetch('https://api.line.me/oauth2/v2.1/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ id_token: idToken, client_id: liffChannelId }),
+    });
+
+    if (!res.ok) return null;
+
+    const payload = await res.json();
+    return typeof payload.sub === 'string' ? payload.sub : null;
   }
 
   private async handleTextMessage(
@@ -270,6 +354,19 @@ export class LineService {
       return;
     }
 
+    // 「GKSTAFF-」を付け忘れてコード部分だけ送ってきた場合の救済。
+    // 実在する参加コードと一致した時だけ反応し、それ以外の自由文には影響しない
+    if (BARE_STAFF_CODE_PATTERN.test(upper)) {
+      const matchedCompany = await this.masterPrisma.companyAccount.findUnique({
+        where: { staffJoinCode: upper },
+      });
+
+      if (matchedCompany) {
+        await this.handleStaffJoin(replyToken, lineUserId, upper);
+        return;
+      }
+    }
+
     const linkMatch = upper.match(LINK_TOKEN_PATTERN);
 
     if (linkMatch) {
@@ -282,14 +379,9 @@ export class LineService {
       include: { companyAccount: true },
     });
 
-    if (staffLinks.length > 0) {
-      await this.handleStaffFreeText(replyToken, staffLinks, trimmed);
-      return;
-    }
-
     const links = await this.findLinksForUser(lineUserId);
 
-    if (links.length === 0) {
+    if (staffLinks.length === 0 && links.length === 0) {
       await this.reply(replyToken, [
         {
           type: 'text',
@@ -299,63 +391,55 @@ export class LineService {
       return;
     }
 
-    // 各社の連携が判明した時点で、届いたメッセージ自体は関係する全社のログに残す
+    // お客様として連携している場合、届いたメッセージ自体は関係する全社のログに残す
     for (const link of links) {
       await this.withCompany(link.companyAccount, async () => {
         await this.logMessage(link.tenantCustomerId, 'IN', trimmed);
       });
     }
 
-    if (trimmed === SERVICE_HISTORY_KEYWORD) {
+    // 「整備履歴」「予約」はスタッフ向けの自由文と紛れることが無い明確なお客様コマンドのため、
+    // スタッフとしても連携されている(同一人物がお客様兼スタッフの)場合でも必ずお客様コマンドとして扱う
+    // 完全一致だけでなく、「整備履歴を教えて」「予約確認したい」のような
+    // 似た自由文でもキーワードが含まれていれば同じ案内につなげる
+    if (links.length > 0 && trimmed.includes(SERVICE_HISTORY_KEYWORD)) {
       await this.replyAggregatedServiceHistory(replyToken, links);
       return;
     }
 
-    if (trimmed === RESERVATION_KEYWORD) {
-      if (links.length === 1) {
-        await this.promptReservationCategory(
+    if (links.length > 0 && trimmed.includes(RESERVATION_KEYWORD)) {
+      await this.promptReservationMainChoice(replyToken);
+      return;
+    }
+
+    // スタッフとしても連携している場合は、まず車検リマインド非表示の自由文として解釈を試みる。
+    // 該当が無ければ、お客様として連携があるならお客様向けの案内へフォールバックする
+    // (お客様兼スタッフの人が「該当なし」で会話を行き止まりにされないようにするため)
+    if (staffLinks.length > 0) {
+      const handled = await this.handleStaffFreeText(replyToken, staffLinks, trimmed);
+
+      if (handled) return;
+
+      if (links.length === 0) {
+        await this.reply(
           replyToken,
-          lineUserId,
-          links[0].companyAccount,
-          false,
+          [
+            {
+              type: 'text',
+              text: '該当するお客様が分かりませんでした。お名前や車両名を含めて送ってください。',
+            },
+          ],
+          undefined,
+          undefined,
+          true,
         );
         return;
       }
-
-      await this.reply(replyToken, [
-        {
-          type: 'text',
-          text: 'どちらの店舗のご予約ですか？',
-          quickReply: this.buildCompanyPickerQuickReply(links, RESERVATION_ACTION_PICK_COMPANY),
-        },
-      ]);
-      return;
     }
 
-    // その他のフリーテキストは、店舗を跨いだ処理をしていないので1社目の会社に絞ってAIが初期対応する
-    const firstLink = links[0];
-
-    if (links.length === 1) {
-      await this.replyWithAiAssistant(replyToken, firstLink, trimmed);
-      return;
-    }
-
-    await this.withCompany(firstLink.companyAccount, async () => {
-      const customer = await this.customerService.findByLineUserId(lineUserId);
-
-      await this.reply(
-        replyToken,
-        [
-          {
-            type: 'text',
-            text: `受信しました:「${trimmed}」`,
-            quickReply: mainMenuQuickReply,
-          },
-        ],
-        customer?.id,
-        links.length > 1 ? firstLink.companyAccount.displayName : undefined,
-      );
-    });
+    // その他のフリーテキストは、直近やり取りのあった店舗(links[0]、lastActiveAt降順)にAIが応答する。
+    // 複数店舗と連携している場合は、返信に他店舗へ切り替えるボタンを添える
+    await this.replyWithAiAssistant(replyToken, links, trimmed);
   }
 
   /**
@@ -365,9 +449,12 @@ export class LineService {
    */
   private async replyWithAiAssistant(
     replyToken: string,
-    link: LinkWithCompany,
+    links: LinkWithCompany[],
     message: string,
   ) {
+    const link = links[0];
+    const quickReply = this.withSwitchCompanyOptions(mainMenuQuickReply, links, link.companyAccountId);
+
     await this.withCompany(link.companyAccount, async () => {
       const customer = await this.customerService.findByLineUserId(link.lineUserId);
       const fallback = async () => {
@@ -376,15 +463,23 @@ export class LineService {
           [
             {
               type: 'text',
-              text: `受信しました:「${message}」\nスタッフが確認いたします。整備履歴の確認やご予約は下のボタンからどうぞ。`,
-              quickReply: mainMenuQuickReply,
+              text: 'メッセージを受け付けました。スタッフが確認いたします。整備履歴の確認やご予約は下のボタンからどうぞ。',
+              quickReply,
             },
           ],
           customer?.id,
+          link.companyAccount.displayName,
         );
       };
 
       if (!customer) {
+        await fallback();
+        return;
+      }
+
+      const limits = await this.licenseService.getCurrentPlanLimits();
+
+      if (limits && !limits.aiChat) {
         await fallback();
         return;
       }
@@ -431,8 +526,9 @@ export class LineService {
 
         await this.reply(
           replyToken,
-          [{ type: 'text', text: replyText, quickReply: mainMenuQuickReply }],
+          [{ type: 'text', text: replyText, quickReply }],
           customer.id,
+          link.companyAccount.displayName,
         );
       } catch (err) {
         this.logger.warn(`AI初期応答の生成に失敗したため、簡易案内にフォールバックします: ${err}`);
@@ -456,6 +552,152 @@ export class LineService {
       .slice(0, 14)
       .map(([date, status]) => `${date}(${labels[status]})`)
       .join('、') || '直近の空き情報なし';
+  }
+
+  /**
+   * お客様が送った車検証等の画像をOCRし、スタッフの確認待ちとして保存する。
+   * その場で車両として確定登録はしない(誤登録防止のため、必ずスタッフの確認を挟む)。
+   */
+  private async handleImageMessage(
+    replyToken: string,
+    lineUserId: string | undefined,
+    messageId: string,
+  ) {
+    if (!lineUserId) return;
+
+    const links = await this.findLinksForUser(lineUserId);
+
+    if (links.length === 0) {
+      await this.reply(replyToken, [
+        {
+          type: 'text',
+          text: 'まだ連携が完了していません。お店で発行された連携コードを送信してください。',
+        },
+      ]);
+      return;
+    }
+
+    if (links.length > 1) {
+      await this.reply(replyToken, [
+        {
+          type: 'text',
+          text: 'どちらの店舗宛ての画像ですか？',
+          quickReply: this.buildCompanyPickerQuickReply(
+            links,
+            IMAGE_ACTION_PICK_COMPANY,
+            `&messageId=${encodeURIComponent(messageId)}`,
+          ),
+        },
+      ]);
+      return;
+    }
+
+    await this.processVehicleImage(replyToken, lineUserId, links[0].companyAccount, messageId, true);
+  }
+
+  /** 画像(車検証等)をOCRしてスタッフ確認待ちとして保存する。会社が確定した後に呼ばれる */
+  private async processVehicleImage(
+    replyToken: string,
+    lineUserId: string,
+    company: CompanyAccount,
+    messageId: string,
+    showLabel: boolean,
+  ) {
+    await this.withCompany(company, async () => {
+      const customer = await this.customerService.findByLineUserId(lineUserId);
+
+      if (!customer) {
+        await this.reply(replyToken, [
+          { type: 'text', text: 'お客様情報が見つかりませんでした。店舗までご連絡ください。' },
+        ]);
+        return;
+      }
+
+      try {
+        const blobClient = await this.getBlobClient();
+
+        if (!blobClient) {
+          throw new Error('LINEチャンネルが未設定のため、画像を取得できません。');
+        }
+
+        const content = await blobClient.getMessageContentWithHttpInfo(messageId);
+        const mimeType = content.httpResponse.headers.get('content-type') || 'image/jpeg';
+
+        const chunks: Buffer[] = [];
+
+        for await (const chunk of content.body) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+
+        const buffer = Buffer.concat(chunks);
+        const base64 = buffer.toString('base64');
+
+        const apiKey = await this.licenseService.getApiKey(company.id);
+        const text = await this.geminiService.analyzeImage(base64, mimeType, apiKey ?? undefined);
+        const extractedData = JSON.parse(text);
+
+        const submission = await this.prisma.lineOcrSubmission.create({
+          data: {
+            customerId: customer.id,
+            imageData: buffer,
+            mimeType,
+            extractedData,
+            status: 'PENDING',
+          },
+        });
+
+        await this.logMessage(customer.id, 'IN', '[画像: 車検証OCR]', submission.id);
+
+        await this.reply(
+          replyToken,
+          [
+            {
+              type: 'text',
+              text: '車検証の画像を受け取りました。内容を確認のうえ登録いたします。',
+              quickReply: mainMenuQuickReply,
+            },
+          ],
+          customer.id,
+          showLabel ? company.displayName : undefined,
+        );
+
+        const staffLinks = await this.masterPrisma.lineStaffLink.findMany({
+          where: { companyAccountId: company.id },
+        });
+
+        for (const staffLink of staffLinks) {
+          try {
+            await this.pushMessage(
+              staffLink.lineUserId,
+              [
+                {
+                  type: 'text',
+                  text: `🚗 ${customer.customerName}様から車検証の画像が届きました。確認して登録してください。`,
+                },
+              ],
+              undefined,
+              true,
+            );
+          } catch (err) {
+            this.logger.warn(`スタッフへの車検証画像通知に失敗しました: ${err}`);
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`車検証画像の解析に失敗しました: ${err}`);
+
+        await this.reply(
+          replyToken,
+          [
+            {
+              type: 'text',
+              text: '画像の解析に失敗しました。恐れ入りますが、店舗まで直接ご連絡ください。',
+              quickReply: mainMenuQuickReply,
+            },
+          ],
+          customer.id,
+        );
+      }
+    });
   }
 
   private async handleLinkToken(
@@ -516,13 +758,30 @@ export class LineService {
         where: { lineUserId },
       });
 
+      // 既に車両登録済みなら、連携完了と同時に車検満了日も一度お知らせする
+      const vehicles = await this.prisma.vehicle.findMany({
+        where: { customerId: customer.id },
+      });
+
+      const shakenLines = vehicles
+        .filter((v) => v.expirationDate)
+        .map((v) => {
+          const label = [v.carName, v.commonModelName].filter(Boolean).join(' ') || '車両';
+          return `${label}: ${v.expirationDate}`;
+        });
+
+      const shakenText =
+        shakenLines.length > 0
+          ? `\n\n🚗 車検満了日\n${shakenLines.join('\n')}`
+          : '\n車検満了日などをこちらのLINEでお知らせします。';
+
       // replyTokenは有効期限が短く失効しやすいため、連携完了の通知はpushで確実に送る
       await this.pushMessage(
         lineUserId,
         [
           {
             type: 'text',
-            text: `${customer.customerName}様、${company.displayName}との連携が完了しました。\n車検満了日などをこちらのLINEでお知らせします。`,
+            text: `${customer.customerName}様、${company.displayName}との連携が完了しました。${shakenText}`,
             quickReply: mainMenuQuickReply,
           },
         ],
@@ -548,6 +807,22 @@ export class LineService {
     return code;
   }
 
+  /** 設定画面に表示する、この会社に連携済みのスタッフ一覧 */
+  async listStaffLinks(company: CompanyAccount) {
+    return this.masterPrisma.lineStaffLink.findMany({
+      where: { companyAccountId: company.id },
+      orderBy: { joinedAt: 'asc' },
+      select: { id: true, displayName: true, joinedAt: true },
+    });
+  }
+
+  /** 設定画面から、この会社のスタッフ連携を解除する(他社のリンクは触れない) */
+  async removeStaffLink(company: CompanyAccount, id: number) {
+    await this.masterPrisma.lineStaffLink.deleteMany({
+      where: { id, companyAccountId: company.id },
+    });
+  }
+
   private async handleStaffJoin(replyToken: string, lineUserId: string, joinCode: string) {
     const company = await this.masterPrisma.companyAccount.findUnique({
       where: { staffJoinCode: joinCode },
@@ -563,6 +838,25 @@ export class LineService {
       return;
     }
 
+    const existingLink = await this.masterPrisma.lineStaffLink.findUnique({
+      where: {
+        lineUserId_companyAccountId: {
+          lineUserId,
+          companyAccountId: company.id,
+        },
+      },
+    });
+
+    let displayName: string | null = null;
+
+    try {
+      const client = await this.getClient();
+      const profile = await client?.getProfile(lineUserId);
+      displayName = profile?.displayName ?? null;
+    } catch (err) {
+      this.logger.warn(`スタッフのLINEプロフィール取得に失敗しました: ${err}`);
+    }
+
     await this.masterPrisma.lineStaffLink.upsert({
       where: {
         lineUserId_companyAccountId: {
@@ -570,9 +864,34 @@ export class LineService {
           companyAccountId: company.id,
         },
       },
-      update: {},
-      create: { lineUserId, companyAccountId: company.id },
+      update: { displayName: displayName ?? undefined },
+      create: { lineUserId, companyAccountId: company.id, displayName },
     });
+
+    // 新規参加の時だけ、既に登録済みの他のスタッフへ知らせる(コード再送では通知しない)
+    if (!existingLink) {
+      const otherStaffLinks = await this.masterPrisma.lineStaffLink.findMany({
+        where: { companyAccountId: company.id, lineUserId: { not: lineUserId } },
+      });
+
+      for (const staffLink of otherStaffLinks) {
+        try {
+          await this.pushMessage(
+            staffLink.lineUserId,
+            [
+              {
+                type: 'text',
+                text: `🆕 ${displayName ?? '新しいスタッフ'}さんが社員として連携しました。`,
+              },
+            ],
+            undefined,
+            true,
+          );
+        } catch (err) {
+          this.logger.warn(`新規スタッフ参加の通知に失敗しました: ${err}`);
+        }
+      }
+    }
 
     await this.pushMessage(
       lineUserId,
@@ -627,6 +946,7 @@ export class LineService {
 
       candidates.push({
         vehicleId: vehicle.id,
+        customerId: vehicle.customer.id,
         customerName: vehicle.customer.customerName,
         vehicleLabel:
           [vehicle.carName, vehicle.commonModelName].filter(Boolean).join(' ') || '車両',
@@ -634,17 +954,130 @@ export class LineService {
         phone: vehicle.customer.phone,
         address: vehicle.customer.customerAddress,
         expirationDate: vehicle.expirationDate!,
+        daysRemaining: remain,
       });
     }
 
     return candidates;
   }
 
+  /**
+   * オイル/タイヤ交換のリマインド候補を組み立てる(現在のテナントコンテキストの会社が対象)。
+   * `getShakenReminderCandidates`と同じ考え方(予約が入っていれば除外、dismiss値が変われば復活)。
+   *
+   * 走行距離ベースの目安(km)は、現在の実走行距離をリアルタイムに把握する手段が無いため
+   * (次回来店時に整備履歴として記録された時点でしか分からない)、自動判定には使わず、
+   * 案内文に「目安走行距離」として参考表示するのみに留める。自動判定は月数ベースのみで行う。
+   */
+  async getMaintenanceReminderCandidates(
+    kind: 'OIL' | 'TIRE',
+  ): Promise<MaintenanceReminderCandidate[]> {
+    const company = await this.prisma.company.findFirst();
+
+    if (!company) return [];
+
+    const settings = await this.prisma.settings.findUnique({
+      where: { companyId: company.id },
+    });
+
+    const intervalMonths =
+      kind === 'OIL' ? settings?.oilChangeIntervalMonths : settings?.tireChangeIntervalMonths;
+    const intervalKm =
+      kind === 'OIL' ? settings?.oilChangeIntervalKm : settings?.tireChangeIntervalKm;
+
+    if (!intervalMonths && !intervalKm) return [];
+
+    const categoryLabel = MAINTENANCE_CATEGORY_LABEL[kind];
+
+    const vehicles = await this.prisma.vehicle.findMany({
+      where: { customerId: { not: null } },
+      include: {
+        customer: true,
+        reservations: {
+          where: {
+            status: { in: ['PENDING', 'CONFIRMED'] },
+            scheduledStart: { gte: new Date() },
+          },
+        },
+        serviceHistories: {
+          where: { category: { has: categoryLabel }, voided: false },
+          orderBy: { date: 'desc' },
+        },
+      },
+    });
+
+    const candidates: MaintenanceReminderCandidate[] = [];
+
+    for (const vehicle of vehicles) {
+      if (!vehicle.customer) continue;
+      if (vehicle.reservations.length > 0) continue;
+
+      const last = vehicle.serviceHistories[0];
+
+      if (!last) continue; // まだ一度も記録が無い車両は目安が計算できないので対象外
+
+      const dismissKey = `${last.date.toISOString()}|${last.mileage ?? ''}`;
+      const dismissedFor =
+        kind === 'OIL' ? vehicle.oilReminderDismissedFor : vehicle.tireReminderDismissedFor;
+
+      if (dismissedFor === dismissKey) continue;
+
+      let due = false;
+
+      if (intervalMonths) {
+        const dueDate = new Date(last.date);
+        dueDate.setMonth(dueDate.getMonth() + intervalMonths);
+        due = daysUntil(dueDate) <= MAINTENANCE_REMINDER_WINDOW_DAYS;
+      }
+
+      if (!due) continue;
+
+      const targetMileage =
+        intervalKm && last.mileage != null ? last.mileage + intervalKm : null;
+
+      const dueLabelParts = [`前回: ${last.date.toISOString().slice(0, 10)}`];
+
+      if (targetMileage != null) {
+        dueLabelParts.push(`目安走行距離: 約${targetMileage.toLocaleString()}km`);
+      }
+
+      let recommendElement: boolean | undefined;
+
+      if (kind === 'OIL') {
+        // 過去のオイル交換回数を数え、次回が2回に1回目(偶数回目)にあたる場合はエレメントも案内する
+        // (走行距離の実測値が無いため回数ベースの簡易な目安として実装。今後調整可能)
+        const pastOilChanges = await this.prisma.serviceHistory.count({
+          where: { vehicleId: vehicle.id, category: { has: categoryLabel }, voided: false },
+        });
+
+        recommendElement = (pastOilChanges + 1) % 2 === 0;
+      }
+
+      candidates.push({
+        vehicleId: vehicle.id,
+        customerId: vehicle.customer.id,
+        customerName: vehicle.customer.customerName,
+        vehicleLabel:
+          [vehicle.carName, vehicle.commonModelName].filter(Boolean).join(' ') || '車両',
+        registrationNumber: vehicle.registrationNumber,
+        dueLabel: dueLabelParts.join(' / '),
+        recommendElement,
+      });
+    }
+
+    return candidates;
+  }
+
+  /**
+   * スタッフ向けの自由文(車検リマインド非表示)として解釈を試みる。
+   * 該当が見つかり返信まで済んだ場合はtrue、該当が無く何も返信していない場合はfalseを返す
+   * (falseの場合、呼び出し側がお客様向けの案内へフォールバックできるようにするため)
+   */
   private async handleStaffFreeText(
     replyToken: string,
     staffLinks: StaffLinkWithCompany[],
     message: string,
-  ) {
+  ): Promise<boolean> {
     for (const link of staffLinks) {
       const matched = await this.withCompany(link.companyAccount, async () => {
         const candidates = await this.getShakenReminderCandidates();
@@ -680,22 +1113,11 @@ export class LineService {
           undefined,
           true,
         );
-        return;
+        return true;
       }
     }
 
-    await this.reply(
-      replyToken,
-      [
-        {
-          type: 'text',
-          text: '該当するお客様が分かりませんでした。お名前や車両名を含めて送ってください。',
-        },
-      ],
-      undefined,
-      undefined,
-      true,
-    );
+    return false;
   }
 
   /** 新しいLINE予約が入った時、その会社のスタッフ全員に即時通知する */
@@ -755,7 +1177,7 @@ export class LineService {
           customerId: customer.id,
           text: this.formatServiceHistoryReply(
             customer,
-            links.length > 1 ? link.companyAccount.displayName : undefined,
+            link.companyAccount.displayName,
           ),
         };
       });
@@ -796,9 +1218,309 @@ export class LineService {
     }
   }
 
+  /** 「予約確認」で使う。全連携先の今後の予約(未確定含む)を1通にまとめて返す */
+  private async replyAggregatedReservationStatus(
+    replyToken: string,
+    links: LinkWithCompany[],
+  ) {
+    const sections: { companyAccountId: number; customerId: number; text: string }[] = [];
+
+    for (const link of links) {
+      const section = await this.withCompany(link.companyAccount, async () => {
+        const customer = await this.customerService.findByLineUserId(link.lineUserId);
+
+        if (!customer) return null;
+
+        const reservations = await this.reservationService.findUpcomingForCustomer(customer.id);
+
+        if (reservations.length === 0) return null;
+
+        const lines: string[] = [`【${link.companyAccount.displayName}】`];
+
+        for (const r of reservations) {
+          const vehicleLabel = r.vehicle
+            ? [r.vehicle.carName, r.vehicle.commonModelName].filter(Boolean).join(' ')
+            : '';
+          const statusLabel = r.status === 'CONFIRMED' ? '確定' : '未確定';
+          const categoryLabel = r.category ? `[${r.category}] ` : '';
+
+          lines.push(
+            `${this.formatDateJst(r.scheduledStart)} ${categoryLabel}${vehicleLabel}（${statusLabel}）`,
+          );
+        }
+
+        return { customerId: customer.id, text: lines.join('\n') };
+      });
+
+      if (section) {
+        sections.push({ companyAccountId: link.companyAccountId, ...section });
+      }
+    }
+
+    if (sections.length === 0) {
+      await this.reply(replyToken, [
+        {
+          type: 'text',
+          text: '現在、確認できるご予約はありません。',
+          quickReply: mainMenuQuickReply,
+        },
+      ]);
+      return;
+    }
+
+    const combinedText = '📅 ご予約状況\n\n' + sections.map((s) => s.text).join('\n\n');
+
+    await this.reply(replyToken, [
+      {
+        type: 'text',
+        text: combinedText,
+        quickReply: mainMenuQuickReply,
+      },
+    ]);
+
+    for (const section of sections) {
+      const link = links.find((l) => l.companyAccountId === section.companyAccountId)!;
+
+      await this.withCompany(link.companyAccount, async () => {
+        await this.logMessage(section.customerId, 'OUT', section.text);
+      });
+    }
+  }
+
+  /** 「予約」入力時、まず整備予約(新規)か予約確認かを選ばせる */
+  private async promptReservationMainChoice(replyToken: string) {
+    await this.reply(replyToken, [
+      {
+        type: 'text',
+        text: 'どちらですか？',
+        quickReply: {
+          items: [
+            {
+              type: 'action',
+              action: {
+                type: 'postback',
+                label: '🔧 整備予約',
+                data: `action=${RESERVATION_ACTION_MAIN_CHOICE}&choice=NEW`,
+                displayText: '整備予約',
+              },
+            },
+            {
+              type: 'action',
+              action: {
+                type: 'postback',
+                label: '📋 予約確認',
+                data: `action=${RESERVATION_ACTION_MAIN_CHOICE}&choice=CONFIRM`,
+                displayText: '予約確認',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+  }
+
+  /** 「お知らせ」タップで、連携先各社の直近のお知らせをFlexカルーセルで返す */
+  private async replyAnnouncements(replyToken: string, links: LinkWithCompany[]) {
+    const bubbles: messagingApi.FlexBubble[] = [];
+
+    for (const link of links) {
+      const announcements = await this.withCompany(link.companyAccount, () =>
+        this.announcementService.latest(3),
+      );
+
+      for (const a of announcements) {
+        bubbles.push(
+          this.buildAnnouncementBubble(
+            a,
+            link.companyAccount.displayName,
+          ),
+        );
+      }
+    }
+
+    if (bubbles.length === 0) {
+      await this.reply(replyToken, [
+        { type: 'text', text: '現在お知らせはありません。', quickReply: mainMenuQuickReply },
+      ]);
+      return;
+    }
+
+    await this.reply(replyToken, [
+      {
+        type: 'flex',
+        altText: 'お知らせ',
+        contents:
+          bubbles.length === 1 ? bubbles[0] : { type: 'carousel', contents: bubbles.slice(0, 10) },
+      },
+    ]);
+  }
+
+  private buildAnnouncementBubble(
+    announcement: { title: string; body: string; createdAt: Date },
+    shopLabel?: string,
+  ): messagingApi.FlexBubble {
+    return {
+      type: 'bubble',
+      size: 'kilo',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#1e3a5f',
+        paddingAll: '12px',
+        contents: [
+          {
+            type: 'text',
+            text: shopLabel ? `📢 ${shopLabel}` : '📢 お知らせ',
+            color: '#ffffff',
+            weight: 'bold',
+            size: 'sm',
+          },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        contents: [
+          { type: 'text', text: announcement.title, weight: 'bold', size: 'md', wrap: true },
+          { type: 'text', text: announcement.body, size: 'sm', color: '#666666', wrap: true },
+          {
+            type: 'text',
+            text: announcement.createdAt.toISOString().slice(0, 10),
+            size: 'xs',
+            color: '#999999',
+            margin: 'md',
+          },
+        ],
+      },
+    };
+  }
+
+  /** 「オススメメニュー」タップで、車検・オイル・タイヤの各リマインドを本人分に絞ってまとめて案内する */
+  private async replyRecommendMenu(
+    replyToken: string,
+    lineUserId: string,
+    links: LinkWithCompany[],
+  ) {
+    const bubbles: messagingApi.FlexBubble[] = [];
+
+    for (const link of links) {
+      const bubble = await this.withCompany(link.companyAccount, async () => {
+        const customer = await this.customerService.findByLineUserId(lineUserId);
+
+        if (!customer) return null;
+
+        const limits = await this.licenseService.getCurrentPlanLimits();
+        const predictiveMaintenanceEnabled = !limits || limits.predictiveMaintenance;
+
+        const [shaken, oil, tire] = await Promise.all([
+          this.getShakenReminderCandidates(),
+          predictiveMaintenanceEnabled
+            ? this.getMaintenanceReminderCandidates('OIL')
+            : Promise.resolve([]),
+          predictiveMaintenanceEnabled
+            ? this.getMaintenanceReminderCandidates('TIRE')
+            : Promise.resolve([]),
+        ]);
+
+        const lines: string[] = [];
+
+        for (const c of shaken.filter((c) => c.customerId === customer.id)) {
+          lines.push(`🚗 車検: ${c.vehicleLabel}（車検満了: ${c.expirationDate}）`);
+        }
+
+        for (const c of oil.filter((c) => c.customerId === customer.id)) {
+          lines.push(
+            `🛢 オイル交換: ${c.vehicleLabel}（${c.dueLabel}）` +
+              (c.recommendElement ? '\n　オイルエレメントの交換もおすすめです。' : ''),
+          );
+        }
+
+        for (const c of tire.filter((c) => c.customerId === customer.id)) {
+          lines.push(`🛞 タイヤ交換: ${c.vehicleLabel}（${c.dueLabel}）`);
+        }
+
+        if (lines.length === 0) return null;
+
+        return this.buildRecommendBubble(
+          lines,
+          link.companyAccount.displayName,
+        );
+      });
+
+      if (bubble) bubbles.push(bubble);
+    }
+
+    if (bubbles.length === 0) {
+      await this.reply(replyToken, [
+        {
+          type: 'text',
+          text: '現在おすすめのご案内はありません。',
+          quickReply: mainMenuQuickReply,
+        },
+      ]);
+      return;
+    }
+
+    await this.reply(replyToken, [
+      {
+        type: 'flex',
+        altText: 'オススメメニュー',
+        contents:
+          bubbles.length === 1 ? bubbles[0] : { type: 'carousel', contents: bubbles.slice(0, 10) },
+      },
+    ]);
+  }
+
+  private buildRecommendBubble(lines: string[], shopLabel?: string): messagingApi.FlexBubble {
+    return {
+      type: 'bubble',
+      size: 'kilo',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#b8860b',
+        paddingAll: '12px',
+        contents: [
+          {
+            type: 'text',
+            text: shopLabel ? `✨ ${shopLabel} オススメ` : '✨ オススメメニュー',
+            color: '#ffffff',
+            weight: 'bold',
+            size: 'sm',
+          },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'md',
+        contents: lines.map((text) => ({ type: 'text', text, size: 'sm', wrap: true })),
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'button',
+            style: 'primary',
+            color: '#b8860b',
+            action: {
+              type: 'postback',
+              label: '予約確認はこちら',
+              data: `action=${RESERVATION_ACTION_MAIN_CHOICE}&choice=CONFIRM`,
+              displayText: '予約確認',
+            },
+          },
+        ],
+      },
+    };
+  }
+
   private buildCompanyPickerQuickReply(
     links: LinkWithCompany[],
     action: string,
+    extraParams?: string,
   ): messagingApi.QuickReply {
     return {
       items: links.slice(0, MAX_QUICK_REPLY_ITEMS).map((link) => ({
@@ -806,10 +1528,38 @@ export class LineService {
         action: {
           type: 'postback',
           label: link.companyAccount.displayName.slice(0, 20),
-          data: `action=${action}&companyAccountId=${link.companyAccountId}`,
+          data: `action=${action}&companyAccountId=${link.companyAccountId}${extraParams ?? ''}`,
           displayText: link.companyAccount.displayName,
         },
       })),
+    };
+  }
+
+  /**
+   * 2社以上と連携している場合、今応答している店舗以外への切り替えボタンをクイックリプライに添える。
+   * 会話の自然な流れを保ちつつ、必要な時だけ店舗を切り替えられるようにするため
+   */
+  private withSwitchCompanyOptions(
+    base: messagingApi.QuickReply,
+    links: LinkWithCompany[],
+    currentCompanyAccountId: number,
+  ): messagingApi.QuickReply {
+    const others = links.filter((l) => l.companyAccountId !== currentCompanyAccountId);
+
+    if (others.length === 0) return base;
+
+    const switchItems: messagingApi.QuickReplyItem[] = others.map((link) => ({
+      type: 'action',
+      action: {
+        type: 'postback',
+        label: `🏢 ${link.companyAccount.displayName}`.slice(0, 20),
+        data: `action=${SWITCH_ACTION_PICK_COMPANY}&companyAccountId=${link.companyAccountId}`,
+        displayText: `${link.companyAccount.displayName}に切り替え`,
+      },
+    }));
+
+    return {
+      items: [...(base.items ?? []), ...switchItems].slice(0, MAX_QUICK_REPLY_ITEMS),
     };
   }
 
@@ -825,6 +1575,55 @@ export class LineService {
     const companyAccountIdStr = params.get('companyAccountId');
     const companyAccountId = companyAccountIdStr ? Number(companyAccountIdStr) : null;
     const category = params.get('category');
+
+    if (action === ANNOUNCEMENT_ACTION_SHOW) {
+      const links = await this.findLinksForUser(lineUserId);
+
+      if (links.length === 0) return;
+
+      await this.replyAnnouncements(replyToken, links);
+      return;
+    }
+
+    if (action === RECOMMEND_ACTION_SHOW) {
+      const links = await this.findLinksForUser(lineUserId);
+
+      if (links.length === 0) return;
+
+      await this.replyRecommendMenu(replyToken, lineUserId, links);
+      return;
+    }
+
+    if (action === RESERVATION_ACTION_MAIN_CHOICE) {
+      const choice = params.get('choice');
+      const links = await this.findLinksForUser(lineUserId);
+
+      if (links.length === 0) return;
+
+      if (choice === 'CONFIRM') {
+        await this.replyAggregatedReservationStatus(replyToken, links);
+        return;
+      }
+
+      if (links.length === 1) {
+        await this.promptReservationCategory(
+          replyToken,
+          lineUserId,
+          links[0].companyAccount,
+          true,
+        );
+        return;
+      }
+
+      await this.reply(replyToken, [
+        {
+          type: 'text',
+          text: 'どちらの店舗のご予約ですか？',
+          quickReply: this.buildCompanyPickerQuickReply(links, RESERVATION_ACTION_PICK_COMPANY),
+        },
+      ]);
+      return;
+    }
 
     if (action === RESERVATION_ACTION_PICK_COMPANY) {
       if (!companyAccountId) return;
@@ -847,8 +1646,38 @@ export class LineService {
 
     if (!company) return;
 
-    const links = await this.findLinksForUser(lineUserId);
-    const showLabel = links.length > 1;
+    const showLabel = true;
+
+    if (action === SWITCH_ACTION_PICK_COMPANY) {
+      await this.touchCompanyLinkActivity(lineUserId, companyAccountId);
+
+      await this.withCompany(company, async () => {
+        const customer = await this.customerService.findByLineUserId(lineUserId);
+
+        await this.reply(
+          replyToken,
+          [
+            {
+              type: 'text',
+              text: `${company.displayName}に切り替えました。ご用件をどうぞ。`,
+              quickReply: mainMenuQuickReply,
+            },
+          ],
+          customer?.id,
+          company.displayName,
+        );
+      });
+      return;
+    }
+
+    if (action === IMAGE_ACTION_PICK_COMPANY) {
+      const messageId = params.get('messageId');
+
+      if (!messageId) return;
+
+      await this.processVehicleImage(replyToken, lineUserId, company, messageId, showLabel);
+      return;
+    }
 
     if (action === RESERVATION_ACTION_PICK_CATEGORY) {
       await this.promptReservationDate(replyToken, lineUserId, company, showLabel, category);
@@ -1149,6 +1978,18 @@ export class LineService {
     category?: string | null,
   ) {
     await this.withCompany(company, async () => {
+      const limits = await this.licenseService.getCurrentPlanLimits();
+
+      if (limits && !limits.webReservation) {
+        await this.reply(replyToken, [
+          {
+            type: 'text',
+            text: 'ただいまLINEでのご予約受付は行っておりません。恐れ入りますがお電話にてご予約ください。',
+          },
+        ]);
+        return;
+      }
+
       const customer = await this.customerService.findByLineUserId(lineUserId);
 
       if (!customer) {
@@ -1481,13 +2322,46 @@ export class LineService {
     }
   }
 
-  private async logMessage(customerId: number, direction: 'IN' | 'OUT', text: string) {
-    if (!this.tenantContext.current()) return;
+  private async logMessage(
+    customerId: number,
+    direction: 'IN' | 'OUT',
+    text: string,
+    lineOcrSubmissionId?: number,
+  ) {
+    const tenant = this.tenantContext.current();
+
+    if (!tenant) return;
 
     try {
-      await this.prisma.lineMessage.create({ data: { customerId, direction, text } });
+      await this.prisma.lineMessage.create({
+        data: { customerId, direction, text, lineOcrSubmissionId },
+      });
     } catch (err) {
       this.logger.error('Failed to log LINE message', err as Error);
+    }
+
+    // 「最後にやり取りのあった店舗」を判定できるよう、会社→顧客への送信のたびに更新する
+    if (direction === 'OUT') {
+      try {
+        const customer = await this.prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { lineUserId: true },
+        });
+
+        if (customer?.lineUserId) {
+          await this.masterPrisma.lineCompanyLink.update({
+            where: {
+              lineUserId_companyAccountId: {
+                lineUserId: customer.lineUserId,
+                companyAccountId: tenant.company.id,
+              },
+            },
+            data: { lastActiveAt: new Date() },
+          });
+        }
+      } catch (err) {
+        this.logger.warn(`LINE連携の最終活動日時更新に失敗しました: ${err}`);
+      }
     }
   }
 }

@@ -126,6 +126,41 @@ commonModelName には、carName（車名/メーカー名）と model（型式�
     };
   }
 
+  /** 他店舗が発行した整備・修理の見積書の写真から、金額・項目をOCR抽出する */
+  async analyzeCompetitorEstimate(base64: string, mimeType: string, apiKey?: string) {
+    const ai = new GoogleGenAI({
+      apiKey: apiKey || process.env.GOOGLE_API_KEY!,
+    });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          inlineData: {
+            data: base64,
+            mimeType,
+          },
+        },
+        {
+          text: `
+あなたは自動車整備・修理の見積書を読み取るOCR AIです。
+
+必ずJSONのみ返してください。不明な項目は null にしてください。
+
+{
+  "shopName": null,
+  "estimateDate": null,
+  "items": [{"name": "", "cost": 0}],
+  "totalAmount": null
+}
+          `,
+        },
+      ],
+    });
+
+    return this.extractJsonText(response.text ?? '');
+  }
+
   /** 会話履歴とコンテキスト(当日の予約・顧客情報等)を踏まえたチャット応答を生成する */
   async chat(
     history: { role: 'user' | 'model'; content: string }[],

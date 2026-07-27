@@ -5,13 +5,55 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api, extractErrorMessage } from '@/lib/api';
+import { api, extractErrorMessage, upload } from '@/lib/api';
 import {
   EstimateItemRow,
   emptyEstimateItem,
   laborEstimateItem,
   type EstimateItemDraft,
 } from '@/components/estimate/EstimateItemRow';
+
+const DOCUMENT_TYPES = [
+  {
+    key: 'continuation',
+    label: '継続検査申請書(車検)',
+    icon: '🔧',
+    fields: ['registrationNumber', 'vin', 'carName', 'commonModelName', 'ownerName', 'ownerAddress', 'expirationDate'],
+  },
+  {
+    key: 'transfer',
+    label: '名義変更(移転登録)',
+    icon: '📝',
+    fields: ['registrationNumber', 'vin', 'ownerName', 'ownerAddress', 'userName', 'userAddress'],
+  },
+  {
+    key: 'used-new',
+    label: '中古新規登録',
+    icon: '🚗',
+    fields: ['vin', 'carName', 'commonModelName', 'model', 'engineModel', 'ownerName', 'ownerAddress', 'usageBase'],
+  },
+  {
+    key: 'deregistration',
+    label: '抹消登録',
+    icon: '🗑',
+    fields: ['registrationNumber', 'vin', 'ownerName', 'ownerAddress'],
+  },
+] as const;
+
+const FIELD_LABELS: Record<string, string> = {
+  registrationNumber: '登録番号',
+  vin: '車台番号',
+  carName: '車名',
+  commonModelName: '車種名',
+  model: '型式',
+  engineModel: '原動機の型式',
+  ownerName: '所有者',
+  ownerAddress: '所有者住所',
+  userName: '使用者',
+  userAddress: '使用者住所',
+  usageBase: '使用の本拠の位置',
+  expirationDate: '車検有効期限',
+};
 
 const FIELD_GROUPS = [
   {
@@ -71,6 +113,42 @@ const FIELD_GROUPS = [
 
 const emptyItem = () => ({ name: '', cost: '' });
 
+const TIRE_POSITIONS = [
+  ['FL', '左前'],
+  ['FR', '右前'],
+  ['RL', '左後'],
+  ['RR', '右後'],
+  ['ALL', '4本一括'],
+] as const;
+
+const TIRE_TYPES = [
+  ['SUMMER', '夏タイヤ'],
+  ['WINTER', '冬タイヤ'],
+] as const;
+
+function tireTypeLabel(value: string): string {
+  return TIRE_TYPES.find(([v]) => v === value)?.[1] ?? value;
+}
+
+function tireEstimateLabel(estimate: any): string {
+  if (!estimate) return '';
+
+  if (estimate.status === 'insufficient_data') {
+    return `データ不足(現在 ${estimate.latestDepthMm}mm)`;
+  }
+
+  if (estimate.status === 'stable') {
+    return `摩耗ほぼなし(現在 ${estimate.latestDepthMm}mm)`;
+  }
+
+  if (estimate.dangerNow) {
+    return `⚠️ 交換時期です(現在 ${estimate.latestDepthMm}mm)`;
+  }
+
+  const unit = estimate.axis === 'mileage' ? 'km' : '日';
+  return `推定交換時期まであと約${estimate.remainingToRecommended.toLocaleString()}${unit}(現在 ${estimate.latestDepthMm}mm)`;
+}
+
 export default function VehicleDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -85,12 +163,34 @@ export default function VehicleDetailPage() {
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [serviceDate, setServiceDate] = useState('');
   const [serviceTitle, setServiceTitle] = useState('');
+  const [serviceMileage, setServiceMileage] = useState('');
+  const [serviceCategory, setServiceCategory] = useState<string[]>([]);
   const [serviceItems, setServiceItems] = useState([emptyItem()]);
 
   const [correctingId, setCorrectingId] = useState<number | null>(null);
   const [correctionTitle, setCorrectionTitle] = useState('');
   const [correctionItems, setCorrectionItems] = useState<EstimateItemDraft[]>([]);
+  const [correctionVisibleInPortal, setCorrectionVisibleInPortal] = useState(true);
   const [correcting, setCorrecting] = useState(false);
+
+  const [tireData, setTireData] = useState<{ measurements: any[]; estimates: any[] }>({
+    measurements: [],
+    estimates: [],
+  });
+  const [showTireForm, setShowTireForm] = useState(false);
+  const [editingTireId, setEditingTireId] = useState<number | null>(null);
+  const [tireDate, setTireDate] = useState('');
+  const [tirePosition, setTirePosition] = useState('FL');
+  const [tireType, setTireType] = useState('SUMMER');
+  const [tireIsNew, setTireIsNew] = useState(false);
+  const [tireDepth, setTireDepth] = useState('');
+  const [tireMileage, setTireMileage] = useState('');
+  const [tireNote, setTireNote] = useState('');
+
+  const [competitorEstimates, setCompetitorEstimates] = useState<any[]>([]);
+  const [uploadingCompetitor, setUploadingCompetitor] = useState(false);
+
+  const [selectedDocType, setSelectedDocType] = useState<(typeof DOCUMENT_TYPES)[number]['key'] | null>(null);
 
   const [showEstimateForm, setShowEstimateForm] = useState(false);
   const [estimateTitle, setEstimateTitle] = useState('');
@@ -107,6 +207,8 @@ export default function VehicleDetailPage() {
     load();
     loadEstimates();
     loadLaborRate();
+    loadTireData();
+    loadCompetitorEstimates();
   }, []);
 
   async function loadLaborRate() {
@@ -147,6 +249,8 @@ export default function VehicleDetailPage() {
         body: JSON.stringify({
           date: serviceDate || new Date().toISOString().slice(0, 10),
           title: serviceTitle,
+          mileage: serviceMileage ? Number(serviceMileage) : undefined,
+          category: serviceCategory,
           items: serviceItems.filter((i) => i.name.trim()),
         }),
       });
@@ -154,6 +258,8 @@ export default function VehicleDetailPage() {
       setShowServiceForm(false);
       setServiceDate('');
       setServiceTitle('');
+      setServiceMileage('');
+      setServiceCategory([]);
       setServiceItems([emptyItem()]);
       await load();
     } catch (e: any) {
@@ -164,6 +270,100 @@ export default function VehicleDetailPage() {
   async function deleteServiceHistory(id: number) {
     await api(`/service-history/${id}`, { method: 'DELETE' });
     await load();
+  }
+
+  async function loadTireData() {
+    try {
+      const json = await api<{ measurements: any[]; estimates: any[] }>(
+        `/vehicle/${params.id}/tire-measurement`,
+      );
+      setTireData(json);
+    } catch {}
+  }
+
+  function openTireCorrection(m: any) {
+    setEditingTireId(m.id);
+    setTireDate(m.date.slice(0, 10));
+    setTirePosition(m.position);
+    setTireType(m.tireType ?? 'SUMMER');
+    setTireIsNew(!!m.isNewTire);
+    setTireDepth(String(m.treadDepthMm));
+    setTireMileage(m.mileage != null ? String(m.mileage) : '');
+    setTireNote(m.note ?? '');
+    setShowTireForm(true);
+  }
+
+  function closeTireForm() {
+    setShowTireForm(false);
+    setEditingTireId(null);
+    setTireDate('');
+    setTirePosition('FL');
+    setTireType('SUMMER');
+    setTireIsNew(false);
+    setTireDepth('');
+    setTireMileage('');
+    setTireNote('');
+  }
+
+  async function saveTireMeasurement() {
+    if (!tireDate || !tireDepth) return;
+
+    try {
+      const body = JSON.stringify({
+        date: tireDate,
+        position: tirePosition,
+        tireType,
+        isNewTire: tireIsNew,
+        treadDepthMm: Number(tireDepth),
+        mileage: tireMileage ? Number(tireMileage) : undefined,
+        note: tireNote || undefined,
+      });
+
+      if (editingTireId) {
+        await api(`/tire-measurement/${editingTireId}`, { method: 'PATCH', body });
+      } else {
+        await api(`/vehicle/${params.id}/tire-measurement`, { method: 'POST', body });
+      }
+
+      closeTireForm();
+      await loadTireData();
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function deleteTireMeasurement(id: number) {
+    await api(`/tire-measurement/${id}`, { method: 'DELETE' });
+    await loadTireData();
+  }
+
+  async function loadCompetitorEstimates() {
+    try {
+      const json = await api<any[]>(`/vehicle/${params.id}/competitor-estimate`);
+      setCompetitorEstimates(json);
+    } catch {}
+  }
+
+  async function uploadCompetitorEstimate(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setUploadingCompetitor(true);
+
+    try {
+      await upload(`/vehicle/${params.id}/competitor-estimate`, file);
+      await loadCompetitorEstimates();
+    } catch (err: any) {
+      alert(extractErrorMessage(err));
+    } finally {
+      setUploadingCompetitor(false);
+    }
+  }
+
+  async function deleteCompetitorEstimate(id: number) {
+    await api(`/competitor-estimate/${id}`, { method: 'DELETE' });
+    await loadCompetitorEstimates();
   }
 
   function openCorrection(sh: any) {
@@ -177,6 +377,7 @@ export default function VehicleDetailPage() {
         isFee: !!it.isFee,
       })),
     );
+    setCorrectionVisibleInPortal(true);
   }
 
   function updateCorrectionItem(index: number, patch: Partial<EstimateItemDraft>) {
@@ -203,6 +404,7 @@ export default function VehicleDetailPage() {
               unitPrice: Number(i.unitPrice) || 0,
               isFee: i.isFee,
             })),
+          visibleInPortal: correctionVisibleInPortal,
         }),
       });
 
@@ -343,6 +545,7 @@ export default function VehicleDetailPage() {
         body: JSON.stringify(vehicle),
       });
 
+      await load();
       alert('車両情報を保存しました');
     } finally {
       setSaving(false);
@@ -377,9 +580,19 @@ export default function VehicleDetailPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="disp text-3xl">車両詳細</h1>
 
-        <Link href="/vehicle" className="btn btn-ghost">
-          戻る
-        </Link>
+        <div className="flex gap-2">
+          {vehicle.customer && (
+            <Link
+              href={`/reservations?customerId=${vehicle.customer.id}&vehicleId=${params.id}`}
+              className="btn btn-blue"
+            >
+              📅 予約する
+            </Link>
+          )}
+          <Link href="/vehicle" className="btn btn-ghost">
+            戻る
+          </Link>
+        </div>
       </div>
 
       <div className="panel mb-4">
@@ -451,6 +664,44 @@ export default function VehicleDetailPage() {
       </div>
 
       <div className="panel mt-4">
+        <h2 className="disp text-xl mb-1">📋 公的書類作成</h2>
+        <p className="note mb-3 text-xs text-[var(--muted)]">
+          プレビュー版です。実際の様式(国交省・地域の運輸支局等の最新テンプレート)はまだ組み込んでおらず、
+          どの車両データを転記する想定かを確認いただくための画面です。
+        </p>
+
+        <div className="flex flex-wrap gap-2 mb-3">
+          {DOCUMENT_TYPES.map((doc) => (
+            <button
+              key={doc.key}
+              onClick={() => setSelectedDocType(doc.key === selectedDocType ? null : doc.key)}
+              className={`btn btn-sm ${selectedDocType === doc.key ? 'btn-blue' : 'btn-ghost'}`}
+            >
+              {doc.icon} {doc.label}
+            </button>
+          ))}
+        </div>
+
+        {selectedDocType && (() => {
+          const doc = DOCUMENT_TYPES.find((d) => d.key === selectedDocType)!;
+
+          return (
+            <div className="veh">
+              <div className="font-semibold mb-2">{doc.icon} {doc.label} に転記予定のデータ</div>
+              <div className="text-sm space-y-1">
+                {doc.fields.map((field) => (
+                  <div key={field} className="flex justify-between">
+                    <span className="text-[var(--muted)]">{FIELD_LABELS[field] ?? field}</span>
+                    <span className="mono">{vehicle[field] || '(未入力)'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      <div className="panel mt-4">
         <div className="flex justify-between items-center mb-3">
           <h2 className="disp text-xl">整備履歴</h2>
           <div className="flex gap-2">
@@ -489,6 +740,37 @@ export default function VehicleDetailPage() {
                   onChange={(e) => setServiceTitle(e.target.value)}
                 />
               </label>
+              <label className="field-label">
+                走行距離(km・任意)
+                <input
+                  type="number"
+                  className="input"
+                  placeholder="例: 45000"
+                  value={serviceMileage}
+                  onChange={(e) => setServiceMileage(e.target.value)}
+                />
+              </label>
+              <div className="field-label">
+                分類(任意・複数選択可・リマインド判定に使用)
+                <div className="flex gap-3 flex-wrap mt-1">
+                  {['オイル交換', 'タイヤ交換', '車検', '一般整備'].map((c) => (
+                    <label key={c} className="flex items-center gap-1 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={serviceCategory.includes(c)}
+                        onChange={(e) =>
+                          setServiceCategory((prev) =>
+                            e.target.checked
+                              ? [...prev, c]
+                              : prev.filter((x) => x !== c),
+                          )
+                        }
+                      />
+                      {c}
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="kicker mono mt-3 text-xs text-[var(--muted)]">項目</div>
@@ -557,6 +839,14 @@ export default function VehicleDetailPage() {
                     >
                       {sh.title}
                     </span>
+                    {(sh.category ?? []).map((c: string) => (
+                      <span key={c} className="expbadge ml-2">{c}</span>
+                    ))}
+                    {sh.mileage != null && (
+                      <span className="mono text-xs text-[var(--muted)] ml-2">
+                        {sh.mileage.toLocaleString()}km
+                      </span>
+                    )}
                     {sh.voided && (
                       <span className="expbadge exp-warn ml-2">🔴 訂正済み(赤伝)</span>
                     )}
@@ -647,6 +937,15 @@ export default function VehicleDetailPage() {
                       </button>
                     </div>
 
+                    <label className="field-label mt-3 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={correctionVisibleInPortal}
+                        onChange={(e) => setCorrectionVisibleInPortal(e.target.checked)}
+                      />
+                      訂正後の内容を顧客ポータルに表示する
+                    </label>
+
                     <div className="btnrow flex gap-2 mt-3">
                       <button
                         onClick={saveCorrection}
@@ -667,6 +966,223 @@ export default function VehicleDetailPage() {
               </div>
             );
           })
+        )}
+      </div>
+
+      <div className="panel mt-4">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="disp text-xl">タイヤ溝測定</h2>
+          {!showTireForm && (
+            <button
+              onClick={() => setShowTireForm(true)}
+              className="btn btn-blue btn-sm"
+            >
+              ➕ 記録を追加
+            </button>
+          )}
+        </div>
+
+        <p className="note mb-3 text-xs text-[var(--muted)]">
+          測定結果は顧客ポータル(有料プラン)の「推定交換時期」表示に使われます。
+        </p>
+
+        {showTireForm && (
+          <div className="veh mb-3">
+            <div className="grid2">
+              <label className="field-label">
+                測定日
+                <input
+                  type="date"
+                  className="input"
+                  value={tireDate}
+                  onChange={(e) => setTireDate(e.target.value)}
+                />
+              </label>
+              <label className="field-label">
+                位置
+                <select
+                  className="input"
+                  value={tirePosition}
+                  onChange={(e) => setTirePosition(e.target.value)}
+                >
+                  {TIRE_POSITIONS.map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                夏/冬
+                <select
+                  className="input"
+                  value={tireType}
+                  onChange={(e) => setTireType(e.target.value)}
+                >
+                  {TIRE_TYPES.map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                残り溝の深さ(mm)
+                <input
+                  type="number"
+                  step="0.1"
+                  className="input"
+                  placeholder="例: 4.5"
+                  value={tireDepth}
+                  onChange={(e) => setTireDepth(e.target.value)}
+                />
+              </label>
+              <label className="field-label">
+                走行距離(km・任意)
+                <input
+                  type="number"
+                  className="input"
+                  placeholder="例: 45000"
+                  value={tireMileage}
+                  onChange={(e) => setTireMileage(e.target.value)}
+                />
+              </label>
+            </div>
+
+            <label className="field-label mt-2 block">
+              メモ(任意)
+              <input
+                className="input"
+                value={tireNote}
+                onChange={(e) => setTireNote(e.target.value)}
+              />
+            </label>
+
+            <label className="field-label mt-2 flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={tireIsNew}
+                onChange={(e) => setTireIsNew(e.target.checked)}
+              />
+              🆕 このタイミングで新品タイヤに交換した
+            </label>
+
+            <div className="btnrow flex gap-2 mt-3">
+              <button onClick={saveTireMeasurement} className="btn btn-blue btn-sm">
+                {editingTireId ? '訂正する' : '記録する'}
+              </button>
+              <button
+                onClick={closeTireForm}
+                className="btn btn-ghost btn-sm"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
+
+        {tireData.estimates.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {tireData.estimates.map((e: any) => (
+              <span key={`${e.position}-${e.tireType}`} className="expbadge">
+                {TIRE_POSITIONS.find(([v]) => v === e.position)?.[1] ?? e.position}
+                ・{tireTypeLabel(e.tireType)}: {tireEstimateLabel(e.estimate)}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {tireData.measurements.length === 0 ? (
+          <div className="empty">タイヤ測定の記録はまだありません。</div>
+        ) : (
+          tireData.measurements.map((m: any) => (
+            <div key={m.id} className="veh mb-2 flex justify-between items-center">
+              <div>
+                <span className="mono text-xs text-[var(--muted)]">{m.date.slice(0, 10)}</span>{' '}
+                <span className="font-semibold">
+                  {TIRE_POSITIONS.find(([v]) => v === m.position)?.[1] ?? m.position}
+                </span>{' '}
+                <span className="expbadge">{tireTypeLabel(m.tireType)}</span>{' '}
+                {m.isNewTire && <span className="expbadge exp-ok">🆕 新品</span>}{' '}
+                <span className="mono">{m.treadDepthMm}mm</span>
+                {m.mileage != null && (
+                  <span className="mono text-xs text-[var(--muted)] ml-2">
+                    {m.mileage.toLocaleString()}km
+                  </span>
+                )}
+                {m.note && <span className="ml-2 text-xs text-[var(--muted)]">{m.note}</span>}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  className="btn-icon"
+                  title="訂正する"
+                  onClick={() => openTireCorrection(m)}
+                >
+                  ✏️
+                </button>
+                <button className="btn-icon" onClick={() => deleteTireMeasurement(m.id)}>
+                  🗑
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="panel mt-4">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="disp text-xl">他店舗見積(比較用)</h2>
+          <label className="btn btn-blue btn-sm" style={{ cursor: 'pointer' }}>
+            {uploadingCompetitor ? '解析中...' : '📷 見積を撮影・アップロード'}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={uploadCompetitorEstimate}
+              disabled={uploadingCompetitor}
+              style={{ display: 'none' }}
+            />
+          </label>
+        </div>
+
+        <p className="note mb-3 text-xs text-[var(--muted)]">
+          お客様が他店舗で受け取った見積書を撮影すると、AIが金額・項目を自動で読み取ります。ここで登録したものは顧客ポータルにも表示されます。
+        </p>
+
+        {competitorEstimates.length === 0 ? (
+          <div className="empty">登録された他店舗見積はまだありません。</div>
+        ) : (
+          competitorEstimates.map((c) => (
+            <div key={c.id} className="veh mb-2">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="font-semibold">{c.shopName || '店舗名不明'}</span>
+                  {c.estimateDate && (
+                    <span className="ml-2 mono text-xs text-[var(--muted)]">{c.estimateDate}</span>
+                  )}
+                  <span className="expbadge ml-2">
+                    {c.createdBy === 'CUSTOMER' ? 'お客様提供' : 'スタッフ登録'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {c.totalAmount != null && (
+                    <span className="mono text-[var(--blue)] font-bold">
+                      ¥{Number(c.totalAmount).toLocaleString()}
+                    </span>
+                  )}
+                  <button className="btn-icon" onClick={() => deleteCompetitorEstimate(c.id)}>
+                    🗑
+                  </button>
+                </div>
+              </div>
+              {Array.isArray(c.items) && c.items.length > 0 && (
+                <div className="mt-2 text-xs text-[var(--muted)] space-y-1">
+                  {c.items.map((it: any, i: number) => (
+                    <div key={i} className="flex justify-between">
+                      <span>{it.name}</span>
+                      {it.cost != null && <span className="mono">¥{Number(it.cost).toLocaleString()}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
         )}
       </div>
 

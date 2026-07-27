@@ -50,9 +50,70 @@ export class ReservationController {
     return this.reservationService.getAvailability(date);
   }
 
+  @Get('month-overview')
+  async monthOverview(@Query('year') year: string, @Query('month') month: string) {
+    if (!year || !month) {
+      throw new BadRequestException('year and month are required');
+    }
+
+    return this.reservationService.getMonthOverview(Number(year), Number(month));
+  }
+
+  @Get('day-slots')
+  async daySlots(@Query('date') date: string) {
+    if (!date) {
+      throw new BadRequestException('date is required');
+    }
+
+    return this.reservationService.getDaySlotsForStaff(date);
+  }
+
+  @Post('manual')
+  async createManual(
+    @Body()
+    body: {
+      customerId?: number;
+      customerName?: string;
+      vehicleId?: number;
+      scheduledStart: string;
+      durationHours: number;
+      staffNote?: string;
+      category?: string;
+    },
+  ) {
+    return this.reservationService.createManual(body);
+  }
+
+  /**
+   * LINEのURIアクションから開くのはこちら(HTMLページ)。
+   * .icsを直接返すとLINEアプリ内ブラウザ(特にiOS)で真っ白画面になり開けないことがあるため、
+   * 案内ページを経由してGoogleカレンダー追加/iCalダウンロードへ誘導する。
+   */
   @Public()
   @Get('ics/:token')
-  async ics(@Param('token') token: string, @Res() res: Response) {
+  async icsLanding(@Param('token') token: string, @Res() res: Response) {
+    const reservation = await this.resolveByIcsToken(token);
+    const html = this.reservationService.buildAddToCalendarHtml(reservation);
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  }
+
+  @Public()
+  @Get('ics/:token/file')
+  async icsFile(@Param('token') token: string, @Res() res: Response) {
+    const reservation = await this.resolveByIcsToken(token);
+    const ics = this.reservationService.buildIcs(reservation);
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="reservation.ics"',
+    );
+    res.send(ics);
+  }
+
+  private async resolveByIcsToken(token: string) {
     const companyCode = token.split('.')[0];
 
     const company = await this.masterPrisma.companyAccount.findUnique({
@@ -63,21 +124,14 @@ export class ReservationController {
       throw new NotFoundException();
     }
 
-    await this.tenantContext.run(company, async () => {
+    return this.tenantContext.run(company, async () => {
       const reservation = await this.reservationService.getByIcsToken(token);
 
       if (!reservation) {
         throw new NotFoundException();
       }
 
-      const ics = this.reservationService.buildIcs(reservation);
-
-      res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-      res.setHeader(
-        'Content-Disposition',
-        'attachment; filename="reservation.ics"',
-      );
-      res.send(ics);
+      return reservation;
     });
   }
 

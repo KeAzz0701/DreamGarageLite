@@ -3,6 +3,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Post,
   Put,
@@ -32,6 +33,21 @@ export class CompanyController {
     const joinCode = await this.lineService.ensureStaffJoinCode(company);
 
     return { joinCode };
+  }
+
+  @Get('staff-line-links')
+  async getStaffLineLinks() {
+    const company = this.tenantContext.current()!.company;
+
+    return this.lineService.listStaffLinks(company);
+  }
+
+  @Delete('staff-line-links/:id')
+  async removeStaffLineLink(@Param('id', ParseIntPipe) id: number) {
+    const company = this.tenantContext.current()!.company;
+
+    await this.lineService.removeStaffLink(company, id);
+    return { ok: true };
   }
 
   @Post()

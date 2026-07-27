@@ -1,0 +1,16 @@
+[Unit]
+Description=Garage Karte Backend (NestJS)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=garage
+WorkingDirectory=/opt/garage-karte/backend
+ExecStart=/usr/bin/node dist/main
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/garage-karte/backend/.env
+
+[Install]
+WantedBy=multi-user.target

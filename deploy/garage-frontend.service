@@ -1,0 +1,15 @@
+[Unit]
+Description=Garage Karte Frontend (Next.js)
+After=network.target garage-backend.service
+Wants=garage-backend.service
+
+[Service]
+Type=simple
+User=garage
+WorkingDirectory=/opt/garage-karte/frontend
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

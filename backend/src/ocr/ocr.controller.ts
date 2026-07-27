@@ -1,8 +1,13 @@
 // backend/src/ocr/ocr.controller.ts
 
 import {
+  BadRequestException,
   Body,
   Controller,
+  Get,
+  Logger,
+  Param,
+  ParseIntPipe,
   Post,
   Req,
   UploadedFile,
@@ -18,16 +23,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import { LicenseGuard } from '../license/license.guard';
 import { LicenseInterceptor } from '../license/license.interceptor';
 import { LicenseService } from '../license/license.service';
+import { LineService } from '../line/line.service';
 
 @Controller('ocr')
 @UseGuards(LicenseGuard)
 @UseInterceptors(LicenseInterceptor)
 export class OcrController {
+  private readonly logger = new Logger(OcrController.name);
+
   constructor(
     private readonly geminiService: GeminiService,
     private readonly customerService: CustomerService,
     private readonly prisma: PrismaService,
     private readonly licenseService: LicenseService,
+    private readonly lineService: LineService,
   ) {}
 
   @Post('upload')
@@ -71,91 +80,88 @@ export class OcrController {
         String(result.userName).trim(),
       );
 
-    const customer = await this.customerService.findOrCreate({
-      customerName: useUser
-        ? result.userName
-        : result.ownerName,
+    // LINEで既に本人と分かっている顧客の場合は、OCR文字列のあいまい一致で
+    // 別人の顧客が新規作成されるのを防ぐため、customerIdが渡されればそれを使う
+    const customer = result.customerId
+      ? await this.customerService.getById(Number(result.customerId))
+      : await this.customerService.findOrCreate({
+          customerName: useUser
+            ? result.userName
+            : result.ownerName,
 
-      customerAddress: useUser
-        ? result.userAddress
-        : result.ownerAddress,
+          customerAddress: useUser
+            ? result.userAddress
+            : result.ownerAddress,
 
+          ownerName: result.ownerName ?? '',
+          ownerAddress: result.ownerAddress ?? '',
+          phone: result.phone ?? '',
+        });
+
+    if (!customer) {
+      throw new BadRequestException('顧客が見つかりませんでした。');
+    }
+
+    const vehicleData = {
+      customerId: customer.id,
+
+      registrationNumber: result.registrationNumber ?? '',
       ownerName: result.ownerName ?? '',
       ownerAddress: result.ownerAddress ?? '',
-      phone: result.phone ?? '',
-    });
+      userName: result.userName ?? '',
+      userAddress: result.userAddress ?? '',
+      usageBase: result.usageBase ?? '',
+      carName: result.carName ?? '',
+      commonModelName: result.commonModelName ?? '',
+      model: result.model ?? '',
+      engineModel: result.engineModel ?? '',
+      modelCode: result.modelCode ?? '',
+      classificationCode: result.classificationCode ?? '',
+      firstRegistration: result.firstRegistration ?? '',
+      expirationDate: result.expirationDate ?? '',
+      vehicleWeight: result.vehicleWeight ?? '',
+      grossWeight: result.grossWeight ?? '',
+      seatingCapacity: result.seatingCapacity ?? '',
+      maxLoad: result.maxLoad ?? '',
+      length: result.length ?? '',
+      width: result.width ?? '',
+      height: result.height ?? '',
+      displacement: result.displacement ?? '',
+      fuel: result.fuel ?? '',
+      usage: result.usage ?? '',
+      privateBusiness: result.privateBusiness ?? '',
+      bodyType: result.bodyType ?? '',
+      remarks: result.remarks ?? '',
+    };
 
-    const vehicle = await this.prisma.vehicle.upsert({
-      where: {
-        vin: result.vin,
-      },
+    // vehicleIdが明示的に渡された場合は、その車両を直接更新する
+    // (VINが読み取れなかった場合や、スタッフが既存車両への紐づけを選んだ場合)
+    const vehicle = result.vehicleId
+      ? await this.prisma.vehicle.update({
+          where: { id: Number(result.vehicleId) },
+          data: vehicleData,
+        })
+      : await this.prisma.vehicle.upsert({
+          where: {
+            vin: result.vin,
+          },
 
-      update: {
-        customerId: customer.id,
+          update: vehicleData,
+          create: { vin: result.vin, ...vehicleData },
+        });
 
-        registrationNumber: result.registrationNumber ?? '',
-        ownerName: result.ownerName ?? '',
-        ownerAddress: result.ownerAddress ?? '',
-        userName: result.userName ?? '',
-        userAddress: result.userAddress ?? '',
-        usageBase: result.usageBase ?? '',
-        carName: result.carName ?? '',
-        commonModelName: result.commonModelName ?? '',
-        model: result.model ?? '',
-        engineModel: result.engineModel ?? '',
-        modelCode: result.modelCode ?? '',
-        classificationCode: result.classificationCode ?? '',
-        firstRegistration: result.firstRegistration ?? '',
-        expirationDate: result.expirationDate ?? '',
-        vehicleWeight: result.vehicleWeight ?? '',
-        grossWeight: result.grossWeight ?? '',
-        seatingCapacity: result.seatingCapacity ?? '',
-        maxLoad: result.maxLoad ?? '',
-        length: result.length ?? '',
-        width: result.width ?? '',
-        height: result.height ?? '',
-        displacement: result.displacement ?? '',
-        fuel: result.fuel ?? '',
-        usage: result.usage ?? '',
-        privateBusiness: result.privateBusiness ?? '',
-        bodyType: result.bodyType ?? '',
-        remarks: result.remarks ?? '',
-      },
+    if (result.submissionId) {
+      await this.prisma.lineOcrSubmission.update({
+        where: { id: Number(result.submissionId) },
+        data: {
+          status: 'LINKED',
+          linkedVehicleId: vehicle.id,
+          reviewedAt: new Date(),
+        },
+      });
+    }
 
-      create: {
-        vin: result.vin,
-
-        customerId: customer.id,
-
-        registrationNumber: result.registrationNumber ?? '',
-        ownerName: result.ownerName ?? '',
-        ownerAddress: result.ownerAddress ?? '',
-        userName: result.userName ?? '',
-        userAddress: result.userAddress ?? '',
-        usageBase: result.usageBase ?? '',
-        carName: result.carName ?? '',
-        commonModelName: result.commonModelName ?? '',
-        model: result.model ?? '',
-        engineModel: result.engineModel ?? '',
-        modelCode: result.modelCode ?? '',
-        classificationCode: result.classificationCode ?? '',
-        firstRegistration: result.firstRegistration ?? '',
-        expirationDate: result.expirationDate ?? '',
-        vehicleWeight: result.vehicleWeight ?? '',
-        grossWeight: result.grossWeight ?? '',
-        seatingCapacity: result.seatingCapacity ?? '',
-        maxLoad: result.maxLoad ?? '',
-        length: result.length ?? '',
-        width: result.width ?? '',
-        height: result.height ?? '',
-        displacement: result.displacement ?? '',
-        fuel: result.fuel ?? '',
-        usage: result.usage ?? '',
-        privateBusiness: result.privateBusiness ?? '',
-        bodyType: result.bodyType ?? '',
-        remarks: result.remarks ?? '',
-      },
-    });
+    await this.notifyVehicleRegistered(customer, vehicle);
 
     return {
       success: true,
@@ -163,4 +169,67 @@ export class OcrController {
       vehicle,
     };
   }
+
+  /** 車両登録(OCR登録)完了時、LINE連携済みのお客様に一度だけ車検満了日+お礼のメッセージを送る */
+  private async notifyVehicleRegistered(
+    customer: { lineUserId: string | null },
+    vehicle: {
+      carName: string | null;
+      commonModelName: string | null;
+      registrationNumber: string | null;
+      expirationDate: string | null;
+    },
+  ) {
+    if (!customer.lineUserId) return;
+
+    const vehicleLabel =
+      [vehicle.carName, vehicle.commonModelName].filter(Boolean).join(' ') || '車両';
+    const registrationLabel = vehicle.registrationNumber
+      ? `（${vehicle.registrationNumber}）`
+      : '';
+
+    const text = vehicle.expirationDate
+      ? `🚗 車両情報のご登録ありがとうございます。\n${vehicleLabel}${registrationLabel}\n車検満了日: ${vehicle.expirationDate}\n満了日が近づきましたら、こちらのLINEでお知らせいたします。`
+      : `🚗 車両情報のご登録ありがとうございます。\n${vehicleLabel}${registrationLabel}`;
+
+    try {
+      await this.lineService.pushMessage(customer.lineUserId, [{ type: 'text', text }]);
+    } catch (err) {
+      this.logger.warn(`車両登録通知の送信に失敗しました: ${err}`);
+    }
+  }
+
+  @Get('line-submissions')
+  async listLineSubmissions() {
+    return this.prisma.lineOcrSubmission.findMany({
+      where: { status: 'PENDING' },
+      include: { customer: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  @Get('line-submissions/:id')
+  async getLineSubmission(@Param('id', ParseIntPipe) id: number) {
+    const submission = await this.prisma.lineOcrSubmission.findUnique({
+      where: { id },
+      include: { customer: { include: { vehicles: true } } },
+    });
+
+    if (!submission) return null;
+
+    return {
+      ...submission,
+      imageData: undefined,
+      imageBase64: Buffer.from(submission.imageData).toString('base64'),
+    };
+  }
+
+  @Post('line-submissions/:id/dismiss')
+  async dismissLineSubmission(@Param('id', ParseIntPipe) id: number) {
+    return this.prisma.lineOcrSubmission.update({
+      where: { id },
+      data: { status: 'REJECTED', reviewedAt: new Date() },
+    });
+  }
+
 }

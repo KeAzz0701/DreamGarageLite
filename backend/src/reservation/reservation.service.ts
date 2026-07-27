@@ -72,6 +72,19 @@ export class ReservationService {
     });
   }
 
+  /** LINEの「予約確認」から使う。お客様本人の今後の予約(未確定含む)を取得する */
+  async findUpcomingForCustomer(customerId: number) {
+    return this.prisma.reservation.findMany({
+      where: {
+        customerId,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        scheduledStart: { gte: new Date() },
+      },
+      include: { vehicle: true },
+      orderBy: { scheduledStart: 'asc' },
+    });
+  }
+
   async getById(id: number) {
     return this.prisma.reservation.findUnique({
       where: { id },
@@ -112,15 +125,18 @@ export class ReservationService {
     start: Date,
     end: Date,
     excludeReservationId?: number,
+    options?: { skipLeadTime?: boolean },
   ): Promise<string | null> {
     const { min, max } = await this.getBookableRange();
 
-    if (start < min) {
-      return 'ご希望の日時は受付リードタイムに満たないため予約できません。';
-    }
+    if (!options?.skipLeadTime) {
+      if (start < min) {
+        return 'ご希望の日時は受付リードタイムに満たないため予約できません。';
+      }
 
-    if (start > max) {
-      return 'ご希望の日時は受付可能期間を超えています。';
+      if (start > max) {
+        return 'ご希望の日時は受付可能期間を超えています。';
+      }
     }
 
     const hours = await this.businessHoursService.getWeekday(start.getDay());
@@ -377,6 +393,145 @@ export class ReservationService {
     return result;
   }
 
+  /**
+   * スタッフが電話対応中に見る月間カレンダー用。`getAvailabilityByDate`と異なり
+   * 受付リードタイム・受付可能期間による制限は見ない(手動登録はその制限を受けないため、
+   * 期間外の日を一律満枠扱いにしないようにする)。
+   */
+  async getMonthOverview(
+    year: number,
+    month: number,
+  ): Promise<{ date: string; isClosed: boolean; reservationCount: number; isFull: boolean }[]> {
+    const { slotMinutes } = await this.getBookableRange();
+
+    const min = new Date(year, month - 1, 1, 0, 0, 0, 0);
+    const max = new Date(year, month, 0, 0, 0, 0, 0);
+    const nextAfterMax = new Date(year, month, 1, 0, 0, 0, 0);
+
+    const reservations = await this.prisma.reservation.findMany({
+      where: {
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        scheduledStart: { gte: min, lt: nextAfterMax },
+      },
+      select: { scheduledStart: true },
+    });
+
+    const dateKey = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const counts = new Map<string, number>();
+
+    for (const r of reservations) {
+      const key = dateKey(r.scheduledStart);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    const days: { date: string; isClosed: boolean; reservationCount: number; isFull: boolean }[] = [];
+    const cursor = new Date(min);
+
+    while (cursor <= max) {
+      const dateStr = dateKey(cursor);
+      const hours = await this.businessHoursService.getWeekday(cursor.getDay());
+
+      const dateOnly = new Date(cursor);
+      dateOnly.setHours(0, 0, 0, 0);
+      const closedDate = await this.prisma.closedDate.findUnique({ where: { date: dateOnly } });
+
+      const isClosed = !hours || hours.isClosed || Boolean(closedDate);
+      const reservationCount = counts.get(dateStr) ?? 0;
+
+      let isFull = false;
+
+      if (!isClosed && hours?.startTime && hours?.endTime) {
+        const breakMinutes =
+          hours.breakStartTime && hours.breakEndTime
+            ? Math.max(0, toMinutes(hours.breakEndTime) - toMinutes(hours.breakStartTime))
+            : 0;
+        const capacity = Math.max(
+          0,
+          Math.floor((toMinutes(hours.endTime) - toMinutes(hours.startTime) - breakMinutes) / slotMinutes),
+        );
+        isFull = capacity > 0 && reservationCount >= capacity;
+      }
+
+      days.push({ date: dateStr, isClosed, reservationCount, isFull });
+
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return days;
+  }
+
+  /**
+   * スタッフが日付を選んだ後の時間帯一覧。`getAllSlotsWithStatus`と同じ考え方だが、
+   * 受付リードタイム・受付可能期間による制限は見ない(電話予約はその場で当日枠にも
+   * 登録できる必要があるため)。営業時間・休憩・定休日・臨時休業日・既存予約との
+   * 重複のみ反映する。
+   */
+  async getDaySlotsForStaff(
+    dateStr: string,
+  ): Promise<{ start: Date; end: Date; label: string; occupied: boolean }[]> {
+    const { slotMinutes } = await this.getBookableRange();
+
+    const date = new Date(dateStr);
+    date.setHours(0, 0, 0, 0);
+
+    const hours = await this.businessHoursService.getWeekday(date.getDay());
+
+    if (!hours || hours.isClosed || !hours.startTime || !hours.endTime) {
+      return [];
+    }
+
+    const closedDate = await this.prisma.closedDate.findUnique({ where: { date } });
+
+    if (closedDate) return [];
+
+    const [openH, openM] = hours.startTime.split(':').map(Number);
+    const [closeH, closeM] = hours.endTime.split(':').map(Number);
+
+    const dayStart = new Date(date);
+    dayStart.setHours(openH, openM, 0, 0);
+
+    const dayEnd = new Date(date);
+    dayEnd.setHours(closeH, closeM, 0, 0);
+
+    const nextDate = new Date(date);
+    nextDate.setDate(nextDate.getDate() + 1);
+
+    const existing = await this.prisma.reservation.findMany({
+      where: {
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        scheduledStart: { gte: date, lt: nextDate },
+      },
+    });
+
+    const slots: { start: Date; end: Date; label: string; occupied: boolean }[] = [];
+
+    for (
+      let t = new Date(dayStart);
+      t.getTime() + slotMinutes * 60000 <= dayEnd.getTime();
+      t = new Date(t.getTime() + slotMinutes * 60000)
+    ) {
+      const slotEnd = new Date(t.getTime() + slotMinutes * 60000);
+      const slotStartMinutes = t.getHours() * 60 + t.getMinutes();
+      const slotEndMinutes = slotEnd.getHours() * 60 + slotEnd.getMinutes();
+
+      const overlapReservation = existing.some(
+        (r) => t < r.scheduledEnd && slotEnd > r.scheduledStart,
+      );
+      const inBreak = overlapsBreak(slotStartMinutes, slotEndMinutes, hours);
+
+      slots.push({
+        start: t,
+        end: slotEnd,
+        label: `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`,
+        occupied: overlapReservation || inBreak,
+      });
+    }
+
+    return slots;
+  }
+
   async createFromLineRequest(
     customerId: number,
     start: Date,
@@ -416,6 +571,89 @@ export class ReservationService {
       needsLoanerCar: needsLoanerCar ?? null,
       scheduledStart: reservation.scheduledStart,
     });
+
+    return reservation;
+  }
+
+  /**
+   * 予約管理画面(電話対応)からの手動登録。即「確定」扱いにしてLINE予約と同じ枠を埋める。
+   * 受付リードタイム・受付可能期間は無視できる(当日・直近の枠にも登録可能)が、
+   * 営業時間・休憩・定休日・臨時休業日・既存予約との重複は通常通りチェックする。
+   */
+  async createManual(data: {
+    customerId?: number;
+    customerName?: string;
+    vehicleId?: number;
+    scheduledStart: string;
+    durationHours: number;
+    staffNote?: string;
+    category?: string;
+  }) {
+    let customerId = data.customerId;
+
+    if (!customerId) {
+      const name = (data.customerName ?? '').trim();
+
+      if (!name) {
+        throw new BadRequestException('顧客を選択するか、お客様のお名前を入力してください。');
+      }
+
+      const existing = await this.prisma.customer.findFirst({
+        where: { customerName: name },
+      });
+
+      customerId = existing
+        ? existing.id
+        : (await this.prisma.customer.create({ data: { customerName: name } })).id;
+    }
+
+    const start = new Date(data.scheduledStart);
+    const hours = Number(data.durationHours) > 0 ? Number(data.durationHours) : 1;
+    const end = new Date(start.getTime() + hours * 3600 * 1000);
+
+    const error = await this.validateSlot(start, end, undefined, { skipLeadTime: true });
+
+    if (error) {
+      throw new BadRequestException(error);
+    }
+
+    let reservation = await this.prisma.reservation.create({
+      data: {
+        customerId,
+        vehicleId: data.vehicleId ?? undefined,
+        category: data.category || undefined,
+        scheduledStart: start,
+        scheduledEnd: end,
+        staffNote: data.staffNote || undefined,
+        status: 'CONFIRMED',
+        icsToken: randomIcsToken(this.tenantContext.current()!.company.companyCode),
+      },
+      include: { customer: true, vehicle: true },
+    });
+
+    reservation = await this.syncGoogleCalendar(reservation);
+
+    await this.notifyLine(reservation.customer?.lineUserId, [
+      {
+        type: 'text',
+        text:
+          `✅ ご予約を承りました\n` +
+          `${this.formatDateJst(reservation.scheduledStart)}\n` +
+          `ご来店をお待ちしております。`,
+        quickReply: {
+          items: [
+            {
+              type: 'action',
+              action: {
+                type: 'uri',
+                label: '📅 カレンダーに追加',
+                uri: this.buildIcsUrl(reservation.icsToken),
+              },
+            },
+          ],
+        },
+      },
+    ]);
 
     return reservation;
   }
@@ -761,5 +999,76 @@ export class ReservationService {
     }
 
     return value;
+  }
+
+  private toGoogleCalendarUtc(date: Date): string {
+    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  }
+
+  /**
+   * LINEのURIアクション(クイックリプライ)から開くリンク先。
+   * .icsファイルを直接返すとLINEアプリ内ブラウザ(特にiOS)で真っ白画面になり開けないことがあるため、
+   * 必ずまずHTMLページを表示し、そこからGoogleカレンダー追加リンク/iCalダウンロードへ誘導する。
+   */
+  buildAddToCalendarHtml(reservation: {
+    scheduledStart: Date;
+    scheduledEnd: Date;
+    customer: { customerName: string } | null;
+    vehicle: {
+      carName: string | null;
+      commonModelName: string | null;
+      registrationNumber: string | null;
+    } | null;
+    icsToken: string;
+  }): string {
+    const vehicleName = [
+      reservation.vehicle?.carName,
+      reservation.vehicle?.commonModelName,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    const details = [
+      reservation.customer ? `お客様: ${reservation.customer.customerName}` : null,
+      vehicleName ? `車両: ${vehicleName}` : null,
+      reservation.vehicle?.registrationNumber
+        ? `登録番号: ${reservation.vehicle.registrationNumber}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const googleUrl =
+      'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+      `&text=${encodeURIComponent('ご予約 - ガレージ・カルテ')}` +
+      `&dates=${this.toGoogleCalendarUtc(reservation.scheduledStart)}/${this.toGoogleCalendarUtc(reservation.scheduledEnd)}` +
+      `&details=${encodeURIComponent(details)}`;
+
+    const dateLabel = this.formatDateJst(reservation.scheduledStart);
+    const fileUrl = `${this.buildIcsUrl(reservation.icsToken)}/file`;
+
+    return `<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>カレンダーに追加</title>
+<style>
+  body { font-family: sans-serif; padding: 24px; text-align: center; color: #333; }
+  h1 { font-size: 18px; margin-bottom: 8px; }
+  p { color: #666; font-size: 14px; margin-bottom: 24px; }
+  a.btn { display: block; margin: 12px auto; max-width: 320px; padding: 14px; border-radius: 8px;
+          text-decoration: none; font-weight: bold; }
+  a.google { background: #4285F4; color: #fff; }
+  a.ics { background: #f0f0f0; color: #333; }
+</style>
+</head>
+<body>
+  <h1>📅 ご予約日時</h1>
+  <p>${dateLabel}</p>
+  <a class="btn google" href="${googleUrl}" target="_blank" rel="noopener">Googleカレンダーに追加</a>
+  <a class="btn ics" href="${fileUrl}">iCalファイルをダウンロード(iPhone純正カレンダー等)</a>
+</body>
+</html>`;
   }
 }

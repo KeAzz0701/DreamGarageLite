@@ -25,6 +25,8 @@ model CompanyAccount {
 
   staffJoinCode String? @unique
 
+  currentPlan  String?
+
   isActive     Boolean  @default(true)
 
   createdAt    DateTime @default(now())
@@ -33,6 +35,7 @@ model CompanyAccount {
   apiKey       ApiKeyPool?
   lineLinks    LineCompanyLink[]
   staffLineLinks LineStaffLink[]
+  errorReports ErrorReport[]
 }
 
 // 全社共有のGemini APIキープール。会社ごとにDBが分かれているため、
@@ -78,6 +81,7 @@ model LineStaffLink {
   id               Int            @id @default(autoincrement())
 
   lineUserId       String
+  displayName      String?
 
   companyAccountId Int
   companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id])
@@ -85,6 +89,23 @@ model LineStaffLink {
   joinedAt         DateTime       @default(now())
 
   @@unique([lineUserId, companyAccountId])
+}
+
+// デモプレイ版の会社が「エラー報告」ボタンで送った不具合報告。運営(自分自身)のLINEに
+// 即時プッシュ通知しつつ、後からまとめて見返せるようここにも保存する。
+model ErrorReport {
+  id               Int            @id @default(autoincrement())
+
+  companyAccountId Int
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id])
+  companyName      String
+
+  pageUrl          String
+  pageLabel        String?
+  userAgent        String?
+  message          String?
+
+  createdAt        DateTime       @default(now())
 }
 
 // 運営管理画面(/admin)にログインする担当者アカウント。ADMIN_PASSWORD(共有パスワード)の

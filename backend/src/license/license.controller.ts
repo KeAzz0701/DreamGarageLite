@@ -3,6 +3,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
@@ -11,6 +12,11 @@ import {
 } from '@nestjs/common';
 import { Plan, PaymentMethod } from '@prisma/client';
 import { LicenseService } from './license.service';
+
+// このエンドポイントから会社(利用者)が直接切り替えられるのは、支払いが不要な
+// プランのみ。有料プランは必ず支払い後、運営管理画面での承認(AdminController)を
+// 経由する必要がある
+const SELF_SERVICE_PLANS: Plan[] = ['FREE', 'DEMO'];
 
 @Controller('license')
 export class LicenseController {
@@ -35,6 +41,12 @@ export class LicenseController {
     @Param('companyId', ParseIntPipe) companyId: number,
     @Body() body: { plan: Plan },
   ) {
+    if (!SELF_SERVICE_PLANS.includes(body.plan)) {
+      throw new ForbiddenException(
+        '有料プランへの変更は、支払い後の運営側承認が必要です。',
+      );
+    }
+
     return this.licenseService.changePlan(companyId, body.plan);
   }
 
@@ -55,20 +67,6 @@ export class LicenseController {
     @Param('companyId', ParseIntPipe) companyId: number,
   ) {
     return this.licenseService.listPlanChangeRequests(companyId);
-  }
-
-  @Post('plan-change-requests/:id/approve')
-  async approvePlanChangeRequest(
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    return this.licenseService.approvePlanChangeRequest(id);
-  }
-
-  @Post('plan-change-requests/:id/reject')
-  async rejectPlanChangeRequest(
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    return this.licenseService.rejectPlanChangeRequest(id);
   }
 
   @Get(':key')

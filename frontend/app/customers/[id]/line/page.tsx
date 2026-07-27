@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api, extractErrorMessage } from '@/lib/api';
+import { usePlanLimits } from '@/lib/usePlanLimits';
 
 type Customer = {
   id: number;
@@ -18,13 +19,38 @@ type LineMessage = {
   direction: 'IN' | 'OUT';
   text: string;
   createdAt: string;
+  lineOcrSubmissionId: number | null;
 };
 
 const POLL_INTERVAL_MS = 5000;
 
+function OcrImageBubble({ submissionId }: { submissionId: number }) {
+  const [image, setImage] = useState<{ imageBase64: string; mimeType: string } | null>(null);
+
+  useEffect(() => {
+    api<{ imageBase64: string; mimeType: string }>(`/ocr/line-submissions/${submissionId}`)
+      .then(setImage)
+      .catch(() => {});
+  }, [submissionId]);
+
+  if (!image) {
+    return <div className="chat-bubble">[画像: 車検証OCR]</div>;
+  }
+
+  return (
+    <img
+      src={`data:${image.mimeType};base64,${image.imageBase64}`}
+      className="rounded border border-[var(--line)]"
+      style={{ maxWidth: 220, maxHeight: 220 }}
+    />
+  );
+}
+
 export default function CustomerLinePage() {
   const params = useParams();
   const customerId = params.id as string;
+  const { limits, loaded } = usePlanLimits();
+  const lineHistoryAllowed = limits ? limits.lineHistoryView : true;
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [messages, setMessages] = useState<LineMessage[]>([]);
@@ -35,11 +61,15 @@ export default function CustomerLinePage() {
 
   useEffect(() => {
     api<Customer>(`/customer/${customerId}`).then(setCustomer).catch(() => {});
+
+    if (!loaded || !lineHistoryAllowed) return;
+
     loadMessages();
+    api(`/customer/${customerId}/line-messages/mark-read`, { method: 'POST' }).catch(() => {});
 
     const interval = setInterval(loadMessages, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [customerId]);
+  }, [customerId, loaded, lineHistoryAllowed]);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
@@ -88,7 +118,17 @@ export default function CustomerLinePage() {
         </Link>
       </div>
 
-      {customer && !customer.lineUserId ? (
+      {loaded && !lineHistoryAllowed ? (
+        <div className="panel">
+          <div className="empty">
+            LINEメッセージ履歴の閲覧はスタンダードプラン以上でご利用いただけます。
+            <br />
+            <Link href="/settings" className="btn btn-blue btn-sm mt-3 inline-flex">
+              プランを確認する
+            </Link>
+          </div>
+        </div>
+      ) : customer && !customer.lineUserId ? (
         <div className="panel">
           <div className="empty">
             この顧客はまだLINE連携されていません。
@@ -109,7 +149,11 @@ export default function CustomerLinePage() {
                   key={m.id}
                   className={`chat-bubble-row ${m.direction === 'OUT' ? 'user' : 'model'}`}
                 >
-                  <div className="chat-bubble">{m.text}</div>
+                  {m.lineOcrSubmissionId ? (
+                    <OcrImageBubble submissionId={m.lineOcrSubmissionId} />
+                  ) : (
+                    <div className="chat-bubble">{m.text}</div>
+                  )}
                 </div>
               ))
             )}

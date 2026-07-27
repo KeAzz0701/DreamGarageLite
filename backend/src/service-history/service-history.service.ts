@@ -15,12 +15,17 @@ interface ServiceHistoryItemDto {
 interface CreateServiceHistoryDto {
   date: string;
   title: string;
+  mileage?: number;
+  category?: string[];
   items: ServiceHistoryItemDto[];
 }
 
 interface CorrectServiceHistoryDto {
   title?: string;
+  mileage?: number;
+  category?: string[];
   items: ServiceHistoryItemDto[];
+  visibleInPortal?: boolean;
 }
 
 function buildCorrectionItemsData(items: ServiceHistoryItemDto[]) {
@@ -55,6 +60,8 @@ export class ServiceHistoryService {
         vehicleId,
         date: new Date(data.date),
         title: data.title,
+        mileage: data.mileage != null ? Number(data.mileage) : undefined,
+        category: data.category ?? [],
         items: {
           create: (data.items ?? [])
             .filter((i) => i.name?.trim())
@@ -159,7 +166,10 @@ export class ServiceHistoryService {
           vehicleId: original.vehicleId,
           date: original.date,
           title: data.title?.trim() || original.title,
+          mileage: data.mileage != null ? Number(data.mileage) : original.mileage,
+          category: data.category ?? original.category,
           correctedFromId: original.id,
+          visibleInPortal: data.visibleInPortal ?? true,
           items: {
             create: items,
           },

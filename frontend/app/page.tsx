@@ -20,6 +20,16 @@ type Reservation = {
   customer: { customerName: string } | null;
 };
 
+type ShakenReminder = {
+  vehicleId: number;
+  customerId: number;
+  customerName: string;
+  vehicleLabel: string;
+  registrationNumber: string | null;
+  expirationDate: string;
+  daysRemaining: number;
+};
+
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
 function fmt(iso: string) {
@@ -32,6 +42,32 @@ function fmt(iso: string) {
 export default function Home() {
   const [recentCustomers, setRecentCustomers] = useState<Customer[]>([]);
   const [upcomingReservations, setUpcomingReservations] = useState<Reservation[]>([]);
+  const [shakenReminders, setShakenReminders] = useState<ShakenReminder[]>([]);
+
+  useEffect(() => {
+    loadShakenReminders();
+  }, []);
+
+  function loadShakenReminders() {
+    api<ShakenReminder[]>('/vehicle/shaken-reminders')
+      .then(setShakenReminders)
+      .catch(() => {});
+  }
+
+  async function dismissShakenReminder(vehicleId: number) {
+    const reason = prompt(
+      'よろしければ状況を教えてください(例: 他店でご成約、様子見など。空欄のままでも大丈夫です)',
+    );
+
+    if (reason === null) return; // キャンセル
+
+    await api(`/vehicle/${vehicleId}/shaken-reminder/dismiss`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason || undefined }),
+    });
+
+    loadShakenReminders();
+  }
 
   useEffect(() => {
     api<Customer[]>('/customer')
@@ -79,6 +115,36 @@ export default function Home() {
           <div className="lbl">AIチャット</div>
         </Link>
       </div>
+
+      {shakenReminders.length > 0 && (
+        <>
+          <div className="sectionhead">
+            <h3>🚗 そろそろ車検のお客様</h3>
+          </div>
+          {shakenReminders.map((r) => (
+            <div key={r.vehicleId} className="minirow">
+              <span className="l">
+                <Link href={`/customers/${r.customerId}`} className="text-[var(--blue)]">
+                  {r.customerName}様 {r.vehicleLabel}
+                  {r.registrationNumber ? `(${r.registrationNumber})` : ''}
+                </Link>
+                　車検満了: {r.expirationDate}
+                {r.daysRemaining >= 0 && (
+                  <span className="ml-1 text-[var(--muted)]">(あと{r.daysRemaining}日)</span>
+                )}
+              </span>
+              <span className="r">
+                <button
+                  onClick={() => dismissShakenReminder(r.vehicleId)}
+                  className="btn btn-ghost btn-sm"
+                >
+                  今回はそっとしておく
+                </button>
+              </span>
+            </div>
+          ))}
+        </>
+      )}
 
       <div className="sectionhead">
         <h3>📅 直近の予約</h3>

@@ -29,6 +29,12 @@ import { ExportModule } from './export/export.module';
 import { FeeRateModule } from './fee-rate/fee-rate.module';
 import { ReservationModule } from './reservation/reservation.module';
 import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
+import { AnnouncementModule } from './announcement/announcement.module';
+import { ErrorReportModule } from './error-report/error-report.module';
+import { TireMeasurementModule } from './tire-measurement/tire-measurement.module';
+import { PortalModule } from './portal/portal.module';
+import { PortalMiddleware } from './portal/portal.middleware';
+import { CompetitorEstimateModule } from './competitor-estimate/competitor-estimate.module';
 
 @Module({
   imports: [
@@ -57,11 +63,17 @@ import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
     FeeRateModule,
     ReservationModule,
     GoogleCalendarModule,
+    AnnouncementModule,
+    ErrorReportModule,
+    TireMeasurementModule,
+    PortalModule,
+    CompetitorEstimateModule,
   ],
   controllers: [AppController],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(TenantMiddleware).forRoutes('*');
+    consumer.apply(PortalMiddleware).forRoutes('portal');
   }
 }

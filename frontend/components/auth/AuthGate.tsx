@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import AppHeader from '@/components/layout/AppHeader';
+import ErrorReportButton from '@/components/layout/ErrorReportButton';
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -13,9 +14,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState(false);
 
   const isAdminRoute = pathname.startsWith('/admin');
+  const isPortalRoute = pathname.startsWith('/portal');
 
   useEffect(() => {
-    if (pathname === '/login' || isAdminRoute) return;
+    if (pathname === '/login' || isAdminRoute || isPortalRoute) return;
 
     let cancelled = false;
 
@@ -34,6 +36,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (pathname === '/login') {
     return <main>{children}</main>;
+  }
+
+  if (isPortalRoute) {
+    return <main className="portal-shell">{children}</main>;
   }
 
   if (isAdminRoute) {
@@ -69,6 +75,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     <>
       <AppHeader />
       <main>{children}</main>
+      <ErrorReportButton />
     </>
   );
 }

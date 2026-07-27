@@ -5,6 +5,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { usePlanLimits } from '@/lib/usePlanLimits';
+import { PlanGatedLink } from '@/components/ui/PlanGatedLink';
 
 type Vehicle = {
   id: number;
@@ -27,6 +29,8 @@ type Customer = {
 export default function CustomerPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [keyword, setKeyword] = useState('');
+  const { limits } = usePlanLimits();
+  const lineHistoryAllowed = limits ? limits.lineHistoryView : true;
 
   useEffect(() => {
     loadCustomers();
@@ -87,12 +91,14 @@ export default function CustomerPage() {
                     {customer.lineUserId ? '✅ LINE連携済み' : 'LINE未連携'}
                   </span>
                   <div className="flex gap-2">
-                    <Link
+                    <PlanGatedLink
+                      allowed={lineHistoryAllowed}
                       href={`/customers/${customer.id}/line`}
                       className="btn btn-ghost btn-sm h-fit"
+                      lockedMessage="LINEメッセージ履歴の閲覧はスタンダードプラン以上でご利用いただけます。"
                     >
                       💬 LINE
-                    </Link>
+                    </PlanGatedLink>
                     <Link
                       href={`/customers/${customer.id}`}
                       className="btn btn-blue btn-sm h-fit"

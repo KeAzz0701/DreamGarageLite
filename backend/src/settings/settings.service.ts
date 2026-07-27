@@ -22,10 +22,6 @@ export class SettingsService {
       data: {
         companyId,
 
-        apiUrl: '',
-        geminiEndpoint: '',
-        backupEnabled: true,
-        autoUpdate: true,
         theme: 'light',
       },
     });

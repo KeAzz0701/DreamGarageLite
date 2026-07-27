@@ -6,7 +6,9 @@ import { TenantContextService } from '../tenant/tenant-context.service';
 import {
   PLAN_LIMITS,
   getEffectivePlanLimits,
+  getTrialDaysRemaining,
   DEMO_PLAN_CAPACITY,
+  PlanLimits,
 } from '../common/plans';
 
 // カード・電子決済・キャリア決済は決済代行サービスとの契約が済むまで利用不可
@@ -38,6 +40,23 @@ export class LicenseService {
 
   async getLicense() {
     return this.prisma.license.findFirst();
+  }
+
+  /**
+   * 現在のテナントのプラン機能フラグ(predictiveMaintenance/aiChat/webReservation等)を返す。
+   * ライセンスが見つからない(通常あり得ない)場合はnullを返し、呼び出し側はfail-openで
+   * 機能を許可する側に倒すこと。
+   */
+  async getCurrentPlanLimits(): Promise<PlanLimits | null> {
+    const license = await this.prisma.license.findFirst();
+
+    if (!license) return null;
+
+    return getEffectivePlanLimits(
+      license.plan,
+      license.activatedAt,
+      license.hasUsedPaidPlan,
+    );
   }
 
   async getByKey(licenseKey: string) {
@@ -116,17 +135,18 @@ export class LicenseService {
       where: { companyAccountId },
     });
 
-    if (existing && (existing.tier === desiredTier || desiredTier === 'FREE')) {
+    if (existing && existing.tier === desiredTier) {
       return existing;
     }
 
-    // 既存より上位のtierへ入れ替えられるか探す
-    const upgrade = await this.masterPrisma.apiKeyPool.findFirst({
+    // 希望tierの空きキーへ入れ替えられるか探す(PAID→FREEへの降格も含む。
+    // 降格を素通りさせると有料枠のキーが解約後も使われ続け、他社に回せなくなるため)
+    const swapTarget = await this.masterPrisma.apiKeyPool.findFirst({
       where: { companyAccountId: null, tier: desiredTier },
       orderBy: { createdAt: 'asc' },
     });
 
-    if (upgrade) {
+    if (swapTarget) {
       if (existing) {
         await this.masterPrisma.apiKeyPool.update({
           where: { id: existing.id },
@@ -135,12 +155,26 @@ export class LicenseService {
       }
 
       return this.masterPrisma.apiKeyPool.update({
-        where: { id: upgrade.id },
+        where: { id: swapTarget.id },
         data: { companyAccountId, assignedAt: new Date() },
       });
     }
 
-    // 希望tierの在庫が無い場合、既存の割り当てがあればそのまま維持する
+    // 無料枠への降格で空きが無い場合でも、有料枠を無駄に保持させ続けない。
+    // 割り当てを解除し(無料枠の空きが出来次第、次回アクセス時に再割り当てされる)、
+    // 有料枠は他社が使えるよう空けておく
+    if (desiredTier === 'FREE') {
+      if (existing) {
+        await this.masterPrisma.apiKeyPool.update({
+          where: { id: existing.id },
+          data: { companyAccountId: null, assignedAt: null },
+        });
+      }
+
+      return null;
+    }
+
+    // 希望tier(有料枠等)の在庫が無い場合、既存の割り当てがあればそのまま維持する
     if (existing) {
       return existing;
     }
@@ -280,6 +314,7 @@ export class LicenseService {
     const limits = getEffectivePlanLimits(
       license.plan as Plan,
       company.license.activatedAt,
+      company.license.hasUsedPaidPlan,
     );
 
     if (limits.maxOcrPerMonth === -1) {
@@ -302,11 +337,14 @@ export class LicenseService {
       ? getEffectivePlanLimits(
           company.license.plan,
           company.license.activatedAt,
+          company.license.hasUsedPaidPlan,
         )
       : null;
 
-    const demoUsed = await this.prisma.license.count({
-      where: { plan: 'DEMO' },
+    // デモ枠のカウントは会社ごとに別DBに分かれているテナントDB側では正しく数えられない
+    // (自社の1件しか見えない)ため、全社を横断できるマスターDBのミラー列を使う
+    const demoUsed = await this.masterPrisma.companyAccount.count({
+      where: { currentPlan: 'DEMO' },
     });
 
     return {
@@ -320,6 +358,11 @@ export class LicenseService {
             plan: company!.license!.plan,
             limits: current,
             usedOcr: company!.license!.usedOcr,
+            trialDaysRemaining: getTrialDaysRemaining(
+              company!.license!.plan,
+              company!.license!.activatedAt,
+              company!.license!.hasUsedPaidPlan,
+            ),
           }
         : null,
     };
@@ -350,13 +393,19 @@ export class LicenseService {
       }
     }
 
+    // 一度でも有料プランに切り替えたら、以後FREEに戻っても初月お試し特典は与えない
+    const isPaidPlan = plan !== 'FREE' && plan !== 'DEMO';
+    const hasUsedPaidPlan = company.license.hasUsedPaidPlan || isPaidPlan;
+
     const updated = await this.prisma.license.update({
       where: { id: company.license.id },
       data: {
         plan,
+        hasUsedPaidPlan,
         maxOcrPerMonth: getEffectivePlanLimits(
           plan,
           company.license.activatedAt,
+          hasUsedPaidPlan,
         ).maxOcrPerMonth,
       },
     });
@@ -366,6 +415,13 @@ export class LicenseService {
 
     if (companyAccountId) {
       await this.assignApiKey(companyAccountId, tierForPlan(plan));
+
+      // デモ枠カウント等、全社横断の集計はテナントDBから原理的にできないため
+      // マスターDB側にも現在のプランをミラーしておく
+      await this.masterPrisma.companyAccount.update({
+        where: { id: companyAccountId },
+        data: { currentPlan: plan },
+      });
     }
 
     return updated;

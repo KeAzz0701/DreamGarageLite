@@ -3,6 +3,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api, extractErrorMessage } from '@/lib/api';
 
 type Reservation = {
@@ -189,13 +190,11 @@ export default function ReservationsPage() {
         <h1 className="disp text-3xl">予約管理</h1>
       </div>
 
+      {pending.length > 0 && (
       <div className="panel mb-4">
         <h2 className="disp text-xl mb-3">予約待ち（{pending.length}）</h2>
 
-        {pending.length === 0 ? (
-          <div className="empty">LINEからの予約リクエストはありません。</div>
-        ) : (
-          pending.map((r) => (
+        {pending.map((r) => (
             <div key={r.id} className="veh mb-2">
               <div className="flex justify-between items-center">
                 <div>
@@ -221,8 +220,13 @@ export default function ReservationsPage() {
                 </div>
               </div>
             </div>
-          ))
-        )}
+        ))}
+      </div>
+      )}
+
+      <div className="panel mb-4">
+        <h2 className="disp text-xl mb-3">月間カレンダー（電話予約用）</h2>
+        <MonthlyCalendarPanel />
       </div>
 
       <div className="panel mb-4">
@@ -377,5 +381,378 @@ export default function ReservationsPage() {
         </div>
       </div>
     </>
+  );
+}
+
+type MonthDay = {
+  date: string;
+  isClosed: boolean;
+  reservationCount: number;
+  isFull: boolean;
+};
+
+type DaySlot = {
+  start: string;
+  end: string;
+  label: string;
+  occupied: boolean;
+};
+
+type CustomerOption = {
+  id: number;
+  customerName: string;
+  vehicles: {
+    id: number;
+    carName: string | null;
+    commonModelName: string | null;
+    registrationNumber: string | null;
+  }[];
+};
+
+function MonthlyCalendarPanel() {
+  const searchParams = useSearchParams();
+  const prefillCustomerId = searchParams.get('customerId');
+  const prefillVehicleId = searchParams.get('vehicleId');
+
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth() + 1);
+  const [monthDays, setMonthDays] = useState<MonthDay[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [daySlots, setDaySlots] = useState<DaySlot[]>([]);
+  const [selectedSlotStart, setSelectedSlotStart] = useState<string | null>(null);
+
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null);
+  const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [useManualName, setUseManualName] = useState(false);
+  const [manualName, setManualName] = useState('');
+  const [durationHours, setDurationHours] = useState('1');
+  const [staffNote, setStaffNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [prefillLabel, setPrefillLabel] = useState('');
+
+  useEffect(() => {
+    loadMonth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewYear, viewMonth]);
+
+  useEffect(() => {
+    api<CustomerOption[]>('/customer')
+      .then(setCustomers)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!prefillCustomerId) return;
+
+    api<CustomerOption & { customerName: string }>(`/customer/${prefillCustomerId}`)
+      .then((c) => {
+        setSelectedCustomer(c);
+        setPrefillLabel(`${c.customerName}様の予約を登録します`);
+        if (prefillVehicleId) setSelectedVehicleId(prefillVehicleId);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillCustomerId, prefillVehicleId]);
+
+  async function loadMonth() {
+    try {
+      const json = await api<MonthDay[]>(
+        `/reservation/month-overview?year=${viewYear}&month=${viewMonth}`,
+      );
+      setMonthDays(json);
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function selectDate(dateStr: string) {
+    setSelectedDate(dateStr);
+    setSelectedSlotStart(null);
+
+    try {
+      const json = await api<DaySlot[]>(`/reservation/day-slots?date=${dateStr}`);
+      setDaySlots(json);
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  function prevMonth() {
+    if (viewMonth === 1) {
+      setViewYear((y) => y - 1);
+      setViewMonth(12);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+    setSelectedDate(null);
+    setDaySlots([]);
+  }
+
+  function nextMonth() {
+    if (viewMonth === 12) {
+      setViewYear((y) => y + 1);
+      setViewMonth(1);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+    setSelectedDate(null);
+    setDaySlots([]);
+  }
+
+  const filteredCustomers = customerQuery.trim()
+    ? customers.filter((c) => c.customerName.includes(customerQuery.trim()))
+    : customers;
+
+  async function submitBooking() {
+    if (!selectedSlotStart) return;
+
+    if (!useManualName && !selectedCustomer) {
+      alert('顧客を選択するか、お名前を入力してください。');
+      return;
+    }
+
+    if (useManualName && !manualName.trim()) {
+      alert('お名前を入力してください。');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      await api('/reservation/manual', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId: useManualName ? undefined : selectedCustomer?.id,
+          customerName: useManualName ? manualName.trim() : undefined,
+          vehicleId:
+            !useManualName && selectedVehicleId ? Number(selectedVehicleId) : undefined,
+          scheduledStart: selectedSlotStart,
+          durationHours: Number(durationHours) || 1,
+          staffNote: staffNote || undefined,
+        }),
+      });
+
+      alert('予約を登録しました');
+      setSelectedSlotStart(null);
+      setManualName('');
+      setStaffNote('');
+      setDurationHours('1');
+      await loadMonth();
+      if (selectedDate) await selectDate(selectedDate);
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // 月初の曜日に合わせて先頭に空セルを入れ、カレンダーの列を揃える
+  const firstDate = monthDays[0] ? new Date(`${monthDays[0].date}T00:00:00`) : null;
+  const leadingBlanks = firstDate ? firstDate.getDay() : 0;
+
+  return (
+    <div>
+      {prefillLabel && <div className="empty mb-2 text-left">👤 {prefillLabel}</div>}
+
+      <div className="flex justify-between items-center mb-2">
+        <button onClick={prevMonth} className="btn btn-ghost btn-sm">
+          ← 前月
+        </button>
+        <div className="font-semibold">
+          {viewYear}年{viewMonth}月
+        </div>
+        <button onClick={nextMonth} className="btn btn-ghost btn-sm">
+          次月 →
+        </button>
+      </div>
+
+      <div
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}
+        className="mb-3"
+      >
+        {WEEKDAY_LABELS.map((w) => (
+          <div key={w} className="text-center text-xs text-[var(--muted)]">
+            {w}
+          </div>
+        ))}
+
+        {Array.from({ length: leadingBlanks }).map((_, i) => (
+          <div key={`blank-${i}`} />
+        ))}
+
+        {monthDays.map((d) => {
+          const dayNum = Number(d.date.slice(-2));
+          const isSelected = d.date === selectedDate;
+
+          return (
+            <button
+              key={d.date}
+              type="button"
+              onClick={() => selectDate(d.date)}
+              style={{
+                border: isSelected ? '2px solid var(--blue)' : '1px solid #ddd',
+                borderRadius: 6,
+                padding: '6px 2px',
+                background: d.isClosed ? '#f2f2f2' : '#fff',
+                opacity: d.isClosed ? 0.6 : 1,
+                textAlign: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <div className="text-sm">{dayNum}</div>
+              {d.reservationCount > 0 && (
+                <div className="text-xs text-[var(--blue)]">〇{d.reservationCount}</div>
+              )}
+              {d.isFull && <div className="text-xs text-[var(--danger)]">満</div>}
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedDate && (
+        <div className="veh mb-3">
+          <div className="kicker mono text-xs text-[var(--muted)] mb-2">
+            {selectedDate}の時間帯
+          </div>
+
+          {daySlots.length === 0 ? (
+            <div className="empty">この日は営業時間外です。</div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {daySlots.map((s) => (
+                <button
+                  key={s.start}
+                  type="button"
+                  disabled={s.occupied}
+                  onClick={() => setSelectedSlotStart(s.start)}
+                  className={`btn btn-sm ${selectedSlotStart === s.start ? 'btn-blue' : 'btn-ghost'}`}
+                  style={s.occupied ? { opacity: 0.4 } : undefined}
+                >
+                  {s.label}
+                  {s.occupied ? '(満)' : ''}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedSlotStart && (
+        <div className="veh">
+          <div className="kicker mono text-xs text-[var(--muted)] mb-2">
+            {fmt(selectedSlotStart)}〜 の予約を登録
+          </div>
+
+          <div className="flex gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => setUseManualName(false)}
+              className={`btn btn-sm ${!useManualName ? 'btn-blue' : 'btn-ghost'}`}
+            >
+              既存顧客から選ぶ
+            </button>
+            <button
+              type="button"
+              onClick={() => setUseManualName(true)}
+              className={`btn btn-sm ${useManualName ? 'btn-blue' : 'btn-ghost'}`}
+            >
+              名前を直接入力
+            </button>
+          </div>
+
+          {useManualName ? (
+            <label className="field-label mb-2">
+              お客様のお名前
+              <input
+                className="input"
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                placeholder="例: 山田太郎"
+              />
+            </label>
+          ) : (
+            <>
+              <label className="field-label mb-2">
+                顧客検索
+                <input
+                  className="input"
+                  value={customerQuery}
+                  onChange={(e) => setCustomerQuery(e.target.value)}
+                  placeholder="お名前で検索"
+                />
+              </label>
+
+              <div style={{ maxHeight: 160, overflowY: 'auto' }} className="mb-2">
+                {filteredCustomers.slice(0, 30).map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      setSelectedCustomer(c);
+                      setSelectedVehicleId('');
+                    }}
+                    className="minirow"
+                    style={{
+                      cursor: 'pointer',
+                      background: selectedCustomer?.id === c.id ? '#eef4ff' : undefined,
+                    }}
+                  >
+                    <span className="l">{c.customerName}</span>
+                  </div>
+                ))}
+              </div>
+
+              {selectedCustomer && selectedCustomer.vehicles.length > 0 && (
+                <label className="field-label mb-2">
+                  車両(任意)
+                  <select
+                    className="input"
+                    value={selectedVehicleId}
+                    onChange={(e) => setSelectedVehicleId(e.target.value)}
+                  >
+                    <option value="">未選択</option>
+                    {selectedCustomer.vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {[v.carName, v.commonModelName].filter(Boolean).join(' ') || '車両'}
+                        {v.registrationNumber ? `（${v.registrationNumber}）` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {selectedCustomer && (
+                <div className="text-xs text-[var(--muted)] mb-2">
+                  選択中: {selectedCustomer.customerName}様
+                </div>
+              )}
+            </>
+          )}
+
+          <label className="field-label mb-2">
+            作業時間(時間)
+            <input
+              type="number"
+              min="1"
+              step="0.5"
+              className="input"
+              value={durationHours}
+              onChange={(e) => setDurationHours(e.target.value)}
+            />
+          </label>
+
+          <label className="field-label mb-3">
+            メモ(任意)
+            <input className="input" value={staffNote} onChange={(e) => setStaffNote(e.target.value)} />
+          </label>
+
+          <button onClick={submitBooking} disabled={submitting} className="btn btn-primary">
+            {submitting ? '登録中...' : '📅 この枠で予約を登録する'}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

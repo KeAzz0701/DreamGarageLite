@@ -6,12 +6,16 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, extractErrorMessage } from '@/lib/api';
+import { usePlanLimits } from '@/lib/usePlanLimits';
+import { PlanGatedLink } from '@/components/ui/PlanGatedLink';
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID;
 
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { limits } = usePlanLimits();
+  const lineHistoryAllowed = limits ? limits.lineHistoryView : true;
 
   const [customer, setCustomer] = useState<any>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -107,9 +111,14 @@ export default function CustomerDetailPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="disp text-3xl">顧客詳細</h1>
 
-        <Link href="/customers" className="btn btn-ghost">
-          戻る
-        </Link>
+        <div className="flex gap-2">
+          <Link href={`/reservations?customerId=${params.id}`} className="btn btn-blue">
+            📅 予約する
+          </Link>
+          <Link href="/customers" className="btn btn-ghost">
+            戻る
+          </Link>
+        </div>
       </div>
 
       <div className="panel mb-4">
@@ -155,7 +164,15 @@ export default function CustomerDetailPage() {
 
             <div>
               <div className="text-xs text-[var(--muted)]">電話番号</div>
-              <div>{customer.phone || '-'}</div>
+              <div>
+                {customer.phone ? (
+                  <a href={`tel:${customer.phone}`} className="text-[var(--blue)] font-semibold">
+                    📞 {customer.phone}
+                  </a>
+                ) : (
+                  '-'
+                )}
+              </div>
             </div>
 
             <div className="col-span-2">
@@ -233,9 +250,14 @@ export default function CustomerDetailPage() {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="badge-ok">✅ LINEと連携済みです。車検満了などの通知が届きます。</div>
 
-            <Link href={`/customers/${params.id}/line`} className="btn btn-blue btn-sm">
+            <PlanGatedLink
+              allowed={lineHistoryAllowed}
+              href={`/customers/${params.id}/line`}
+              className="btn btn-blue btn-sm"
+              lockedMessage="LINEメッセージ履歴の閲覧はスタンダードプラン以上でご利用いただけます。"
+            >
               💬 メッセージのやり取り
-            </Link>
+            </PlanGatedLink>
 
             {confirmUnlink ? (
               <div className="flex items-center gap-2">

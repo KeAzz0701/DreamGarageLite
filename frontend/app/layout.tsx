@@ -43,6 +43,7 @@ export default function RootLayout({
     <html
       lang="ja"
       className={`${barlowCondensed.variable} ${notoSansJp.variable} ${zenKakuGothicNew.variable} ${ibmPlexMono.variable}`}
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       <body>

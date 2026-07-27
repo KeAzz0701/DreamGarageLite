@@ -62,9 +62,14 @@ export default function OcrPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="disp text-3xl">車検証OCR</h1>
 
-        <Link href="/" className="btn btn-ghost">
-          戻る
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/ocr/line-submissions" className="btn btn-blue">
+            📩 LINEで届いた車検証
+          </Link>
+          <Link href="/" className="btn btn-ghost">
+            戻る
+          </Link>
+        </div>
       </div>
 
       <div className="panel">

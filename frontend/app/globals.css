@@ -320,6 +320,12 @@ button.card:hover {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+@media (max-width: 520px) {
+  /* スマホ幅では2列だと顧客名等が窮屈になるため1列に切り替える */
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
+}
 .shitemrow {
   display: grid;
   grid-template-columns: 1fr 100px 28px;

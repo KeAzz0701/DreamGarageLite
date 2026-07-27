@@ -4,7 +4,10 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service';
 
-const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar'];
+const CALENDAR_SCOPES = [
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/userinfo.email',
+];
 
 @Injectable()
 export class GoogleCalendarService {
@@ -61,8 +64,16 @@ export class GoogleCalendarService {
 
     client.setCredentials(tokens);
 
-    const oauth2 = google.oauth2({ version: 'v2', auth: client });
-    const userinfo = await oauth2.userinfo.get();
+    // 接続済みメールアドレスの表示用。取得に失敗しても連携自体は継続する
+    let connectedEmail: string | null | undefined;
+
+    try {
+      const oauth2 = google.oauth2({ version: 'v2', auth: client });
+      const userinfo = await oauth2.userinfo.get();
+      connectedEmail = userinfo.data.email;
+    } catch (err) {
+      this.logger.warn(`Googleアカウントのメールアドレス取得に失敗しました: ${err}`);
+    }
 
     let calendarId = existing?.calendarId;
 
@@ -88,7 +99,7 @@ export class GoogleCalendarService {
         accessTokenExpiresAt: tokens.expiry_date
           ? new Date(tokens.expiry_date)
           : null,
-        connectedEmail: userinfo.data.email ?? null,
+        connectedEmail: connectedEmail ?? existing?.connectedEmail ?? null,
       },
       create: {
         companyId: company.id,
@@ -98,7 +109,7 @@ export class GoogleCalendarService {
         accessTokenExpiresAt: tokens.expiry_date
           ? new Date(tokens.expiry_date)
           : null,
-        connectedEmail: userinfo.data.email ?? null,
+        connectedEmail: connectedEmail ?? existing?.connectedEmail ?? null,
       },
     });
   }

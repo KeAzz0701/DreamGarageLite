@@ -8,6 +8,8 @@ import { ReservationModule } from '../reservation/reservation.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { GeminiModule } from '../gemini/gemini.module';
 import { OpenRouterModule } from '../openrouter/openrouter.module';
+import { LicenseModule } from '../license/license.module';
+import { AnnouncementModule } from '../announcement/announcement.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { OpenRouterModule } from '../openrouter/openrouter.module';
     PrismaModule,
     GeminiModule,
     OpenRouterModule,
+    LicenseModule,
+    AnnouncementModule,
   ],
   controllers: [LineController],
   providers: [LineService],

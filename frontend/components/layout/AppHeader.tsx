@@ -21,7 +21,30 @@ const TABS = [
 type Summary = {
   customers: number;
   vehicles: number;
+  unreadLineMessages: number;
+  pendingOcrSubmissions: number;
+  pendingReservations: number | null;
+  pendingShakenReminders: number;
 };
+
+const UNREAD_POLL_INTERVAL_MS = 30000;
+
+function NotificationBadge({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      style={{
+        background: 'var(--danger)',
+        color: '#fff',
+        borderRadius: 999,
+        padding: '2px 10px',
+        fontWeight: 700,
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
 
 export default function AppHeader() {
   const pathname = usePathname();
@@ -30,12 +53,23 @@ export default function AppHeader() {
   const [summary, setSummary] = useState<Summary>({
     customers: 0,
     vehicles: 0,
+    unreadLineMessages: 0,
+    pendingOcrSubmissions: 0,
+    pendingReservations: null,
+    pendingShakenReminders: 0,
   });
 
   useEffect(() => {
-    api<{ summary: Summary }>('')
-      .then((data) => setSummary(data.summary))
-      .catch(() => {});
+    function load() {
+      api<{ summary: Summary }>('')
+        .then((data) => setSummary(data.summary))
+        .catch(() => {});
+    }
+
+    load();
+
+    const interval = setInterval(load, UNREAD_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, []);
 
   const usedOcr = company?.license?.usedOcr ?? 0;
@@ -55,6 +89,26 @@ export default function AppHeader() {
         </div>
 
         <div className="gk-stats">
+          {summary.unreadLineMessages > 0 && (
+            <NotificationBadge href="/customers">
+              🔔 新着LINE {summary.unreadLineMessages}
+            </NotificationBadge>
+          )}
+          {!!summary.pendingReservations && summary.pendingReservations > 0 && (
+            <NotificationBadge href="/reservations">
+              📅 新規LINE予約 {summary.pendingReservations}
+            </NotificationBadge>
+          )}
+          {summary.pendingOcrSubmissions > 0 && (
+            <NotificationBadge href="/ocr/line-submissions">
+              📷 車検証OCR未確認 {summary.pendingOcrSubmissions}
+            </NotificationBadge>
+          )}
+          {summary.pendingShakenReminders > 0 && (
+            <NotificationBadge href="/">
+              🚗 車検リマインド {summary.pendingShakenReminders}
+            </NotificationBadge>
+          )}
           <span>👥 {summary.customers}</span>
           <span>🚗 {summary.vehicles}</span>
           <span>📷 {ocrLabel}</span>

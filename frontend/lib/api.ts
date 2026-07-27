@@ -60,10 +60,15 @@ export function extractErrorMessage(e: any) {
 export async function upload(
   path: string,
   file: File,
+  fields?: Record<string, string>,
 ) {
   const form = new FormData();
 
   form.append('file', file);
+
+  for (const [key, value] of Object.entries(fields ?? {})) {
+    form.append(key, value);
+  }
 
   const response = await fetch(`${API_URL}${path}`, {
     method: 'POST',

@@ -12,9 +12,28 @@ interface CompanyRow {
   displayName: string;
   dbName: string;
   isActive: boolean;
+  currentPlan: string | null;
   lineConnected: boolean;
+  trialDaysRemaining: number | null;
   createdAt: string;
 }
+
+interface PlanChangeRequestRow {
+  companyAccountId: number;
+  companyName: string;
+  requestId: number;
+  targetPlan: string;
+  paymentMethod: string;
+  requestedAt: string;
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: '現金',
+  BANK_TRANSFER: '振込',
+  CARD: 'カード',
+  E_MONEY: '電子決済',
+  CARRIER_BILLING: 'スマホ料金支払い',
+};
 
 interface AdminUserRow {
   id: number;
@@ -30,6 +49,24 @@ interface ApiKeyRow {
   maskedKey: string;
   assignedCompanyName: string | null;
   assignedAt: string | null;
+  createdAt: string;
+}
+
+interface PortalCustomerRow {
+  companyAccountId: number;
+  companyName: string;
+  id: number;
+  customerName: string;
+  portalPaid: boolean;
+}
+
+interface ErrorReportRow {
+  id: number;
+  companyName: string;
+  pageUrl: string;
+  pageLabel: string | null;
+  userAgent: string | null;
+  message: string | null;
   createdAt: string;
 }
 
@@ -53,6 +90,16 @@ export default function AdminPage() {
   const [newApiKeyTier, setNewApiKeyTier] = useState<'FREE' | 'PAID'>('FREE');
   const [addingApiKey, setAddingApiKey] = useState(false);
 
+  const [planRequests, setPlanRequests] = useState<PlanChangeRequestRow[]>([]);
+  const [processingPlanRequest, setProcessingPlanRequest] = useState<number | null>(null);
+
+  const [errorReports, setErrorReports] = useState<ErrorReportRow[]>([]);
+
+  const [portalQuery, setPortalQuery] = useState('');
+  const [portalCustomers, setPortalCustomers] = useState<PortalCustomerRow[] | null>(null);
+  const [portalSearching, setPortalSearching] = useState(false);
+  const [portalTogglingId, setPortalTogglingId] = useState<number | null>(null);
+
   useEffect(() => {
     api<{ ok: boolean; username: string | null }>('/admin/me')
       .then((me) => {
@@ -61,9 +108,54 @@ export default function AdminPage() {
         load();
         loadAdminUsers();
         loadApiKeys();
+        loadPlanRequests();
+        loadErrorReports();
       })
       .catch(() => router.replace('/admin/login'));
   }, []);
+
+  async function loadErrorReports() {
+    try {
+      const json = await api<ErrorReportRow[]>('/admin/error-reports');
+      setErrorReports(json);
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function searchPortalCustomers() {
+    if (!portalQuery.trim()) return;
+
+    setPortalSearching(true);
+
+    try {
+      const json = await api<PortalCustomerRow[]>(
+        `/admin/portal-customers?q=${encodeURIComponent(portalQuery)}`,
+      );
+      setPortalCustomers(json);
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    } finally {
+      setPortalSearching(false);
+    }
+  }
+
+  async function togglePortalPaid(customer: PortalCustomerRow) {
+    setPortalTogglingId(customer.id);
+
+    try {
+      await api(`/admin/companies/${customer.companyAccountId}/portal-customers/${customer.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ portalPaid: !customer.portalPaid }),
+      });
+
+      await searchPortalCustomers();
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    } finally {
+      setPortalTogglingId(null);
+    }
+  }
 
   async function load() {
     try {
@@ -175,6 +267,48 @@ export default function AdminPage() {
       await loadApiKeys();
     } catch (e: any) {
       alert(extractErrorMessage(e));
+    }
+  }
+
+  async function loadPlanRequests() {
+    try {
+      const json = await api<PlanChangeRequestRow[]>('/admin/plan-change-requests');
+      setPlanRequests(json);
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function approvePlanRequest(r: PlanChangeRequestRow) {
+    if (!window.confirm(`「${r.companyName}」の${r.targetPlan}プランへの変更を、入金確認の上で承認しますか？`)) return;
+
+    setProcessingPlanRequest(r.requestId);
+
+    try {
+      await api(`/admin/plan-change-requests/${r.companyAccountId}/${r.requestId}/approve`, {
+        method: 'POST',
+      });
+      await loadPlanRequests();
+      await load();
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    } finally {
+      setProcessingPlanRequest(null);
+    }
+  }
+
+  async function rejectPlanRequest(r: PlanChangeRequestRow) {
+    setProcessingPlanRequest(r.requestId);
+
+    try {
+      await api(`/admin/plan-change-requests/${r.companyAccountId}/${r.requestId}/reject`, {
+        method: 'POST',
+      });
+      await loadPlanRequests();
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    } finally {
+      setProcessingPlanRequest(null);
     }
   }
 
@@ -305,6 +439,12 @@ export default function AdminPage() {
                 <div>
                   <span className="font-semibold">{c.displayName}</span>
                   <span className="ml-2 mono text-xs text-[var(--muted)]">{c.companyCode}</span>
+                  <span className="expbadge ml-2">{c.currentPlan ?? 'FREE'}</span>
+                  {c.trialDaysRemaining != null && (
+                    <span className="expbadge exp-warn ml-2">
+                      お試し残り{c.trialDaysRemaining}日
+                    </span>
+                  )}
                   {!c.isActive && <span className="expbadge exp-warn ml-2">無効</span>}
                   {c.lineConnected && <span className="ml-2 text-xs text-[var(--muted)]">LINE連携済み</span>}
                 </div>
@@ -318,6 +458,46 @@ export default function AdminPage() {
                 </div>
               </div>
               <div className="mt-1 text-xs text-[var(--muted)]">DB: {c.dbName}</div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="panel mt-4">
+        <h2 className="disp text-xl mb-3">プラン変更申請</h2>
+        <p className="note mb-3">
+          有料プランへの変更は、入金確認後にここで承認して初めて実際に切り替わります(会社側の画面からは承認できません)。
+        </p>
+
+        {planRequests.length === 0 ? (
+          <div className="empty">承認待ちの申請はありません。</div>
+        ) : (
+          planRequests.map((r) => (
+            <div key={`${r.companyAccountId}-${r.requestId}`} className="veh mb-2">
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="font-semibold">{r.companyName}</span>
+                  <span className="ml-2 text-xs text-[var(--muted)]">
+                    {r.targetPlan}プランへ変更（{PAYMENT_METHOD_LABELS[r.paymentMethod] ?? r.paymentMethod}）
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => approvePlanRequest(r)}
+                    disabled={processingPlanRequest === r.requestId}
+                    className="btn btn-primary btn-sm"
+                  >
+                    入金確認・承認
+                  </button>
+                  <button
+                    onClick={() => rejectPlanRequest(r)}
+                    disabled={processingPlanRequest === r.requestId}
+                    className="btn btn-ghost btn-sm"
+                  >
+                    却下
+                  </button>
+                </div>
+              </div>
             </div>
           ))
         )}
@@ -446,6 +626,87 @@ export default function AdminPage() {
               </div>
             </div>
           ))
+        )}
+      </div>
+
+      <div className="panel mt-4">
+        <h2 className="disp text-xl mb-3">エラー報告（{errorReports.length}）</h2>
+        <p className="note mb-3">
+          デモプレイ版の会社が画面から送った不具合報告の一覧です。送信時にLINEにもプッシュ通知が届きます。
+        </p>
+
+        {errorReports.length === 0 ? (
+          <div className="empty">まだ報告はありません。</div>
+        ) : (
+          errorReports.map((r) => (
+            <div key={r.id} className="veh mb-2">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="font-semibold">{r.companyName}</span>
+                  <span className="ml-2 mono text-xs text-[var(--muted)]">
+                    {new Date(r.createdAt).toLocaleString('ja-JP')}
+                  </span>
+                  <div className="text-xs text-[var(--muted)] mt-1">
+                    画面: {r.pageLabel || r.pageUrl}
+                  </div>
+                  {r.message && <div className="text-sm mt-1">{r.message}</div>}
+                  {r.userAgent && (
+                    <div className="text-xs text-[var(--muted)] mt-1">環境: {r.userAgent}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="panel mt-4">
+        <h2 className="disp text-xl mb-3">顧客ポータル 有料フラグ(テスト用)</h2>
+        <p className="note mb-3">
+          決済連携ができるまでの暫定措置です。会社側の画面には出していません。いずれ廃止予定です。
+        </p>
+
+        <div className="flex gap-2 mb-3 flex-wrap">
+          <input
+            className="input"
+            style={{ maxWidth: 280 }}
+            placeholder="顧客名で検索(全社横断)"
+            value={portalQuery}
+            onChange={(e) => setPortalQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && searchPortalCustomers()}
+          />
+          <button
+            onClick={searchPortalCustomers}
+            disabled={!portalQuery.trim() || portalSearching}
+            className="btn btn-blue btn-sm"
+          >
+            {portalSearching ? '検索中...' : '検索'}
+          </button>
+        </div>
+
+        {portalCustomers && (
+          portalCustomers.length === 0 ? (
+            <div className="empty">該当する顧客が見つかりませんでした。</div>
+          ) : (
+            portalCustomers.map((c) => (
+              <div key={`${c.companyAccountId}-${c.id}`} className="veh mb-2 flex justify-between items-center">
+                <div>
+                  <span className="font-semibold">{c.customerName}</span>
+                  <span className="ml-2 text-xs text-[var(--muted)]">{c.companyName}</span>
+                  <span className={`ml-2 ${c.portalPaid ? 'badge-ok' : 'expbadge'}`}>
+                    {c.portalPaid ? '✅ 有料' : '無料'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => togglePortalPaid(c)}
+                  disabled={portalTogglingId === c.id}
+                  className="btn btn-ghost btn-sm"
+                >
+                  {c.portalPaid ? '無料に戻す' : '有料にする'}
+                </button>
+              </div>
+            ))
+          )
         )}
       </div>
     </div>

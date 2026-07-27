@@ -5,8 +5,12 @@ import { execSync } from 'node:child_process';
 import { Client } from 'pg';
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { MasterPrismaService } from '../prisma/master-prisma.service';
-import { getEffectivePlanLimits } from '../common/plans';
+import { TenantContextService } from '../tenant/tenant-context.service';
+import { LicenseService } from '../license/license.service';
+import { ErrorReportService } from '../error-report/error-report.service';
+import { getEffectivePlanLimits, getTrialDaysRemaining } from '../common/plans';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PASSWORD_CHARS =
@@ -45,7 +49,17 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly masterPrisma: MasterPrismaService) {}
+  constructor(
+    private readonly masterPrisma: MasterPrismaService,
+    private readonly tenantContext: TenantContextService,
+    private readonly licenseService: LicenseService,
+    private readonly prisma: PrismaService,
+    private readonly errorReportService: ErrorReportService,
+  ) {}
+
+  async listErrorReports() {
+    return this.errorReportService.list();
+  }
 
   /**
    * ユーザー名が指定されていれば担当者アカウントでの個別ログイン。
@@ -202,17 +216,196 @@ export class AdminService {
       orderBy: { createdAt: 'asc' },
     });
 
-    // passwordHashやLINEのシークレット/アクセストークンは一覧に出さない(管理画面のブラウザにも残さない)
-    return companies.map((c) => ({
-      id: c.id,
-      companyCode: c.companyCode,
-      displayName: c.displayName,
-      dbName: c.dbName,
-      isActive: c.isActive,
-      lineConnected: Boolean(c.lineChannelAccessToken),
-      createdAt: c.createdAt,
-      updatedAt: c.updatedAt,
-    }));
+    const results: {
+      id: number;
+      companyCode: string;
+      displayName: string;
+      dbName: string;
+      isActive: boolean;
+      currentPlan: string | null;
+      lineConnected: boolean;
+      trialDaysRemaining: number | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }[] = [];
+
+    for (const c of companies) {
+      // 無料お試しの残り日数は各社のテナントDB(License)側にしか無いため、会社ごとに引きに行く
+      const trialDaysRemaining = await this.tenantContext.run(c, async () => {
+        const license = await this.prisma.license.findFirst();
+
+        if (!license) return null;
+
+        return getTrialDaysRemaining(license.plan, license.activatedAt, license.hasUsedPaidPlan);
+      });
+
+      // passwordHashやLINEのシークレット/アクセストークンは一覧に出さない(管理画面のブラウザにも残さない)
+      results.push({
+        id: c.id,
+        companyCode: c.companyCode,
+        displayName: c.displayName,
+        dbName: c.dbName,
+        isActive: c.isActive,
+        currentPlan: c.currentPlan,
+        lineConnected: Boolean(c.lineChannelAccessToken),
+        trialDaysRemaining,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      });
+    }
+
+    return results;
+  }
+
+  /** 全社を横断して、承認待ちのプラン変更申請を集める */
+  async listPendingPlanChangeRequests() {
+    const companies = await this.masterPrisma.companyAccount.findMany({
+      where: { isActive: true },
+    });
+
+    const results: {
+      companyAccountId: number;
+      companyName: string;
+      requestId: number;
+      targetPlan: string;
+      paymentMethod: string;
+      requestedAt: Date;
+    }[] = [];
+
+    for (const company of companies) {
+      const requests = await this.tenantContext.run(company, async () => {
+        const tenantCompany = await this.prisma.company.findFirst();
+        if (!tenantCompany) return [];
+
+        const all = await this.licenseService.listPlanChangeRequests(tenantCompany.id);
+        return all.filter((r) => r.status === 'PENDING');
+      });
+
+      for (const r of requests) {
+        results.push({
+          companyAccountId: company.id,
+          companyName: company.displayName,
+          requestId: r.id,
+          targetPlan: r.targetPlan,
+          paymentMethod: r.paymentMethod,
+          requestedAt: r.requestedAt,
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /** 入金確認後、運営側の操作でのみプラン変更申請を承認できる(会社側からは呼べない) */
+  async approvePlanChangeRequest(companyAccountId: number, requestId: number) {
+    const company = await this.masterPrisma.companyAccount.findUnique({
+      where: { id: companyAccountId },
+    });
+
+    if (!company) {
+      throw new BadRequestException('会社が見つかりません。');
+    }
+
+    return this.tenantContext.run(company, () =>
+      this.licenseService.approvePlanChangeRequest(requestId),
+    );
+  }
+
+  async rejectPlanChangeRequest(companyAccountId: number, requestId: number) {
+    const company = await this.masterPrisma.companyAccount.findUnique({
+      where: { id: companyAccountId },
+    });
+
+    if (!company) {
+      throw new BadRequestException('会社が見つかりません。');
+    }
+
+    return this.tenantContext.run(company, () =>
+      this.licenseService.rejectPlanChangeRequest(requestId),
+    );
+  }
+
+  /** 全社を横断して顧客名で検索する(会社を指定しなくてよい)。空検索は件数が読めなくなるため許可しない */
+  async searchPortalCustomersAcrossCompanies(query: string) {
+    const keyword = (query ?? '').trim();
+
+    if (!keyword) {
+      return [];
+    }
+
+    const companies = await this.masterPrisma.companyAccount.findMany({
+      where: { isActive: true },
+    });
+
+    const results: {
+      companyAccountId: number;
+      companyName: string;
+      id: number;
+      customerName: string;
+      portalPaid: boolean;
+    }[] = [];
+
+    for (const company of companies) {
+      const matches = await this.tenantContext.run(company, () =>
+        this.prisma.customer.findMany({
+          where: { customerName: { contains: keyword } },
+          select: { id: true, customerName: true, portalPaid: true },
+          orderBy: { customerName: 'asc' },
+          take: 20,
+        }),
+      );
+
+      for (const m of matches) {
+        results.push({ companyAccountId: company.id, companyName: company.displayName, ...m });
+      }
+
+      if (results.length >= 50) break;
+    }
+
+    return results.slice(0, 50);
+  }
+
+  /**
+   * 顧客ポータルの有料フラグをテスト用に運営側から直接切り替える。
+   * 本来は決済連携ができ次第、自動化して人手を介さないようにする想定の暫定機能。
+   */
+  async searchPortalCustomers(companyAccountId: number, query: string) {
+    const company = await this.masterPrisma.companyAccount.findUnique({
+      where: { id: companyAccountId },
+    });
+
+    if (!company) {
+      throw new BadRequestException('会社が見つかりません。');
+    }
+
+    const keyword = (query ?? '').trim();
+
+    return this.tenantContext.run(company, () =>
+      this.prisma.customer.findMany({
+        where: keyword ? { customerName: { contains: keyword } } : undefined,
+        select: { id: true, customerName: true, portalPaid: true },
+        orderBy: { customerName: 'asc' },
+        take: 20,
+      }),
+    );
+  }
+
+  async setPortalPaid(companyAccountId: number, customerId: number, portalPaid: boolean) {
+    const company = await this.masterPrisma.companyAccount.findUnique({
+      where: { id: companyAccountId },
+    });
+
+    if (!company) {
+      throw new BadRequestException('会社が見つかりません。');
+    }
+
+    return this.tenantContext.run(company, () =>
+      this.prisma.customer.update({
+        where: { id: customerId },
+        data: { portalPaid },
+        select: { id: true, customerName: true, portalPaid: true },
+      }),
+    );
   }
 
   async resetPassword(id: number) {

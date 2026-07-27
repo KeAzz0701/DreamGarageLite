@@ -7,6 +7,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Post,
   Put,
 } from '@nestjs/common';
 import { VehicleService } from './vehicle.service';
@@ -20,6 +21,20 @@ export class VehicleController {
   @Get()
   async getAll() {
     return this.vehicleService.getAll();
+  }
+
+  /** ':id'ルートより前に置く必要がある(順序が逆だとshaken-remindersが:idとして解釈されてしまう) */
+  @Get('shaken-reminders')
+  async getShakenReminders() {
+    return this.vehicleService.getShakenReminders();
+  }
+
+  @Post(':id/shaken-reminder/dismiss')
+  async dismissShakenReminder(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { reason?: string },
+  ) {
+    return this.vehicleService.dismissShakenReminder(id, body?.reason);
   }
 
   @Get(':id')

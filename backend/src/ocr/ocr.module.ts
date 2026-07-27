@@ -9,6 +9,7 @@ import { CustomerModule } from '../customer/customer.module';
 import { VehicleModule } from '../vehicle/vehicle.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { LicenseModule } from '../license/license.module';
+import { LineModule } from '../line/line.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { LicenseModule } from '../license/license.module';
     VehicleModule,
     PrismaModule,
     LicenseModule,
+    LineModule,
   ],
   controllers: [OcrController],
 })

@@ -60,7 +60,11 @@ export class CustomerService {
     const license = await this.prisma.license.findFirst();
 
     if (license) {
-      const limits = getEffectivePlanLimits(license.plan, license.activatedAt);
+      const limits = getEffectivePlanLimits(
+        license.plan,
+        license.activatedAt,
+        license.hasUsedPaidPlan,
+      );
 
       if (limits.maxCustomers !== null) {
         const count = await this.prisma.customer.count();
@@ -122,6 +126,11 @@ export class CustomerService {
     });
   }
 
+  /**
+   * portalPaid(顧客ポータル有料フラグ)はここでは受け付けない。運営管理画面からの
+   * AdminService.setPortalPaid()経由のみで変更できるようにし、通常の顧客編集からは
+   * 変更できないようにしている。
+   */
   async update(
     id: number,
     data: {
@@ -198,10 +207,15 @@ export class CustomerService {
     });
   }
 
+  /**
+   * 連携コード送信によるLINE紐付け成功時に呼ぶ。lineLinkTokenをここで即座に無効化し、
+   * 同じコードが後から再送されても別のLINEアカウントに付け替えられないようにする
+   * (使い捨てコード化)。
+   */
   async linkLineUser(customerId: number, lineUserId: string) {
     return this.prisma.customer.update({
       where: { id: customerId },
-      data: { lineUserId },
+      data: { lineUserId, lineLinkToken: null },
     });
   }
 
@@ -221,6 +235,23 @@ export class CustomerService {
       where: { customerId },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  /** ホーム画面のバッジ表示用。まだスタッフが確認していない(=readAtが無い)お客様からの受信数 */
+  async countUnreadLineMessages() {
+    return this.prisma.lineMessage.count({
+      where: { direction: 'IN', readAt: null },
+    });
+  }
+
+  /** スタッフがその顧客とのLINE画面を開いたら、その時点までの受信分を既読にする */
+  async markLineMessagesRead(customerId: number) {
+    await this.prisma.lineMessage.updateMany({
+      where: { customerId, direction: 'IN', readAt: null },
+      data: { readAt: new Date() },
+    });
+
+    return { ok: true };
   }
 
   /** スタッフが顧客のLINEへ手動でメッセージを送信する */

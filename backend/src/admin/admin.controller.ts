@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -135,5 +136,60 @@ export class AdminController {
   @Delete('api-keys/:id/assignment')
   async unassignApiKey(@Param('id', ParseIntPipe) id: number) {
     return this.adminService.unassignApiKey(id);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Get('plan-change-requests')
+  async listPendingPlanChangeRequests() {
+    return this.adminService.listPendingPlanChangeRequests();
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post('plan-change-requests/:companyAccountId/:requestId/approve')
+  async approvePlanChangeRequest(
+    @Param('companyAccountId', ParseIntPipe) companyAccountId: number,
+    @Param('requestId', ParseIntPipe) requestId: number,
+  ) {
+    return this.adminService.approvePlanChangeRequest(companyAccountId, requestId);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post('plan-change-requests/:companyAccountId/:requestId/reject')
+  async rejectPlanChangeRequest(
+    @Param('companyAccountId', ParseIntPipe) companyAccountId: number,
+    @Param('requestId', ParseIntPipe) requestId: number,
+  ) {
+    return this.adminService.rejectPlanChangeRequest(companyAccountId, requestId);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Get('error-reports')
+  async listErrorReports() {
+    return this.adminService.listErrorReports();
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Get('portal-customers')
+  async searchPortalCustomersAcrossCompanies(@Query('q') q?: string) {
+    return this.adminService.searchPortalCustomersAcrossCompanies(q ?? '');
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Get('companies/:id/portal-customers')
+  async searchPortalCustomers(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('q') q?: string,
+  ) {
+    return this.adminService.searchPortalCustomers(id, q ?? '');
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Patch('companies/:id/portal-customers/:customerId')
+  async setPortalPaid(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('customerId', ParseIntPipe) customerId: number,
+    @Body() body: { portalPaid: boolean },
+  ) {
+    return this.adminService.setPortalPaid(id, customerId, !!body?.portalPaid);
   }
 }

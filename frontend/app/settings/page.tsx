@@ -5,12 +5,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { api, apiBaseUrl } from '@/lib/api';
+import { api, apiBaseUrl, extractErrorMessage } from '@/lib/api';
 import GoogleCalendarIntegrationCard from '@/components/settings/GoogleCalendarIntegrationCard';
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID;
 
-const PLAN_ORDER = ['FREE', 'LITE', 'STANDARD', 'ENTERPRISE'];
+const PLAN_ORDER = ['FREE', 'LITE', 'STANDARD', 'PRO'];
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: '現金',
@@ -28,9 +28,11 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<any>(null);
   const [planInfo, setPlanInfo] = useState<any>(null);
   const [planRequests, setPlanRequests] = useState<any[]>([]);
-  const [processingRequest, setProcessingRequest] = useState<number | null>(null);
   const [feeRates, setFeeRates] = useState<any[]>([]);
   const [staffJoinCode, setStaffJoinCode] = useState('');
+  const [staffLinks, setStaffLinks] = useState<
+    { id: number; displayName: string | null; joinedAt: string }[]
+  >([]);
 
   useEffect(() => {
     load();
@@ -74,10 +76,34 @@ export default function SettingsPage() {
 
     const staffLineInfo = await api<{ joinCode: string }>('/company/staff-line-info');
     setStaffJoinCode(staffLineInfo.joinCode);
+
+    const staffLinkList = await api<
+      { id: number; displayName: string | null; joinedAt: string }[]
+    >('/company/staff-line-links');
+    setStaffLinks(staffLinkList);
   }
 
   function goToPaymentScreen(plan: string) {
+    if (plan === 'FREE') {
+      switchToFree();
+      return;
+    }
+
     router.push(`/settings/payment?plan=${plan}`);
+  }
+
+  async function switchToFree() {
+    if (!window.confirm('無料プランに切り替えますか？')) return;
+
+    try {
+      await api(`/license/company/${company.id}/plans`, {
+        method: 'PATCH',
+        body: JSON.stringify({ plan: 'FREE' }),
+      });
+      await load();
+    } catch (e: any) {
+      alert(e.message);
+    }
   }
 
   async function switchToDemo() {
@@ -92,32 +118,6 @@ export default function SettingsPage() {
     }
   }
 
-  async function approveRequest(id: number) {
-    setProcessingRequest(id);
-
-    try {
-      await api(`/license/plan-change-requests/${id}/approve`, {
-        method: 'POST',
-      });
-      await load();
-    } finally {
-      setProcessingRequest(null);
-    }
-  }
-
-  async function rejectRequest(id: number) {
-    setProcessingRequest(id);
-
-    try {
-      await api(`/license/plan-change-requests/${id}/reject`, {
-        method: 'POST',
-      });
-      await load();
-    } finally {
-      setProcessingRequest(null);
-    }
-  }
-
   async function save() {
     await api(`/settings/${company.id}`, {
       method: 'PUT',
@@ -125,6 +125,22 @@ export default function SettingsPage() {
     });
 
     alert('保存しました');
+  }
+
+  async function logout() {
+    await api('/auth/logout', { method: 'POST' });
+    router.replace('/login');
+  }
+
+  async function removeStaffLink(id: number) {
+    if (!window.confirm('このスタッフの連携を解除しますか？毎朝の通知が届かなくなります。')) return;
+
+    try {
+      await api(`/company/staff-line-links/${id}`, { method: 'DELETE' });
+      setStaffLinks((links) => links.filter((l) => l.id !== id));
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
   }
 
   async function saveCompany() {
@@ -186,6 +202,16 @@ export default function SettingsPage() {
       </div>
 
       <div className="panel mb-4">
+        <h2 className="disp text-xl mb-3">お知らせ</h2>
+        <p className="note mb-3">
+          お客様のLINEに配信するお知らせ・キャンペーン情報を投稿・編集できます。
+        </p>
+        <Link href="/announcements" className="btn btn-primary">
+          📢 お知らせを管理する
+        </Link>
+      </div>
+
+      <div className="panel mb-4">
         <h2 className="disp text-xl mb-3">社員用LINE通知</h2>
         <p className="note mb-3">
           このQRコードを社員のLINEで読み取っていただくと、毎朝6時ごろに本日のご予約と、車検満了日が2ヶ月以内のお客様一覧(お名前・車両名・電話番号・住所)が届きます。
@@ -193,23 +219,53 @@ export default function SettingsPage() {
         </p>
 
         {staffJoinCode && (
-          LINE_BASIC_ID ? (
-            <div className="text-center">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                  `https://line.me/R/oaMessage/${LINE_BASIC_ID}/?${encodeURIComponent('GKSTAFF-' + staffJoinCode)}`,
-                )}`}
-                alt="社員用LINE参加QRコード"
-                className="mx-auto"
-                style={{ width: 180, height: 180 }}
-              />
-              <div className="mono mt-2 text-sm">GKSTAFF-{staffJoinCode}</div>
+          <div className="flex flex-wrap items-start gap-6">
+            {LINE_BASIC_ID ? (
+              <div className="text-center">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                    `https://line.me/R/oaMessage/${LINE_BASIC_ID}/?${encodeURIComponent('GKSTAFF-' + staffJoinCode)}`,
+                  )}`}
+                  alt="社員用LINE参加QRコード"
+                  className="mx-auto"
+                  style={{ width: 180, height: 180 }}
+                />
+                <div className="mono mt-2 text-sm">GKSTAFF-{staffJoinCode}</div>
+              </div>
+            ) : (
+              <div className="text-sm">
+                参加コード：<span className="mono font-bold">GKSTAFF-{staffJoinCode}</span>
+              </div>
+            )}
+
+            <div className="flex-1 min-w-[220px]">
+              <div className="kicker mono text-xs text-[var(--muted)] mb-2">
+                登録済みスタッフ（{staffLinks.length}名）
+              </div>
+
+              {staffLinks.length === 0 ? (
+                <div className="empty">まだ誰も登録していません。</div>
+              ) : (
+                staffLinks.map((s) => (
+                  <div key={s.id} className="minirow">
+                    <span className="l">{s.displayName ?? '(表示名未取得)'}</span>
+                    <span className="r flex items-center gap-2">
+                      <span className="mono text-xs text-[var(--muted)]">
+                        {new Date(s.joinedAt).toLocaleDateString('ja-JP')}
+                      </span>
+                      <button
+                        onClick={() => removeStaffLink(s.id)}
+                        className="btn-icon"
+                        title="登録解除"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
-          ) : (
-            <div className="text-sm">
-              参加コード：<span className="mono font-bold">GKSTAFF-{staffJoinCode}</span>
-            </div>
-          )
+          </div>
         )}
       </div>
 
@@ -414,61 +470,85 @@ export default function SettingsPage() {
           />
         </label>
 
-        <label className="field-label">
-          API URL
-          <input
-            className="input"
-            value={settings.apiUrl ?? ''}
-            onChange={(e) =>
-              setSettings({
-                ...settings,
-                apiUrl: e.target.value,
-              })
-            }
-          />
-        </label>
+        <button onClick={save} className="btn btn-primary">
+          保存
+        </button>
+      </div>
 
-        <label className="field-label">
-          Gemini Endpoint
-          <input
-            className="input"
-            value={settings.geminiEndpoint ?? ''}
-            onChange={(e) =>
-              setSettings({
-                ...settings,
-                geminiEndpoint: e.target.value,
-              })
-            }
-          />
-        </label>
+      <div className="panel space-y-5 mb-4">
+        <h2 className="disp text-xl">整備リマインド設定</h2>
+        <p className="note">
+          整備履歴に「オイル交換」「タイヤ交換」として記録した内容をもとに、次回の目安が近づいたお客様をLINEでご案内します。
+          月数・距離のどちらか片方だけでも、両方でも設定できます(早い方を目安にします)。空欄のままにするとその項目のリマインドは行いません。
+        </p>
 
-        <label className="flex items-center gap-3 text-sm">
-          <input
-            type="checkbox"
-            checked={settings.autoUpdate}
-            onChange={(e) =>
-              setSettings({
-                ...settings,
-                autoUpdate: e.target.checked,
-              })
-            }
-          />
-          自動アップデート
-        </label>
+        <div className="grid2">
+          <label className="field-label">
+            オイル交換の目安(ヶ月)
+            <input
+              className="input"
+              type="number"
+              placeholder="例: 6"
+              value={settings.oilChangeIntervalMonths ?? ''}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  oilChangeIntervalMonths: e.target.value === '' ? null : Number(e.target.value),
+                })
+              }
+            />
+          </label>
 
-        <label className="flex items-center gap-3 text-sm">
-          <input
-            type="checkbox"
-            checked={settings.backupEnabled}
-            onChange={(e) =>
-              setSettings({
-                ...settings,
-                backupEnabled: e.target.checked,
-              })
-            }
-          />
-          自動バックアップ
-        </label>
+          <label className="field-label">
+            オイル交換の目安(km)
+            <input
+              className="input"
+              type="number"
+              step="100"
+              placeholder="例: 5000"
+              value={settings.oilChangeIntervalKm ?? ''}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  oilChangeIntervalKm: e.target.value === '' ? null : Number(e.target.value),
+                })
+              }
+            />
+          </label>
+
+          <label className="field-label">
+            タイヤ交換の目安(ヶ月)
+            <input
+              className="input"
+              type="number"
+              placeholder="例: 48"
+              value={settings.tireChangeIntervalMonths ?? ''}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  tireChangeIntervalMonths: e.target.value === '' ? null : Number(e.target.value),
+                })
+              }
+            />
+          </label>
+
+          <label className="field-label">
+            タイヤ交換の目安(km)
+            <input
+              className="input"
+              type="number"
+              step="100"
+              placeholder="例: 30000"
+              value={settings.tireChangeIntervalKm ?? ''}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  tireChangeIntervalKm: e.target.value === '' ? null : Number(e.target.value),
+                })
+              }
+            />
+          </label>
+        </div>
 
         <button onClick={save} className="btn btn-primary">
           保存
@@ -496,14 +576,37 @@ export default function SettingsPage() {
                 <div key={key} className="veh">
                   <div className="flex justify-between items-start">
                     <div>
-                      <div className="font-bold">{plan.label}</div>
+                      <div
+                        className="font-bold"
+                        style={{
+                          letterSpacing: '0.08em',
+                          fontFamily: 'var(--font-mono, monospace)',
+                          color: 'var(--blue)',
+                        }}
+                      >
+                        {plan.label}
+                      </div>
                       <div className="mono text-lg">
                         ¥{plan.priceYen.toLocaleString()}
                         <span className="text-xs text-[var(--muted)]">/月</span>
                       </div>
                     </div>
 
-                    {isCurrent && <span className="expbadge exp-ok">利用中</span>}
+                    <div className="flex items-center gap-2">
+                      {isCurrent && <span className="expbadge exp-ok">利用中</span>}
+                      {isCurrent && planInfo.current?.trialDaysRemaining != null && (
+                        <button
+                          onClick={() =>
+                            alert(
+                              `無料お試し期間中です。あと${planInfo.current.trialDaysRemaining}日で、一部の機能(タイヤ/オイル予測通知・LINE AIチャット・Web予約など)が使えなくなります。`,
+                            )
+                          }
+                          className="expbadge exp-warn"
+                        >
+                          ⚠️ まもなく使えなくなります
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-2 text-xs text-[var(--muted)] space-y-1">
@@ -575,26 +678,19 @@ export default function SettingsPage() {
                 <span className="l">
                   {r.targetPlan}プランへ変更（{PAYMENT_METHOD_LABELS[r.paymentMethod]}）
                 </span>
-                <span className="r flex gap-2">
-                  <button
-                    onClick={() => approveRequest(r.id)}
-                    disabled={processingRequest === r.id}
-                    className="btn btn-primary btn-sm"
-                  >
-                    入金確認・承認
-                  </button>
-                  <button
-                    onClick={() => rejectRequest(r.id)}
-                    disabled={processingRequest === r.id}
-                    className="btn btn-ghost btn-sm"
-                  >
-                    却下
-                  </button>
+                <span className="r">
+                  <span className="expbadge">申請中(運営側の確認をお待ちください)</span>
                 </span>
               </div>
             ))}
         </div>
       )}
+
+      <div className="flex justify-end mt-4 mb-8">
+        <button onClick={logout} className="btn btn-blue">
+          🚪 ログアウト
+        </button>
+      </div>
     </>
   );
 }

@@ -1,6 +1,15 @@
 // backend/src/google-calendar/google-calendar.controller.ts
 
-import { BadRequestException, Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Logger,
+  Post,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { GoogleCalendarService } from './google-calendar.service';
 import { MasterPrismaService } from '../prisma/master-prisma.service';
@@ -10,6 +19,8 @@ import { Public } from '../auth/public.decorator';
 
 @Controller('google-calendar')
 export class GoogleCalendarController {
+  private readonly logger = new Logger(GoogleCalendarController.name);
+
   constructor(
     private readonly googleCalendarService: GoogleCalendarService,
     private readonly masterPrisma: MasterPrismaService,
@@ -68,7 +79,8 @@ export class GoogleCalendarController {
         this.googleCalendarService.handleOAuthCallback(code),
       );
       res.redirect(`${appUrl}/settings?googleCalendar=connected`);
-    } catch {
+    } catch (err) {
+      this.logger.error('Googleカレンダー連携のコールバック処理に失敗しました', err);
       res.redirect(`${appUrl}/settings?googleCalendar=error`);
     }
   }

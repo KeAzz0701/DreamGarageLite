@@ -2,6 +2,9 @@ import path from 'node:path';
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  devIndicators: {
+    position: 'bottom-right',
+  },
   allowedDevOrigins: [
     '192.168.3.6',
     'localhost',
