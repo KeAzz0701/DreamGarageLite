@@ -32,7 +32,9 @@ DUMP_DIR="$(mktemp -d)"
 echo "一時ダンプ先: $DUMP_DIR"
 
 echo "== マスターDBから対象のテナントDB一覧を取得 =="
-TENANT_DBS=$("${PG_BIN}psql" -h "$LOCAL_PG_HOST" -p "$LOCAL_PG_PORT" -U "$LOCAL_PG_USER" -d "$MASTER_DB" -t -A -c "SELECT \"dbName\" FROM \"CompanyAccount\";")
+# Windows版psql.exeの出力はCRLFになるため、\rが行末にくっついて壊れた
+# データベース名にならないよう明示的に取り除く
+TENANT_DBS=$("${PG_BIN}psql" -h "$LOCAL_PG_HOST" -p "$LOCAL_PG_PORT" -U "$LOCAL_PG_USER" -d "$MASTER_DB" -t -A -c "SELECT \"dbName\" FROM \"CompanyAccount\";" | tr -d '\r')
 
 echo "対象テナントDB:"
 echo "$TENANT_DBS"
