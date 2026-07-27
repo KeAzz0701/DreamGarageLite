@@ -57,8 +57,16 @@ export class AdminService {
     private readonly errorReportService: ErrorReportService,
   ) {}
 
-  async listErrorReports() {
-    return this.errorReportService.list();
+  async listErrorReports(resolved = false) {
+    return this.errorReportService.list(resolved);
+  }
+
+  async resolveErrorReport(id: number, note?: string) {
+    return this.errorReportService.resolve(id, note);
+  }
+
+  async reopenErrorReport(id: number) {
+    return this.errorReportService.reopen(id);
   }
 
   /**
@@ -325,89 +333,6 @@ export class AdminService {
     );
   }
 
-  /** 全社を横断して顧客名で検索する(会社を指定しなくてよい)。空検索は件数が読めなくなるため許可しない */
-  async searchPortalCustomersAcrossCompanies(query: string) {
-    const keyword = (query ?? '').trim();
-
-    if (!keyword) {
-      return [];
-    }
-
-    const companies = await this.masterPrisma.companyAccount.findMany({
-      where: { isActive: true },
-    });
-
-    const results: {
-      companyAccountId: number;
-      companyName: string;
-      id: number;
-      customerName: string;
-      portalPaid: boolean;
-    }[] = [];
-
-    for (const company of companies) {
-      const matches = await this.tenantContext.run(company, () =>
-        this.prisma.customer.findMany({
-          where: { customerName: { contains: keyword } },
-          select: { id: true, customerName: true, portalPaid: true },
-          orderBy: { customerName: 'asc' },
-          take: 20,
-        }),
-      );
-
-      for (const m of matches) {
-        results.push({ companyAccountId: company.id, companyName: company.displayName, ...m });
-      }
-
-      if (results.length >= 50) break;
-    }
-
-    return results.slice(0, 50);
-  }
-
-  /**
-   * 顧客ポータルの有料フラグをテスト用に運営側から直接切り替える。
-   * 本来は決済連携ができ次第、自動化して人手を介さないようにする想定の暫定機能。
-   */
-  async searchPortalCustomers(companyAccountId: number, query: string) {
-    const company = await this.masterPrisma.companyAccount.findUnique({
-      where: { id: companyAccountId },
-    });
-
-    if (!company) {
-      throw new BadRequestException('会社が見つかりません。');
-    }
-
-    const keyword = (query ?? '').trim();
-
-    return this.tenantContext.run(company, () =>
-      this.prisma.customer.findMany({
-        where: keyword ? { customerName: { contains: keyword } } : undefined,
-        select: { id: true, customerName: true, portalPaid: true },
-        orderBy: { customerName: 'asc' },
-        take: 20,
-      }),
-    );
-  }
-
-  async setPortalPaid(companyAccountId: number, customerId: number, portalPaid: boolean) {
-    const company = await this.masterPrisma.companyAccount.findUnique({
-      where: { id: companyAccountId },
-    });
-
-    if (!company) {
-      throw new BadRequestException('会社が見つかりません。');
-    }
-
-    return this.tenantContext.run(company, () =>
-      this.prisma.customer.update({
-        where: { id: customerId },
-        data: { portalPaid },
-        select: { id: true, customerName: true, portalPaid: true },
-      }),
-    );
-  }
-
   async resetPassword(id: number) {
     const password = randomString(PASSWORD_CHARS, 12);
     const passwordHash = await bcrypt.hash(password, 10);
@@ -444,6 +369,60 @@ export class AdminService {
       isActive: company.isActive,
       lineConnected: Boolean(company.lineChannelAccessToken),
     };
+  }
+
+  /**
+   * 会社を完全に削除する(テナントDBごと物理削除。復元不可)。
+   * 誤操作防止のため、先に無効化されている会社しか削除できないようにしている。
+   */
+  async deleteCompany(id: number) {
+    const company = await this.masterPrisma.companyAccount.findUnique({
+      where: { id },
+    });
+
+    if (!company) {
+      throw new BadRequestException('会社が見つかりません。');
+    }
+
+    if (company.isActive) {
+      throw new BadRequestException(
+        '有効な会社は削除できません。先に無効化してから削除してください。',
+      );
+    }
+
+    // マスターDB側の関連レコードは外部キー制約があるため、会社本体より先に整理する
+    // (APIキーは削除せず、プールに戻して他社が使えるようにする)
+    await this.masterPrisma.apiKeyPool.updateMany({
+      where: { companyAccountId: id },
+      data: { companyAccountId: null, assignedAt: null },
+    });
+    await this.masterPrisma.lineCompanyLink.deleteMany({ where: { companyAccountId: id } });
+    await this.masterPrisma.lineStaffLink.deleteMany({ where: { companyAccountId: id } });
+    await this.masterPrisma.errorReport.deleteMany({ where: { companyAccountId: id } });
+
+    await this.masterPrisma.companyAccount.delete({ where: { id } });
+
+    // テナントDB本体を削除する。既存の接続が残っていると失敗するため、先に強制切断する
+    const baseUrl = process.env.DATABASE_URL;
+
+    if (!baseUrl) {
+      throw new Error('DATABASE_URL is not set');
+    }
+
+    const adminClient = new Client({ connectionString: baseUrl });
+    await adminClient.connect();
+
+    try {
+      await adminClient.query(
+        `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
+        [company.dbName],
+      );
+      await adminClient.query(`DROP DATABASE IF EXISTS "${company.dbName}"`);
+    } finally {
+      await adminClient.end();
+    }
+
+    return { ok: true };
   }
 
   async createCompany(displayName: string, explicitCode?: string) {

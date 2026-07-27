@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, extractErrorMessage } from '@/lib/api';
+import { normalizeForSearch } from '@/lib/kana';
 
 type Reservation = {
   id: number;
@@ -401,6 +402,7 @@ type DaySlot = {
 type CustomerOption = {
   id: number;
   customerName: string;
+  customerNameReading?: string | null;
   vehicles: {
     id: number;
     carName: string | null;
@@ -503,7 +505,11 @@ function MonthlyCalendarPanel() {
   }
 
   const filteredCustomers = customerQuery.trim()
-    ? customers.filter((c) => c.customerName.includes(customerQuery.trim()))
+    ? customers.filter((c) =>
+        normalizeForSearch(`${c.customerName} ${c.customerNameReading ?? ''}`).includes(
+          normalizeForSearch(customerQuery),
+        ),
+      )
     : customers;
 
   async function submitBooking() {

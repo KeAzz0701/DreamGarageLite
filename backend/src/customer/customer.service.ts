@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { getEffectivePlanLimits } from '../common/plans';
 import { LineService } from '../line/line.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
+import { KanaReadingService } from '../common/kana-reading.service';
 
 interface FindOrCreateCustomerDto {
   customerName: string;
@@ -17,6 +18,10 @@ interface FindOrCreateCustomerDto {
   phone?: string;
 }
 
+// スタッフが手動でメッセージを送った後、この時間はAIの自動応答を止めて
+// 「担当者が対応中」の案内に切り替える。以降さらに手動メッセージを送るたびに延長される
+const STAFF_TAKEOVER_PAUSE_MINUTES = 30;
+
 @Injectable()
 export class CustomerService {
   constructor(
@@ -24,6 +29,7 @@ export class CustomerService {
     @Inject(forwardRef(() => LineService))
     private readonly lineService: LineService,
     private readonly tenantContext: TenantContextService,
+    private readonly kanaReadingService: KanaReadingService,
   ) {}
 
   async findOrCreate(data: FindOrCreateCustomerDto) {
@@ -52,6 +58,8 @@ export class CustomerService {
           ownerName: data.ownerName,
           ownerAddress: data.ownerAddress,
           phone: data.phone ?? customer.phone,
+          customerNameReading:
+            customer.customerNameReading ?? (await this.kanaReadingService.getReading(name)),
         },
       });
     }
@@ -80,6 +88,7 @@ export class CustomerService {
     return await this.prisma.customer.create({
       data: {
         customerName: name,
+        customerNameReading: await this.kanaReadingService.getReading(name),
         customerAddress: address,
         ownerName: data.ownerName,
         ownerAddress: data.ownerAddress,
@@ -149,6 +158,7 @@ export class CustomerService {
       where: { id },
       data: {
         customerName: name,
+        customerNameReading: await this.kanaReadingService.getReading(name),
         customerAddress: data.customerAddress?.trim() ?? '',
         phone: data.phone?.trim() ?? '',
       },
@@ -231,6 +241,13 @@ export class CustomerService {
   }
 
   async getLineMessages(customerId: number) {
+    // フロント側はこの画面を開いている間、一定間隔でこのAPIをポーリングし続ける。
+    // それをそのまま「今スタッフがこの顧客とのLINE画面を見ている」という在席シグナルとして使う
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: { lineScreenViewedAt: new Date() },
+    });
+
     return this.prisma.lineMessage.findMany({
       where: { customerId },
       orderBy: { createdAt: 'asc' },
@@ -277,6 +294,16 @@ export class CustomerService {
     await this.lineService.pushMessage(customer.lineUserId, [
       { type: 'text', text: trimmed },
     ]);
+
+    // スタッフが直接対応を始めたので、しばらくAIの自動応答を止める。
+    // 「担当者対応中」案内は今回の対応で未送信の状態に戻す(このスタッフ発言以降、また1回だけ送るため)
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        aiPausedUntil: new Date(Date.now() + STAFF_TAKEOVER_PAUSE_MINUTES * 60_000),
+        aiPauseNoticeSentAt: null,
+      },
+    });
 
     return { ok: true };
   }

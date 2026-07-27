@@ -2,9 +2,9 @@
 
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, extractErrorMessage } from '@/lib/api';
+import PortalHeader from '@/components/portal/PortalHeader';
 
 type TireWearEstimate =
   | { status: 'insufficient_data'; latestDepthMm: number }
@@ -72,10 +72,8 @@ export default function PortalTireWearPage() {
 
   return (
     <>
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="disp text-2xl">タイヤの推定交換時期</h1>
-        <Link href="/portal" className="btn btn-ghost btn-sm">戻る</Link>
-      </div>
+      <PortalHeader title="タイヤの推定交換時期" />
+      <div className="portal-body">
 
       <div className="panel mb-4" style={{ background: 'var(--warn-bg, #fff8e6)' }}>
         <p className="note">
@@ -83,7 +81,15 @@ export default function PortalTireWearPage() {
         </p>
       </div>
 
-      {error && <div className="panel"><div className="empty">{error}</div></div>}
+      {error && (
+        <div className="panel">
+          <div className="empty">
+            {error.includes('このプランではご利用いただけません')
+              ? 'この店舗ではタイヤ交換時期の表示機能がまだご利用いただけません。店舗にお問い合わせいただくか、別の連携店舗に切り替えてご確認ください。'
+              : error}
+          </div>
+        </div>
+      )}
 
       {!error && !data && (
         <div className="text-center text-[var(--muted)] py-10">読み込み中...</div>
@@ -113,6 +119,7 @@ export default function PortalTireWearPage() {
           )}
         </div>
       ))}
+      </div>
     </>
   );
 }

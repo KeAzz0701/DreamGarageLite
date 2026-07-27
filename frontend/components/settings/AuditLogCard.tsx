@@ -3,6 +3,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { normalizeForSearch } from '@/lib/kana';
 
 interface AuditLog {
   id: number;
@@ -42,9 +43,7 @@ export default function AuditLogCard() {
   }
 
   const filtered = logs.filter((log) =>
-    JSON.stringify(log)
-      .toLowerCase()
-      .includes(keyword.toLowerCase()),
+    normalizeForSearch(JSON.stringify(log)).includes(normalizeForSearch(keyword)),
   );
 
   return (

@@ -9,11 +9,12 @@ import { ReservationService } from './reservation.service';
 import { BusinessHoursController } from './business-hours.controller';
 import { BusinessHoursService } from './business-hours.service';
 import { ReservationReminderService } from './reservation-reminder.service';
+import { KanaReadingService } from '../common/kana-reading.service';
 
 @Module({
-  imports: [PrismaModule, forwardRef(() => LineModule), GoogleCalendarModule],
+  imports: [PrismaModule, forwardRef(() => LineModule), forwardRef(() => GoogleCalendarModule)],
   controllers: [ReservationController, BusinessHoursController],
-  providers: [ReservationService, BusinessHoursService, ReservationReminderService],
+  providers: [ReservationService, BusinessHoursService, ReservationReminderService, KanaReadingService],
   exports: [ReservationService, BusinessHoursService],
 })
 export class ReservationModule {}

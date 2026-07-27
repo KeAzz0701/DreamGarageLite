@@ -77,6 +77,7 @@ model LineCompanyLink {
 
 // 社員用のLINE連携。会社に1つの参加コード(staffJoinCode)を共有して使う。
 // 顧客(LineCompanyLink)とは別枠で、毎朝の一括通知の送信先として使う。
+// staffAccessCodeはガレージ・カルテへのログイン(入室ID)にも使う個人別の合言葉。
 model LineStaffLink {
   id               Int            @id @default(autoincrement())
 
@@ -85,6 +86,9 @@ model LineStaffLink {
 
   companyAccountId Int
   companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id])
+
+  staffAccessCode  String?        @unique
+  lastActiveAt     DateTime       @default(now())
 
   joinedAt         DateTime       @default(now())
 
@@ -104,6 +108,13 @@ model ErrorReport {
   pageLabel        String?
   userAgent        String?
   message          String?
+
+  screenshotData     Bytes?
+  screenshotMimeType String?
+
+  resolved         Boolean        @default(false)
+  resolvedNote     String?
+  resolvedAt       DateTime?
 
   createdAt        DateTime       @default(now())
 }

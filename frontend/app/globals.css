@@ -14,6 +14,7 @@
   --danger: #c1432b;
   --ok: #2f6f4e;
   --blue: #2f6f8f;
+  --blue-dark: #1f4d63;
 
   --shadow-sm: 0 1px 2px rgba(30, 32, 35, 0.06);
   --shadow-md: 0 2px 8px rgba(30, 32, 35, 0.08), 0 1px 2px rgba(30, 32, 35, 0.06);
@@ -90,6 +91,16 @@ a {
 .disp {
   font-family: var(--font-disp), sans-serif;
   font-weight: 700;
+}
+
+/* flexアイテムは初期値がmin-width:autoのため、隣に幅を譲らないボタン等があると
+   顧客名側が極端に狭く押し込まれ、日本語が1文字ずつ縦に折り返されて見えなくなることがあった。
+   .cnameを直接含むflexの子要素だけ、縮んで通常改行できるようにする */
+.flex > div:has(> .cname) {
+  min-width: 0;
+}
+.cname {
+  overflow-wrap: break-word;
 }
 
 /* header */
@@ -271,7 +282,11 @@ button.card:hover {
 
 /* form controls */
 .field-label {
-  display: block;
+  /* labelの中に生のラベル文字列とinputを直接並べているため、display:blockのままだと
+     一部のモバイルブラウザでラベル文字とinputの行ボックス計算が崩れ、
+     文字が1文字ずつ縦積みになることがあった。flexの縦積みに変えて確実に2段組にする */
+  display: flex;
+  flex-direction: column;
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 10px;
@@ -279,6 +294,9 @@ button.card:hover {
 }
 .input {
   width: 100%;
+  /* Safari(iOS)はグリッド祖先のmin-width:0だけでは効かず、input自体の暗黙の
+     最小幅で列が潰れて縦積みの文字化けを起こすことがあるため、input自体にも指定する */
+  min-width: 0;
   margin-top: 4px;
   padding: 10px 12px;
   font-size: 14px;
@@ -319,6 +337,11 @@ button.card:hover {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+.grid2 > * {
+  /* グリッド列は既定でauto(中身の最小サイズ)が下限になり、inputの持つ
+     暗黙の最小幅のせいで隣の列(顧客名など)が潰れて縦積みの文字化けを起こすため解除する */
+  min-width: 0;
 }
 @media (max-width: 520px) {
   /* スマホ幅では2列だと顧客名等が窮屈になるため1列に切り替える */
@@ -830,5 +853,265 @@ button.minirow:hover {
   box-shadow: 0 0 0 3px rgba(232, 89, 46, 0.15);
 }
 .chat-input-bar .btn {
+  flex-shrink: 0;
+}
+
+/* ==================== 顧客用ポータル(LIFF) ==================== */
+/* スタッフ画面と同じコンポーネントを流用していたため見た目が業務ツールのままだった。
+   ここだけモバイルアプリらしい専用のスタイルにする */
+.portal-shell {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 0 48px;
+}
+.portal-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, var(--asphalt-soft), var(--asphalt));
+  border-bottom: 3px solid var(--blue);
+  box-shadow: var(--shadow-lg);
+}
+.portal-topbar-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(145deg, var(--blue), var(--blue-dark));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(47, 111, 143, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.portal-topbar-title {
+  font-family: var(--font-logo-jp), var(--font-sans-jp), sans-serif;
+  font-weight: 900;
+  color: white;
+  font-size: 15px;
+  line-height: 1.2;
+}
+.portal-topbar-title span {
+  color: var(--blue);
+}
+
+/* 現在どの店舗のデータを見ているかを常に一目で分かるようにするチップ。
+   1社しか連携が無い時は押しても意味が無いのでボタン扱いにしない */
+.portal-company-chip {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 180px;
+}
+.portal-company-chip.tappable {
+  cursor: pointer;
+  transition: background 0.15s var(--ease);
+}
+.portal-company-chip.tappable:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.portal-company-chip .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-switcher {
+  margin: 0 16px 16px;
+  background: var(--asphalt-soft);
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: var(--shadow-md);
+}
+.portal-switcher-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s var(--ease);
+}
+.portal-switcher-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.portal-switcher-item.active {
+  background: rgba(47, 111, 143, 0.22);
+  font-weight: 700;
+}
+
+.portal-body {
+  padding: 18px 16px 0;
+}
+
+.portal-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(145deg, white, var(--paper-dim));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.portal-hero-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: linear-gradient(145deg, var(--blue), var(--blue-dark));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(47, 111, 143, 0.35);
+}
+.portal-hero-greeting {
+  font-size: 11px;
+  color: var(--muted);
+}
+.portal-hero-name {
+  font-family: var(--font-disp), sans-serif;
+  font-weight: 700;
+  font-size: 19px;
+}
+
+.portal-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  margin: 20px 2px 8px;
+}
+
+.portal-vehicle-card {
+  background: white;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--blue);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 整備データ(有料範囲)への導線をアイコン付きの3分割グリッドにして、
+   一覧の中に紛れず「ここが有料機能」と一目で分かるようにする */
+.portal-quickgrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.portal-quick-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 6px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.15s var(--ease), transform 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.portal-quick-btn:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  border-color: var(--blue);
+}
+.portal-quick-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: rgba(47, 111, 143, 0.12);
+}
+
+/* 整備履歴を全社横断で見る画面用の、会社ごとの絞り込みチップ列 */
+.portal-history-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.portal-filter-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+.portal-filter-chip.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: white;
+}
+
+.portal-upsell {
+  background: linear-gradient(145deg, var(--asphalt-soft), var(--asphalt));
+  color: white;
+  border-radius: 14px;
+  padding: 18px;
+  margin-top: 20px;
+}
+.portal-upsell h2 {
+  color: white;
+}
+.portal-upsell p {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.portal-subheader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, var(--asphalt-soft), var(--asphalt));
+  border-bottom: 3px solid var(--orange);
+  box-shadow: var(--shadow-lg);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+.portal-subheader h1 {
+  color: white;
+  font-size: 17px;
+  flex: 1;
+}
+.portal-subheader .btn {
   flex-shrink: 0;
 }

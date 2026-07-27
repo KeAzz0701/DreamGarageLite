@@ -9,9 +9,11 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { Plan, PaymentMethod } from '@prisma/client';
 import { LicenseService } from './license.service';
+import { OwnerOnlyGuard } from '../auth/owner-only.guard';
 
 // このエンドポイントから会社(利用者)が直接切り替えられるのは、支払いが不要な
 // プランのみ。有料プランは必ず支払い後、運営管理画面での承認(AdminController)を
@@ -36,6 +38,7 @@ export class LicenseController {
     return this.licenseService.getPlanInfo(companyId);
   }
 
+  @UseGuards(OwnerOnlyGuard)
   @Patch('company/:companyId/plans')
   async changePlan(
     @Param('companyId', ParseIntPipe) companyId: number,
@@ -50,6 +53,7 @@ export class LicenseController {
     return this.licenseService.changePlan(companyId, body.plan);
   }
 
+  @UseGuards(OwnerOnlyGuard)
   @Post('company/:companyId/plan-change-requests')
   async requestPlanChange(
     @Param('companyId', ParseIntPipe) companyId: number,

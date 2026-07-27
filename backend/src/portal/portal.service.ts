@@ -7,6 +7,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Plan } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MasterPrismaService } from '../prisma/master-prisma.service';
 import { LineService } from '../line/line.service';
@@ -14,6 +15,7 @@ import { LicenseService } from '../license/license.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
 import { CompetitorEstimateService } from '../competitor-estimate/competitor-estimate.service';
 import { groupAndEstimate } from '../common/tire-wear';
+import { PLAN_LIMITS } from '../common/plans';
 
 @Injectable()
 export class PortalService {
@@ -70,7 +72,7 @@ export class PortalService {
     return { tenantCustomerId: link.tenantCustomerId };
   }
 
-  /** 連携中の全店舗について、それぞれの有料フラグをまとめて返す(店舗を切り替えなくても一覧で確認できるように) */
+  /** 連携中の全店舗をまとめて返す(店舗を切り替えなくても一覧で確認できるように) */
   async listCompanyStatuses(lineUserId: string) {
     const links = await this.masterPrisma.lineCompanyLink.findMany({
       where: { lineUserId },
@@ -78,24 +80,11 @@ export class PortalService {
       orderBy: { lastActiveAt: 'desc' },
     });
 
-    const results: { companyAccountId: number; displayName: string; portalPaid: boolean }[] = [];
-
-    for (const link of links) {
-      const customer = await this.tenantContext.run(link.companyAccount, () =>
-        this.prisma.customer.findUnique({
-          where: { id: link.tenantCustomerId },
-          select: { portalPaid: true },
-        }),
-      );
-
-      results.push({
-        companyAccountId: link.companyAccountId,
-        displayName: link.companyAccount.displayName,
-        portalPaid: customer?.portalPaid ?? false,
-      });
-    }
-
-    return results;
+    return links.map((link) => ({
+      companyAccountId: link.companyAccountId,
+      displayName: link.companyAccount.displayName,
+      portalPaid: this.planGrantsPortalAccess(link.companyAccount.currentPlan),
+    }));
   }
 
   private async requireCustomer(customerId: number) {
@@ -108,18 +97,35 @@ export class PortalService {
     return customer;
   }
 
-  private async requirePaidCustomer(customerId: number) {
-    const customer = await this.requireCustomer(customerId);
-
-    if (!customer.portalPaid) {
-      throw new ForbiddenException('このプランではご利用いただけません。');
-    }
-
-    return customer;
+  private planGrantsPortalAccess(currentPlan: string | null): boolean {
+    const plan = (currentPlan as Plan | null) ?? 'FREE';
+    return PLAN_LIMITS[plan]?.portalAccess ?? false;
   }
 
-  /** 無料範囲: 車両情報+車検満了日 */
-  async getMe(customerId: number) {
+  /**
+   * ポータルの有料範囲は、顧客個人への課金ではなく店舗のプランに含める形にしている。
+   * 連携している店舗のうち、どれか1つでもportalAccessを持つプラン(STANDARD以上)であれば
+   * その顧客は使える(店舗をまたいで判定するためマスターDBのミラー列 currentPlan を使う)。
+   */
+  private async hasPortalAccess(lineUserId: string): Promise<boolean> {
+    const links = await this.masterPrisma.lineCompanyLink.findMany({
+      where: { lineUserId },
+      include: { companyAccount: true },
+    });
+
+    return links.some(
+      (link) => link.companyAccount.isActive && this.planGrantsPortalAccess(link.companyAccount.currentPlan),
+    );
+  }
+
+  private async requirePortalAccess(lineUserId: string) {
+    if (!(await this.hasPortalAccess(lineUserId))) {
+      throw new ForbiddenException('このプランではご利用いただけません。');
+    }
+  }
+
+  /** 無料範囲: 車両情報+車検満了日(現在アクティブな1社分) */
+  async getMe(customerId: number, lineUserId: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
       include: { vehicles: { orderBy: { updatedAt: 'desc' } } },
@@ -129,9 +135,13 @@ export class PortalService {
       throw new NotFoundException('顧客情報が見つかりませんでした。');
     }
 
+    const company = this.tenantContext.current()!.company;
+
     return {
       customerName: customer.customerName,
-      portalPaid: customer.portalPaid,
+      portalPaid: await this.hasPortalAccess(lineUserId),
+      companyAccountId: company.id,
+      companyName: company.displayName,
       vehicles: customer.vehicles.map((v) => ({
         id: v.id,
         carName: v.carName,
@@ -142,39 +152,82 @@ export class PortalService {
     };
   }
 
-  /** 有料範囲: 整備履歴(金額明細つき) */
-  async getServiceHistory(customerId: number) {
-    await this.requirePaidCustomer(customerId);
+  /**
+   * 有料範囲: 整備履歴(金額明細つき)。連携している全社分を横断して日付順にまとめて返す。
+   * companyAccountIdを指定すると、その会社の分だけに絞り込める(画面側のフィルター用)。
+   */
+  async getServiceHistoryAcrossCompanies(lineUserId: string, filterCompanyAccountId?: number) {
+    await this.requirePortalAccess(lineUserId);
 
-    const vehicles = await this.prisma.vehicle.findMany({
-      where: { customerId },
-      include: {
-        serviceHistories: {
-          where: { voided: false, visibleInPortal: true },
-          include: { items: true },
-          orderBy: { date: 'desc' },
-        },
-      },
+    const links = await this.masterPrisma.lineCompanyLink.findMany({
+      where: { lineUserId },
+      include: { companyAccount: true },
     });
 
-    return vehicles.map((v) => ({
-      vehicleId: v.id,
-      carName: v.carName,
-      commonModelName: v.commonModelName,
-      serviceHistories: v.serviceHistories.map((sh) => ({
-        id: sh.id,
-        date: sh.date,
-        title: sh.title,
-        mileage: sh.mileage,
-        items: sh.items.map((i) => ({ name: i.name, cost: i.cost })),
-        total: sh.items.reduce((s, i) => s + i.cost, 0),
+    const targets = filterCompanyAccountId
+      ? links.filter((l) => l.companyAccountId === filterCompanyAccountId)
+      : links;
+
+    const entries: {
+      id: number;
+      date: Date;
+      title: string;
+      mileage: number | null;
+      items: { name: string; cost: number }[];
+      total: number;
+      companyAccountId: number;
+      companyName: string;
+      vehicleId: number;
+      carName: string | null;
+      commonModelName: string | null;
+    }[] = [];
+
+    for (const link of targets) {
+      const vehicles = await this.tenantContext.run(link.companyAccount, () =>
+        this.prisma.vehicle.findMany({
+          where: { customerId: link.tenantCustomerId },
+          include: {
+            serviceHistories: {
+              where: { voided: false, visibleInPortal: true },
+              include: { items: true },
+            },
+          },
+        }),
+      );
+
+      for (const v of vehicles) {
+        for (const sh of v.serviceHistories) {
+          entries.push({
+            id: sh.id,
+            date: sh.date,
+            title: sh.title,
+            mileage: sh.mileage,
+            items: sh.items.map((i) => ({ name: i.name, cost: i.cost })),
+            total: sh.items.reduce((s, i) => s + i.cost, 0),
+            companyAccountId: link.companyAccountId,
+            companyName: link.companyAccount.displayName,
+            vehicleId: v.id,
+            carName: v.carName,
+            commonModelName: v.commonModelName,
+          });
+        }
+      }
+    }
+
+    entries.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    return {
+      companies: links.map((l) => ({
+        companyAccountId: l.companyAccountId,
+        displayName: l.companyAccount.displayName,
       })),
-    }));
+      entries,
+    };
   }
 
-  /** 有料範囲: 次回整備のおすすめ(車検・オイル・タイヤの日付ベースリマインド) */
-  async getMaintenanceRecommendations(customerId: number) {
-    await this.requirePaidCustomer(customerId);
+  /** 有料範囲: 次回整備のおすすめ(車検・オイル・タイヤの日付ベースリマインド、現在アクティブな1社分) */
+  async getMaintenanceRecommendations(customerId: number, lineUserId: string) {
+    await this.requirePortalAccess(lineUserId);
 
     const [shaken, oil, tire] = await Promise.all([
       this.lineService.getShakenReminderCandidates(),
@@ -189,9 +242,9 @@ export class PortalService {
     };
   }
 
-  /** 有料範囲: タイヤ溝の測定データからの推定交換時期 */
-  async getTireWear(customerId: number) {
-    await this.requirePaidCustomer(customerId);
+  /** 有料範囲: タイヤ溝の測定データからの推定交換時期(現在アクティブな1社分) */
+  async getTireWear(customerId: number, lineUserId: string) {
+    await this.requirePortalAccess(lineUserId);
 
     const vehicles = await this.prisma.vehicle.findMany({
       where: { customerId },

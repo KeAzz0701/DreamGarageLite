@@ -31,6 +31,11 @@ const STAFF_JOIN_PATTERN = /^GKSTAFF-([A-Z0-9]{6,20})$/;
 // 実際に既存の参加コードとDB上で一致した場合のみ有効にする(通常の自由文と誤判定しないように)
 const BARE_STAFF_CODE_PATTERN = /^[A-Z0-9]{6,20}$/;
 const STAFF_JOIN_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const STAFF_ACCESS_CODE_LENGTH = 10;
+// 顧客詳細のLINE画面は開いている間5秒間隔でポーリングするため、その間隔より
+// 十分長い(=閉じたら速やかに「見ていない」判定に戻る)しきい値にする
+const STAFF_VIEWING_THRESHOLD_MS = 15_000;
+const STAFF_ENTRY_ID_KEYWORD = '入室ID';
 const SERVICE_HISTORY_KEYWORD = '整備履歴';
 const RESERVATION_KEYWORD = '予約';
 const RESERVATION_ACTION_PICK_COMPANY = 'reserve_pick_company';
@@ -80,6 +85,38 @@ const mainMenuQuickReply: messagingApi.QuickReply = {
     },
   ],
 };
+
+// 社員専用メニュー。整備履歴・ご予約などお客様向けボタンとは完全に分ける。
+// 入室関連以外の社員向け機能もここに足していく想定。
+// 「🔑 入室する」はLIFF(LINEの内蔵ブラウザ限定)ではなく、あえて普通のhttps
+// リンクにすることで、Android/iPhoneを問わずどのブラウザでも開けて自動ログインできるようにする
+function buildStaffMenuQuickReply(staffAccessCode?: string): messagingApi.QuickReply {
+  const items: messagingApi.QuickReplyItem[] = [
+    {
+      type: 'action',
+      action: {
+        type: 'message',
+        label: '🆔 入室IDを表示',
+        text: STAFF_ENTRY_ID_KEYWORD,
+      },
+    },
+  ];
+
+  if (staffAccessCode) {
+    const appUrl = process.env.PUBLIC_APP_URL ?? 'https://app.dreamgaragelite.com';
+
+    items.unshift({
+      type: 'action',
+      action: {
+        type: 'uri',
+        label: '🔑 入室する',
+        uri: `${appUrl}/login?staffCode=${encodeURIComponent(staffAccessCode)}`,
+      },
+    });
+  }
+
+  return { items };
+}
 
 type LinkWithCompany = {
   lineUserId: string;
@@ -408,7 +445,19 @@ export class LineService {
     }
 
     if (links.length > 0 && trimmed.includes(RESERVATION_KEYWORD)) {
-      await this.promptReservationMainChoice(replyToken);
+      // 「予約確認したい」のように明確に確認の意図がある場合だけ確認画面へ。
+      // それ以外の「予約」「予約して」等は、間に選択画面を挟まず直接新規予約に入る
+      if (trimmed.includes('確認')) {
+        await this.replyAggregatedReservationStatus(replyToken, links);
+      } else {
+        await this.startNewReservationFlow(replyToken, lineUserId, links);
+      }
+      return;
+    }
+
+    // 社員が入室ID(ガレージ・カルテへのログイン用)を確認したい場合
+    if (staffLinks.length > 0 && trimmed.includes(STAFF_ENTRY_ID_KEYWORD)) {
+      await this.replyStaffAccessCodes(replyToken, staffLinks);
       return;
     }
 
@@ -421,18 +470,17 @@ export class LineService {
       if (handled) return;
 
       if (links.length === 0) {
-        await this.reply(
-          replyToken,
-          [
-            {
-              type: 'text',
-              text: '該当するお客様が分かりませんでした。お名前や車両名を含めて送ってください。',
-            },
-          ],
-          undefined,
-          undefined,
-          true,
-        );
+        // 1社にしか連携が無ければその入室IDを直接ボタンに埋め込む。複数社の場合はどちらか
+        // 決められないので、「入室ID」ボタンから個別に確認してもらう
+        const singleCode = staffLinks.length === 1 ? staffLinks[0].staffAccessCode ?? undefined : undefined;
+
+        await this.reply(replyToken, [
+          {
+            type: 'text',
+            text: 'ガレージ・カルテには「🔑 入室する」ボタン、または「入室ID」と送ると確認できる入室IDから入れます。',
+            quickReply: buildStaffMenuQuickReply(singleCode),
+          },
+        ]);
         return;
       }
     }
@@ -474,6 +522,43 @@ export class LineService {
 
       if (!customer) {
         await fallback();
+        return;
+      }
+
+      // スタッフが「今まさに」この顧客とのLINE画面を開いている間は、AIも「担当者対応中」の
+      // 案内も一切出さず完全に沈黙する(見ている本人がそのまま返信するため)。
+      // 画面を開いていない/他の顧客の画面を見ている場合はこの判定に該当せず、通常通り案内する
+      if (
+        customer.lineScreenViewedAt &&
+        Date.now() - customer.lineScreenViewedAt.getTime() < STAFF_VIEWING_THRESHOLD_MS
+      ) {
+        return;
+      }
+
+      // スタッフが直接返信した直後は、しばらくAIを止めて担当者対応を優先する。
+      // ただし案内文は今回の対応で最初の1通だけ送り、以降は何も返さない
+      // (スタッフが実際にやり取りしている最中に、この案内が毎回割り込んでこないようにするため)
+      if (customer.aiPausedUntil && customer.aiPausedUntil > new Date()) {
+        if (!customer.aiPauseNoticeSentAt) {
+          await this.reply(
+            replyToken,
+            [
+              {
+                type: 'text',
+                text: 'メッセージを受け取りました。ただいま担当者が対応しておりますので、少々お待ちください。',
+                quickReply,
+              },
+            ],
+            customer.id,
+            link.companyAccount.displayName,
+          );
+
+          await this.prisma.customer.update({
+            where: { id: customer.id },
+            data: { aiPauseNoticeSentAt: new Date() },
+          });
+        }
+
         return;
       }
 
@@ -613,6 +698,28 @@ export class LineService {
         return;
       }
 
+      // Web版アップロード(LicenseGuard/LicenseInterceptor)と同じ月間OCR上限を、
+      // LINE経由の画像投稿にも適用する(以前はここが未チェックで上限が無意味だった)
+      const tenantCompany = await this.prisma.company.findFirst();
+      const canUse = tenantCompany
+        ? await this.licenseService.canUseOcr(tenantCompany.id)
+        : true;
+
+      if (!canUse) {
+        await this.reply(
+          replyToken,
+          [
+            {
+              type: 'text',
+              text: '今月のOCR利用上限に達しているため、この画像は処理できませんでした。店舗までご連絡ください。',
+            },
+          ],
+          customer.id,
+          showLabel ? company.displayName : undefined,
+        );
+        return;
+      }
+
       try {
         const blobClient = await this.getBlobClient();
 
@@ -645,6 +752,10 @@ export class LineService {
             status: 'PENDING',
           },
         });
+
+        if (tenantCompany) {
+          await this.licenseService.incrementOcr(tenantCompany.id);
+        }
 
         await this.logMessage(customer.id, 'IN', '[画像: 車検証OCR]', submission.id);
 
@@ -812,15 +923,84 @@ export class LineService {
     return this.masterPrisma.lineStaffLink.findMany({
       where: { companyAccountId: company.id },
       orderBy: { joinedAt: 'asc' },
-      select: { id: true, displayName: true, joinedAt: true },
+      select: { id: true, displayName: true, joinedAt: true, staffAccessCode: true },
     });
   }
 
-  /** 設定画面から、この会社のスタッフ連携を解除する(他社のリンクは触れない) */
+  /** 設定画面から、この会社のスタッフ連携を解除する(他社のリンクは触れない)。
+   *  この行の削除自体が、ガレージ・カルテへのログイン権限の即時取り消しになる */
   async removeStaffLink(company: CompanyAccount, id: number) {
     await this.masterPrisma.lineStaffLink.deleteMany({
       where: { id, companyAccountId: company.id },
     });
+  }
+
+  /** 設定画面から、入室IDを再発行する(紛失・漏えい時用) */
+  async regenerateStaffAccessCode(company: CompanyAccount, id: number): Promise<string | null> {
+    const link = await this.masterPrisma.lineStaffLink.findFirst({
+      where: { id, companyAccountId: company.id },
+    });
+
+    if (!link) return null;
+
+    return this.ensureStaffAccessCode(link.id, true);
+  }
+
+  /** スタッフ個人の入室ID(ログイン用)を、無ければ生成して返す */
+  private async ensureStaffAccessCode(staffLinkId: number, forceRegenerate = false): Promise<string> {
+    if (!forceRegenerate) {
+      const existing = await this.masterPrisma.lineStaffLink.findUnique({
+        where: { id: staffLinkId },
+        select: { staffAccessCode: true },
+      });
+
+      if (existing?.staffAccessCode) return existing.staffAccessCode;
+    }
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const code = Array.from(
+        { length: STAFF_ACCESS_CODE_LENGTH },
+        () => STAFF_JOIN_CODE_CHARS[Math.floor(Math.random() * STAFF_JOIN_CODE_CHARS.length)],
+      ).join('');
+
+      try {
+        const updated = await this.masterPrisma.lineStaffLink.update({
+          where: { id: staffLinkId },
+          data: { staffAccessCode: code },
+        });
+
+        return updated.staffAccessCode!;
+      } catch {
+        // ユニーク制約衝突。ごく低確率だが、その場合は別のコードで再試行する
+      }
+    }
+
+    throw new Error('入室IDの生成に失敗しました。');
+  }
+
+  /** 「入室ID」と送ってきた社員へ、連携している全社分の入室IDを返信する */
+  private async replyStaffAccessCodes(
+    replyToken: string,
+    staffLinks: { id: number; companyAccountId: number; staffAccessCode: string | null; companyAccount: CompanyAccount }[],
+  ) {
+    const lines: string[] = [];
+    let firstCode: string | undefined;
+
+    for (const link of staffLinks) {
+      const code = link.staffAccessCode ?? (await this.ensureStaffAccessCode(link.id));
+      lines.push(`${link.companyAccount.displayName}: ${code}`);
+      firstCode ??= code;
+    }
+
+    const singleCode = staffLinks.length === 1 ? firstCode : undefined;
+
+    await this.reply(replyToken, [
+      {
+        type: 'text',
+        text: `🆔 入室ID\n${lines.join('\n')}\n\n「🔑 入室する」ボタンを押すと自動で入室できます。手入力する場合は、ガレージ・カルテのログイン画面で「スタッフとして入室」を選び、この入室IDを入力してください。`,
+        quickReply: buildStaffMenuQuickReply(singleCode),
+      },
+    ]);
   }
 
   private async handleStaffJoin(replyToken: string, lineUserId: string, joinCode: string) {
@@ -847,6 +1027,32 @@ export class LineService {
       },
     });
 
+    // 新規参加の場合のみ、プランごとの人数上限をチェックする(コード再送・再参加は制限しない)
+    if (!existingLink) {
+      const currentStaffCount = await this.masterPrisma.lineStaffLink.count({
+        where: { companyAccountId: company.id },
+      });
+
+      const limits = await this.withCompany(company, () =>
+        this.licenseService.getCurrentPlanLimits(),
+      );
+
+      if (limits && currentStaffCount >= limits.maxUsers) {
+        await this.pushMessage(
+          lineUserId,
+          [
+            {
+              type: 'text',
+              text: `現在のプランでは社員として登録できる人数の上限(${limits.maxUsers}名)に達しています。プランのアップグレードが必要です。`,
+            },
+          ],
+          undefined,
+          true,
+        );
+        return;
+      }
+    }
+
     let displayName: string | null = null;
 
     try {
@@ -857,7 +1063,7 @@ export class LineService {
       this.logger.warn(`スタッフのLINEプロフィール取得に失敗しました: ${err}`);
     }
 
-    await this.masterPrisma.lineStaffLink.upsert({
+    const link = await this.masterPrisma.lineStaffLink.upsert({
       where: {
         lineUserId_companyAccountId: {
           lineUserId,
@@ -867,6 +1073,8 @@ export class LineService {
       update: { displayName: displayName ?? undefined },
       create: { lineUserId, companyAccountId: company.id, displayName },
     });
+
+    const staffAccessCode = await this.ensureStaffAccessCode(link.id);
 
     // 新規参加の時だけ、既に登録済みの他のスタッフへ知らせる(コード再送では通知しない)
     if (!existingLink) {
@@ -900,11 +1108,12 @@ export class LineService {
           type: 'text',
           text:
             `${company.displayName}のスタッフ用LINEとして連携しました。\n` +
-            `毎朝6時ごろに、本日の予約と車検満了日が2ヶ月以内のお客様一覧をお送りします。`,
+            `毎朝6時ごろに、本日の予約と車検満了日が2ヶ月以内のお客様一覧をお送りします。\n\n` +
+            `🆔 入室ID: ${staffAccessCode}\n` +
+            `「🔑 入室する」ボタン、またはガレージ・カルテのログイン画面でこの入室IDを入力すると、会社パスワードなしでログインできます。`,
+          quickReply: buildStaffMenuQuickReply(staffAccessCode),
         },
       ],
-      undefined,
-      true,
     );
   }
 
@@ -1287,34 +1496,27 @@ export class LineService {
     }
   }
 
-  /** 「予約」入力時、まず整備予約(新規)か予約確認かを選ばせる */
-  private async promptReservationMainChoice(replyToken: string) {
+  /** 新規の整備予約フローに直接入る(単一店舗なら即カテゴリ選択、複数店舗なら店舗選択から) */
+  private async startNewReservationFlow(
+    replyToken: string,
+    lineUserId: string,
+    links: LinkWithCompany[],
+  ) {
+    if (links.length === 1) {
+      await this.promptReservationCategory(
+        replyToken,
+        lineUserId,
+        links[0].companyAccount,
+        true,
+      );
+      return;
+    }
+
     await this.reply(replyToken, [
       {
         type: 'text',
-        text: 'どちらですか？',
-        quickReply: {
-          items: [
-            {
-              type: 'action',
-              action: {
-                type: 'postback',
-                label: '🔧 整備予約',
-                data: `action=${RESERVATION_ACTION_MAIN_CHOICE}&choice=NEW`,
-                displayText: '整備予約',
-              },
-            },
-            {
-              type: 'action',
-              action: {
-                type: 'postback',
-                label: '📋 予約確認',
-                data: `action=${RESERVATION_ACTION_MAIN_CHOICE}&choice=CONFIRM`,
-                displayText: '予約確認',
-              },
-            },
-          ],
-        },
+        text: 'どちらの店舗のご予約ですか？',
+        quickReply: this.buildCompanyPickerQuickReply(links, RESERVATION_ACTION_PICK_COMPANY),
       },
     ]);
   }
@@ -1456,7 +1658,20 @@ export class LineService {
         {
           type: 'text',
           text: '現在おすすめのご案内はありません。',
-          quickReply: mainMenuQuickReply,
+          quickReply: {
+            items: [
+              ...(mainMenuQuickReply.items ?? []),
+              {
+                type: 'action',
+                action: {
+                  type: 'postback',
+                  label: '📋 予約確認',
+                  data: `action=${RESERVATION_ACTION_MAIN_CHOICE}&choice=CONFIRM`,
+                  displayText: '予約確認',
+                },
+              },
+            ],
+          },
         },
       ]);
       return;
@@ -1605,23 +1820,7 @@ export class LineService {
         return;
       }
 
-      if (links.length === 1) {
-        await this.promptReservationCategory(
-          replyToken,
-          lineUserId,
-          links[0].companyAccount,
-          true,
-        );
-        return;
-      }
-
-      await this.reply(replyToken, [
-        {
-          type: 'text',
-          text: 'どちらの店舗のご予約ですか？',
-          quickReply: this.buildCompanyPickerQuickReply(links, RESERVATION_ACTION_PICK_COMPANY),
-        },
-      ]);
+      await this.startNewReservationFlow(replyToken, lineUserId, links);
       return;
     }
 
@@ -1774,15 +1973,26 @@ export class LineService {
     companyAccountId: number,
   ): messagingApi.QuickReply {
     return {
-      items: RESERVATION_CATEGORIES.map((label) => ({
-        type: 'action',
-        action: {
-          type: 'postback',
-          label,
-          data: `action=${RESERVATION_ACTION_PICK_CATEGORY}&companyAccountId=${companyAccountId}&category=${encodeURIComponent(label)}`,
-          displayText: label,
+      items: [
+        ...RESERVATION_CATEGORIES.map((label) => ({
+          type: 'action' as const,
+          action: {
+            type: 'postback' as const,
+            label,
+            data: `action=${RESERVATION_ACTION_PICK_CATEGORY}&companyAccountId=${companyAccountId}&category=${encodeURIComponent(label)}`,
+            displayText: label,
+          },
+        })),
+        {
+          type: 'action' as const,
+          action: {
+            type: 'postback' as const,
+            label: '📋 予約確認',
+            data: `action=${RESERVATION_ACTION_MAIN_CHOICE}&choice=CONFIRM`,
+            displayText: '予約確認',
+          },
         },
-      })),
+      ],
     };
   }
 
@@ -2277,12 +2487,15 @@ export class LineService {
 
     await client.pushMessage({ to: lineUserId, messages: finalMessages });
 
-    // テナントコンテキストが確立されている(会社が判明している)時だけログを残せる
+    // ログには【店舗名】プレフィックスを付ける前の元テキストを残す。付けた後のものを
+    // 残すと、次のAI応答生成時にその会話履歴を読んだAIが「自分の過去の発言」を真似て
+    // 自らプレフィックスを付けはじめ、そこにさらにこちら側のプレフィックスが重なって
+    // 【店舗名】が二重に表示される不具合になる
     if (this.tenantContext.current()) {
       const customer = await this.customerService.findByLineUserId(lineUserId);
 
       if (customer) {
-        await this.logOutgoing(customer.id, finalMessages);
+        await this.logOutgoing(customer.id, messages);
       }
     }
   }
@@ -2309,8 +2522,9 @@ export class LineService {
 
     await client.replyMessage({ replyToken, messages: finalMessages });
 
+    // pushMessage()と同じ理由で、プレフィックス付け前の元テキストをログに残す
     if (customerId && this.tenantContext.current()) {
-      await this.logOutgoing(customerId, finalMessages);
+      await this.logOutgoing(customerId, messages);
     }
   }
 

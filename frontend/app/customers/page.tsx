@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { usePlanLimits } from '@/lib/usePlanLimits';
 import { PlanGatedLink } from '@/components/ui/PlanGatedLink';
+import { normalizeForSearch } from '@/lib/kana';
 
 type Vehicle = {
   id: number;
@@ -20,6 +21,7 @@ type Vehicle = {
 type Customer = {
   id: number;
   customerName: string;
+  customerNameReading: string | null;
   customerAddress: string;
   phone: string;
   lineUserId: string | null;
@@ -42,10 +44,15 @@ export default function CustomerPage() {
   }
 
   const filtered = customers.filter((c) => {
-    const text =
-      `${c.customerName} ${c.customerAddress} ${c.phone}`.toLowerCase();
+    const vehicleText = c.vehicles
+      .map((v) => `${v.carName ?? ''} ${v.commonModelName ?? ''}`)
+      .join(' ');
 
-    return text.includes(keyword.toLowerCase());
+    const text = normalizeForSearch(
+      `${c.customerName} ${c.customerNameReading ?? ''} ${c.customerAddress} ${c.phone} ${vehicleText}`,
+    );
+
+    return text.includes(normalizeForSearch(keyword));
   });
 
   return (
@@ -60,7 +67,7 @@ export default function CustomerPage() {
 
       <input
         className="input mb-5"
-        placeholder="顧客名・住所・電話番号"
+        placeholder="顧客名・住所・電話番号・車両名"
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
       />
@@ -84,7 +91,7 @@ export default function CustomerPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-col items-end gap-2 shrink-0">
                   <span
                     className={customer.lineUserId ? 'badge-ok text-xs' : 'expbadge exp-warn text-xs'}
                   >

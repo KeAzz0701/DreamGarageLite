@@ -18,6 +18,8 @@ type Vehicle = {
 type Me = {
   customerName: string;
   portalPaid: boolean;
+  companyAccountId: number;
+  companyName: string;
   vehicles: Vehicle[];
 };
 
@@ -30,6 +32,7 @@ export default function PortalHomePage() {
   const [me, setMe] = useState<Me | null>(null);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [switching, setSwitching] = useState(false);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   useEffect(() => {
     boot();
@@ -106,10 +109,13 @@ export default function PortalHomePage() {
       const json = await api<Me>('/portal/me');
       setMe(json);
       await loadCompanies();
+      setSwitcherOpen(false);
     } finally {
       setSwitching(false);
     }
   }
+
+  const currentCompanyName = me?.companyName ?? null;
 
   if (status === 'loading') {
     return <div className="text-center text-[var(--muted)] py-10">読み込み中...</div>;
@@ -117,9 +123,11 @@ export default function PortalHomePage() {
 
   if (status === 'error') {
     return (
-      <div className="panel">
-        <div className="empty">
-          読み込みに失敗しました。時間をおいて、もう一度LINEのメニューから開き直してください。
+      <div className="portal-body">
+        <div className="panel">
+          <div className="empty">
+            読み込みに失敗しました。時間をおいて、もう一度LINEのメニューから開き直してください。
+          </div>
         </div>
       </div>
     );
@@ -127,10 +135,12 @@ export default function PortalHomePage() {
 
   if (status === 'not-linked') {
     return (
-      <div className="panel">
-        <h1 className="disp text-xl mb-3">ガレージ・カルテ ポータル</h1>
-        <div className="empty">
-          まだ店舗との連携が完了していません。お店で発行された連携コード(QRコード)を、公式LINEのトーク画面で読み取ってください。
+      <div className="portal-body">
+        <div className="panel">
+          <h1 className="disp text-xl mb-3">ガレージ・カルテ ポータル</h1>
+          <div className="empty">
+            まだ店舗との連携が完了していません。お店で発行された連携コード(QRコード)を、公式LINEのトーク画面で読み取ってください。
+          </div>
         </div>
       </div>
     );
@@ -140,87 +150,115 @@ export default function PortalHomePage() {
 
   return (
     <>
-      <h1 className="disp text-2xl mb-4">ガレージ・カルテ ポータル</h1>
+      <div className="portal-topbar">
+        <div className="portal-topbar-logo">🔧</div>
+        <div className="portal-topbar-title">
+          ガレージ・<span>カルテ</span>
+        </div>
 
-      {companies.length > 1 && (
-        <div className="panel mb-4">
-          <div className="text-xs text-[var(--muted)] mb-2">連携中の店舗</div>
-          <div className="flex flex-col gap-2">
-            {companies.map((c) => (
-              <button
-                key={c.companyAccountId}
-                onClick={() => switchCompany(c.companyAccountId)}
-                disabled={switching}
-                className="btn btn-ghost btn-sm flex justify-between items-center"
-              >
-                <span>🏢 {c.displayName}</span>
-                <span className={c.portalPaid ? 'badge-ok' : 'expbadge'}>
-                  {c.portalPaid ? '✅ 有料' : '無料'}
-                </span>
-              </button>
-            ))}
+        {companies.length > 1 && (
+          <div
+            className="portal-company-chip tappable"
+            onClick={() => setSwitcherOpen((v) => !v)}
+          >
+            <span className="name">🏢 {currentCompanyName}</span>
+            <span>▾</span>
           </div>
+        )}
+        {companies.length === 1 && (
+          <div className="portal-company-chip">
+            <span className="name">🏢 {companies[0].displayName}</span>
+          </div>
+        )}
+      </div>
+
+      {switcherOpen && companies.length > 1 && (
+        <div className="portal-switcher">
+          <div className="text-xs text-white/50 px-2 pb-1">表示する店舗を選ぶ</div>
+          {companies.map((c) => (
+            <button
+              key={c.companyAccountId}
+              onClick={() => switchCompany(c.companyAccountId)}
+              disabled={switching}
+              className={`portal-switcher-item ${c.companyAccountId === me?.companyAccountId ? 'active' : ''}`}
+            >
+              <span>🏢 {c.displayName}</span>
+              <span className={c.portalPaid ? 'badge-ok' : 'expbadge'}>
+                {c.portalPaid ? '✅ 有料' : '無料'}
+              </span>
+            </button>
+          ))}
         </div>
       )}
 
-      <div className="panel mb-4">
-        <div className="text-xs text-[var(--muted)]">お客様名</div>
-        <div className="cname disp text-xl">{me.customerName}</div>
-      </div>
+      <div className="portal-body">
+        <div className="portal-hero">
+          <div className="portal-hero-avatar">👤</div>
+          <div>
+            <div className="portal-hero-greeting">ようこそ</div>
+            <div className="portal-hero-name">{me.customerName} 様</div>
+          </div>
+        </div>
 
-      <div className="panel mb-4">
-        <h2 className="disp text-lg mb-3">車両情報</h2>
+        <div className="portal-section-title">🚗 車両情報</div>
 
         {me.vehicles.length === 0 ? (
           <div className="empty">登録された車両はありません。</div>
         ) : (
           me.vehicles.map((v) => (
-            <div key={v.id} className="veh mb-2">
+            <div key={v.id} className="portal-vehicle-card">
               <div className="font-semibold">
                 {v.carName || '-'}
                 {v.commonModelName && (
                   <span className="ml-2 text-[var(--blue)]">{v.commonModelName}</span>
                 )}
               </div>
-              <div>{v.registrationNumber}</div>
+              <div className="text-sm text-[var(--muted)]">{v.registrationNumber}</div>
               <div className="mt-1 text-sm">
                 車検満了日：<span className="font-semibold">{v.expirationDate || '-'}</span>
               </div>
             </div>
           ))
         )}
-      </div>
 
-      <div className="panel mb-4">
-        <h2 className="disp text-lg mb-3">他店舗見積の保存・比較</h2>
-        <Link href="/portal/competitor-estimates" className="btn btn-blue">
-          📷 他店舗見積を保存する
+        {me.portalPaid ? (
+          <>
+            <div className="portal-section-title">🔧 整備データ({currentCompanyName ?? 'この店舗'})</div>
+            <div className="portal-quickgrid">
+              <Link href="/portal/service-history" className="portal-quick-btn">
+                <span className="portal-quick-icon">🧾</span>
+                整備履歴・金額
+              </Link>
+              <Link href="/portal/maintenance" className="portal-quick-btn">
+                <span className="portal-quick-icon">🔧</span>
+                次回整備のおすすめ
+              </Link>
+              <Link href="/portal/tire-wear" className="portal-quick-btn">
+                <span className="portal-quick-icon">🛞</span>
+                タイヤ交換時期
+              </Link>
+            </div>
+          </>
+        ) : (
+          <div className="portal-upsell">
+            <h2 className="disp text-base mb-2">整備データ(有料プラン)</h2>
+            <p className="text-xs">
+              整備履歴の金額明細、次回整備のおすすめ、タイヤの推定交換時期は有料プランでご利用いただけます。詳しくは店舗までお問い合わせください。
+            </p>
+          </div>
+        )}
+
+        <div className="portal-section-title">📷 他店舗見積</div>
+        <Link href="/portal/competitor-estimates" className="portal-vehicle-card block">
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="font-semibold">他店舗見積を保存・比較</div>
+              <div className="text-xs text-[var(--muted)] mt-1">撮影するだけでAIが自動で読み取ります</div>
+            </div>
+            <span className="text-[var(--muted)]">›</span>
+          </div>
         </Link>
       </div>
-
-      {me.portalPaid ? (
-        <div className="panel">
-          <h2 className="disp text-lg mb-3">整備データ</h2>
-          <div className="flex flex-col gap-2">
-            <Link href="/portal/service-history" className="btn btn-blue">
-              🧾 整備履歴・金額を見る
-            </Link>
-            <Link href="/portal/maintenance" className="btn btn-blue">
-              🔧 次回整備のおすすめを見る
-            </Link>
-            <Link href="/portal/tire-wear" className="btn btn-blue">
-              🛞 タイヤの推定交換時期を見る
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <div className="panel">
-          <h2 className="disp text-lg mb-2">整備データ(有料プラン)</h2>
-          <p className="note">
-            整備履歴の金額明細、次回整備のおすすめ、タイヤの推定交換時期は有料プランでご利用いただけます。詳しくは店舗までお問い合わせください。
-          </p>
-        </div>
-      )}
     </>
   );
 }

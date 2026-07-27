@@ -14,7 +14,14 @@ export class ErrorReportController {
 
   @Post()
   async create(
-    @Body() body: { pageUrl: string; pageLabel?: string; message?: string },
+    @Body()
+    body: {
+      pageUrl: string;
+      pageLabel?: string;
+      message?: string;
+      screenshotBase64?: string;
+      screenshotMimeType?: string;
+    },
     @Req() req: Request,
   ) {
     const company = this.tenantContext.current()?.company;
@@ -34,6 +41,8 @@ export class ErrorReportController {
       pageLabel: body.pageLabel,
       message: body.message,
       userAgent: req.headers['user-agent'],
+      screenshotBase64: body.screenshotBase64,
+      screenshotMimeType: body.screenshotMimeType,
     });
   }
 }

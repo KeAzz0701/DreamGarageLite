@@ -7,13 +7,15 @@ import {
   Logger,
   forwardRef,
 } from '@nestjs/common';
-import { ReservationStatus } from '@prisma/client';
+import { Prisma, ReservationStatus } from '@prisma/client';
 import { createEvent, DateArray } from 'ics';
 import { PrismaService } from '../prisma/prisma.service';
 import { LineService } from '../line/line.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
 import { BusinessHoursService } from './business-hours.service';
+import { getEffectivePlanLimits } from '../common/plans';
+import { KanaReadingService } from '../common/kana-reading.service';
 
 const TOKEN_CHARS =
   '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -62,6 +64,7 @@ export class ReservationService {
     private readonly lineService: LineService,
     private readonly googleCalendarService: GoogleCalendarService,
     private readonly tenantContext: TenantContextService,
+    private readonly kanaReadingService: KanaReadingService,
   ) {}
 
   async list(status?: ReservationStatus) {
@@ -189,6 +192,48 @@ export class ReservationService {
     }
 
     return null;
+  }
+
+  /**
+   * validateSlot()の重複チェックは作成直前の1回きりの読み取りなので、ほぼ同時に届いた
+   * 2件のリクエスト(LINEの連打・電話予約の同時操作など)がどちらもすり抜けて
+   * 同じ枠に2件登録されてしまう競合が起こり得る。ここでは重複再チェックと登録を
+   * 単一のSerializableトランザクションにまとめることで、後勝ちの一方を確実に弾く。
+   */
+  private async createReservationAtomic(
+    createData: Prisma.ReservationUncheckedCreateInput,
+    start: Date,
+    end: Date,
+  ) {
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const overlap = await tx.reservation.findFirst({
+            where: {
+              status: { in: ['PENDING', 'CONFIRMED'] },
+              scheduledStart: { lt: end },
+              scheduledEnd: { gt: start },
+            },
+          });
+
+          if (overlap) {
+            throw new BadRequestException('その時間帯はすでに予約が入っています。');
+          }
+
+          return tx.reservation.create({
+            data: createData,
+            include: { customer: true, vehicle: true },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') {
+        // Serializable分離レベルでの書き込み競合。負けた側はやり直させる。
+        throw new BadRequestException('その時間帯はすでに予約が入っています。');
+      }
+      throw e;
+    }
   }
 
   /** 指定日の空き枠(スロット開始時刻)を、営業時間内で1コマ刻みに列挙する */
@@ -547,8 +592,8 @@ export class ReservationService {
       throw new BadRequestException(error);
     }
 
-    const reservation = await this.prisma.reservation.create({
-      data: {
+    const reservation = await this.createReservationAtomic(
+      {
         customerId,
         category: category || undefined,
         needsLoanerCar: needsLoanerCar ?? undefined,
@@ -557,8 +602,9 @@ export class ReservationService {
         status: 'PENDING',
         icsToken: randomIcsToken(this.tenantContext.current()!.company.companyCode),
       },
-      include: { customer: true, vehicle: true },
-    });
+      start,
+      end,
+    );
 
     const vehicleLabel = reservation.vehicle
       ? [reservation.vehicle.carName, reservation.vehicle.commonModelName].filter(Boolean).join(' ')
@@ -602,9 +648,39 @@ export class ReservationService {
         where: { customerName: name },
       });
 
-      customerId = existing
-        ? existing.id
-        : (await this.prisma.customer.create({ data: { customerName: name } })).id;
+      if (existing) {
+        customerId = existing.id;
+      } else {
+        // 電話予約からの新規顧客登録もLINE経由と同様にプランの顧客登録上限を通す
+        // (ここを素通りさせると上限のあるプランでも予約経由で無制限に顧客を追加できてしまう)
+        const license = await this.prisma.license.findFirst();
+
+        if (license) {
+          const limits = getEffectivePlanLimits(
+            license.plan,
+            license.activatedAt,
+            license.hasUsedPaidPlan,
+          );
+
+          if (limits.maxCustomers !== null) {
+            const count = await this.prisma.customer.count();
+
+            if (count >= limits.maxCustomers) {
+              throw new BadRequestException(
+                `顧客登録数の上限(${limits.maxCustomers}件)に達しています。プランのアップグレードが必要です。`,
+              );
+            }
+          }
+        }
+
+        const customerNameReading = await this.kanaReadingService.getReading(name);
+
+        customerId = (
+          await this.prisma.customer.create({
+            data: { customerName: name, customerNameReading },
+          })
+        ).id;
+      }
     }
 
     const start = new Date(data.scheduledStart);
@@ -617,8 +693,8 @@ export class ReservationService {
       throw new BadRequestException(error);
     }
 
-    let reservation = await this.prisma.reservation.create({
-      data: {
+    let reservation = await this.createReservationAtomic(
+      {
         customerId,
         vehicleId: data.vehicleId ?? undefined,
         category: data.category || undefined,
@@ -628,8 +704,9 @@ export class ReservationService {
         status: 'CONFIRMED',
         icsToken: randomIcsToken(this.tenantContext.current()!.company.companyCode),
       },
-      include: { customer: true, vehicle: true },
-    });
+      start,
+      end,
+    );
 
     reservation = await this.syncGoogleCalendar(reservation);
 

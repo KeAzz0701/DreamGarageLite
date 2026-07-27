@@ -2,9 +2,9 @@
 
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, extractErrorMessage, upload } from '@/lib/api';
+import PortalHeader from '@/components/portal/PortalHeader';
 
 type Vehicle = { id: number; carName: string | null; commonModelName: string | null };
 type Me = { vehicles: Vehicle[] };
@@ -71,10 +71,8 @@ export default function PortalCompetitorEstimatesPage() {
 
   return (
     <>
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="disp text-2xl">他店舗見積の保存</h1>
-        <Link href="/portal" className="btn btn-ghost btn-sm">戻る</Link>
-      </div>
+      <PortalHeader title="他店舗見積の保存" />
+      <div className="portal-body">
 
       {error && <div className="panel mb-4"><div className="empty">{error}</div></div>}
 
@@ -156,6 +154,7 @@ export default function PortalCompetitorEstimatesPage() {
           ))
         )
       )}
+      </div>
     </>
   );
 }

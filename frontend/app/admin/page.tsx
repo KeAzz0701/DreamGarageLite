@@ -52,14 +52,6 @@ interface ApiKeyRow {
   createdAt: string;
 }
 
-interface PortalCustomerRow {
-  companyAccountId: number;
-  companyName: string;
-  id: number;
-  customerName: string;
-  portalPaid: boolean;
-}
-
 interface ErrorReportRow {
   id: number;
   companyName: string;
@@ -67,6 +59,10 @@ interface ErrorReportRow {
   pageLabel: string | null;
   userAgent: string | null;
   message: string | null;
+  screenshotBase64: string | null;
+  resolved: boolean;
+  resolvedNote: string | null;
+  resolvedAt: string | null;
   createdAt: string;
 }
 
@@ -79,6 +75,7 @@ export default function AdminPage() {
   const [newName, setNewName] = useState('');
   const [newCode, setNewCode] = useState('');
   const [creating, setCreating] = useState(false);
+  const [deletingCompanyId, setDeletingCompanyId] = useState<number | null>(null);
 
   const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([]);
   const [newAdminUsername, setNewAdminUsername] = useState('');
@@ -94,11 +91,7 @@ export default function AdminPage() {
   const [processingPlanRequest, setProcessingPlanRequest] = useState<number | null>(null);
 
   const [errorReports, setErrorReports] = useState<ErrorReportRow[]>([]);
-
-  const [portalQuery, setPortalQuery] = useState('');
-  const [portalCustomers, setPortalCustomers] = useState<PortalCustomerRow[] | null>(null);
-  const [portalSearching, setPortalSearching] = useState(false);
-  const [portalTogglingId, setPortalTogglingId] = useState<number | null>(null);
+  const [showResolvedReports, setShowResolvedReports] = useState(false);
 
   useEffect(() => {
     api<{ ok: boolean; username: string | null }>('/admin/me')
@@ -114,46 +107,38 @@ export default function AdminPage() {
       .catch(() => router.replace('/admin/login'));
   }, []);
 
-  async function loadErrorReports() {
+  async function loadErrorReports(resolved = showResolvedReports) {
     try {
-      const json = await api<ErrorReportRow[]>('/admin/error-reports');
+      const json = await api<ErrorReportRow[]>(`/admin/error-reports?resolved=${resolved}`);
       setErrorReports(json);
     } catch (e: any) {
       alert(extractErrorMessage(e));
     }
   }
 
-  async function searchPortalCustomers() {
-    if (!portalQuery.trim()) return;
-
-    setPortalSearching(true);
+  async function resolveErrorReport(report: ErrorReportRow) {
+    const note = prompt(
+      '訂正内容や再デプロイの要否など、メモがあれば入力してください(空欄でも可)',
+    );
+    if (note === null) return;
 
     try {
-      const json = await api<PortalCustomerRow[]>(
-        `/admin/portal-customers?q=${encodeURIComponent(portalQuery)}`,
-      );
-      setPortalCustomers(json);
+      await api(`/admin/error-reports/${report.id}/resolve`, {
+        method: 'PATCH',
+        body: JSON.stringify({ note: note || undefined }),
+      });
+      await loadErrorReports();
     } catch (e: any) {
       alert(extractErrorMessage(e));
-    } finally {
-      setPortalSearching(false);
     }
   }
 
-  async function togglePortalPaid(customer: PortalCustomerRow) {
-    setPortalTogglingId(customer.id);
-
+  async function reopenErrorReport(report: ErrorReportRow) {
     try {
-      await api(`/admin/companies/${customer.companyAccountId}/portal-customers/${customer.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ portalPaid: !customer.portalPaid }),
-      });
-
-      await searchPortalCustomers();
+      await api(`/admin/error-reports/${report.id}/reopen`, { method: 'PATCH' });
+      await loadErrorReports();
     } catch (e: any) {
       alert(extractErrorMessage(e));
-    } finally {
-      setPortalTogglingId(null);
     }
   }
 
@@ -343,6 +328,34 @@ export default function AdminPage() {
     }
   }
 
+  /**
+   * 会社の完全削除(テナントDBごと物理削除、復元不可)。誤操作を防ぐため、
+   * 無効化済みの会社にしかボタンを出さず、さらに会社コードの入力一致を要求する。
+   */
+  async function deleteCompany(company: CompanyRow) {
+    const typed = window.prompt(
+      `「${company.displayName}」を完全に削除します。顧客・車両・整備履歴などすべてのデータが失われ、元に戻せません。\n\n削除するには会社コード「${company.companyCode}」を入力してください。`,
+    );
+
+    if (typed === null) return;
+
+    if (typed !== company.companyCode) {
+      alert('会社コードが一致しないため、削除を中止しました。');
+      return;
+    }
+
+    setDeletingCompanyId(company.id);
+
+    try {
+      await api(`/admin/companies/${company.id}`, { method: 'DELETE' });
+      await load();
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    } finally {
+      setDeletingCompanyId(null);
+    }
+  }
+
   async function createCompany() {
     if (!newName.trim()) return;
 
@@ -455,6 +468,15 @@ export default function AdminPage() {
                   <button onClick={() => toggleActive(c)} className="btn btn-ghost btn-sm">
                     {c.isActive ? '無効化' : '有効化'}
                   </button>
+                  {!c.isActive && (
+                    <button
+                      onClick={() => deleteCompany(c)}
+                      disabled={deletingCompanyId === c.id}
+                      className="btn btn-danger btn-sm"
+                    >
+                      {deletingCompanyId === c.id ? '削除中...' : '🗑 完全に削除'}
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="mt-1 text-xs text-[var(--muted)]">DB: {c.dbName}</div>
@@ -630,13 +652,29 @@ export default function AdminPage() {
       </div>
 
       <div className="panel mt-4">
-        <h2 className="disp text-xl mb-3">エラー報告（{errorReports.length}）</h2>
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="disp text-xl">
+            エラー報告（{errorReports.length}）{showResolvedReports ? '・訂正済み' : '・未対応'}
+          </h2>
+          <button
+            onClick={() => {
+              const next = !showResolvedReports;
+              setShowResolvedReports(next);
+              loadErrorReports(next);
+            }}
+            className="btn btn-ghost btn-sm"
+          >
+            {showResolvedReports ? '未対応を見る' : '訂正済みを見る'}
+          </button>
+        </div>
         <p className="note mb-3">
           デモプレイ版の会社が画面から送った不具合報告の一覧です。送信時にLINEにもプッシュ通知が届きます。
         </p>
 
         {errorReports.length === 0 ? (
-          <div className="empty">まだ報告はありません。</div>
+          <div className="empty">
+            {showResolvedReports ? '訂正済みの報告はありません。' : '未対応の報告はありません。'}
+          </div>
         ) : (
           errorReports.map((r) => (
             <div key={r.id} className="veh mb-2">
@@ -647,68 +685,55 @@ export default function AdminPage() {
                     {new Date(r.createdAt).toLocaleString('ja-JP')}
                   </span>
                   <div className="text-xs text-[var(--muted)] mt-1">
-                    画面: {r.pageLabel || r.pageUrl}
+                    画面: {r.pageLabel || '(タイトルなし)'}
+                  </div>
+                  <div className="text-xs text-[var(--muted)] mono mt-1 break-all">
+                    URL: {r.pageUrl}
                   </div>
                   {r.message && <div className="text-sm mt-1">{r.message}</div>}
                   {r.userAgent && (
                     <div className="text-xs text-[var(--muted)] mt-1">環境: {r.userAgent}</div>
                   )}
+                  {r.screenshotBase64 && (
+                    <a href={r.screenshotBase64} target="_blank" rel="noreferrer">
+                      <img
+                        src={r.screenshotBase64}
+                        alt="報告時のスクリーンショット"
+                        style={{
+                          maxWidth: 200,
+                          maxHeight: 120,
+                          objectFit: 'cover',
+                          objectPosition: 'top',
+                          borderRadius: 6,
+                          border: '1px solid var(--line)',
+                          marginTop: 8,
+                        }}
+                      />
+                    </a>
+                  )}
+                  {r.resolved && (
+                    <div className="mt-2">
+                      <span className="badge-ok">
+                        ✅ 訂正済み{r.resolvedAt && `(${new Date(r.resolvedAt).toLocaleString('ja-JP')})`}
+                      </span>
+                      {r.resolvedNote && (
+                        <div className="text-xs text-[var(--muted)] mt-1">メモ: {r.resolvedNote}</div>
+                      )}
+                    </div>
+                  )}
                 </div>
+                <button
+                  onClick={() => (r.resolved ? reopenErrorReport(r) : resolveErrorReport(r))}
+                  className="btn btn-ghost btn-sm"
+                >
+                  {r.resolved ? '未対応に戻す' : '✅ 訂正済みにする'}
+                </button>
               </div>
             </div>
           ))
         )}
       </div>
 
-      <div className="panel mt-4">
-        <h2 className="disp text-xl mb-3">顧客ポータル 有料フラグ(テスト用)</h2>
-        <p className="note mb-3">
-          決済連携ができるまでの暫定措置です。会社側の画面には出していません。いずれ廃止予定です。
-        </p>
-
-        <div className="flex gap-2 mb-3 flex-wrap">
-          <input
-            className="input"
-            style={{ maxWidth: 280 }}
-            placeholder="顧客名で検索(全社横断)"
-            value={portalQuery}
-            onChange={(e) => setPortalQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && searchPortalCustomers()}
-          />
-          <button
-            onClick={searchPortalCustomers}
-            disabled={!portalQuery.trim() || portalSearching}
-            className="btn btn-blue btn-sm"
-          >
-            {portalSearching ? '検索中...' : '検索'}
-          </button>
-        </div>
-
-        {portalCustomers && (
-          portalCustomers.length === 0 ? (
-            <div className="empty">該当する顧客が見つかりませんでした。</div>
-          ) : (
-            portalCustomers.map((c) => (
-              <div key={`${c.companyAccountId}-${c.id}`} className="veh mb-2 flex justify-between items-center">
-                <div>
-                  <span className="font-semibold">{c.customerName}</span>
-                  <span className="ml-2 text-xs text-[var(--muted)]">{c.companyName}</span>
-                  <span className={`ml-2 ${c.portalPaid ? 'badge-ok' : 'expbadge'}`}>
-                    {c.portalPaid ? '✅ 有料' : '無料'}
-                  </span>
-                </div>
-                <button
-                  onClick={() => togglePortalPaid(c)}
-                  disabled={portalTogglingId === c.id}
-                  className="btn btn-ghost btn-sm"
-                >
-                  {c.portalPaid ? '無料に戻す' : '有料にする'}
-                </button>
-              </div>
-            ))
-          )
-        )}
-      </div>
     </div>
   );
 }

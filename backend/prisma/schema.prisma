@@ -215,6 +215,7 @@ model FeeRate {
   itemName        String
 
   price           Int             @default(0)
+  sortOrder       Int             @default(0)
 
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -225,6 +226,9 @@ model Customer {
   id              Int      @id @default(autoincrement())
 
   customerName    String
+  // customerNameの読み仮名(ひらがな)。登録・編集のたびに自動計算して保存し、
+  // 「かさい」で「葛西」を検索できるようにする(検索のたびに変換すると重いため事前計算)
+  customerNameReading String?
   customerAddress String?
 
   ownerName       String?
@@ -235,7 +239,12 @@ model Customer {
   lineUserId      String?  @unique
   lineLinkToken   String?  @unique
 
-  portalPaid      Boolean  @default(false)
+  // スタッフがLINEへ直接手動メッセージを送った後、しばらくAIの自動応答を止めておく期限
+  aiPausedUntil   DateTime?
+  // 「担当者が対応中です」の案内を今のスタッフ対応中にもう送ったか(1回だけ送るためのマーカー)
+  aiPauseNoticeSentAt DateTime?
+  // スタッフがこの顧客とのLINE画面を最後に開いていた(ポーリングしていた)時刻。在席判定に使う
+  lineScreenViewedAt DateTime?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

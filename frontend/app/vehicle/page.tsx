@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { parseFlexibleDate } from '@/lib/japaneseDate';
+import { normalizeForSearch } from '@/lib/kana';
 
 type Vehicle = {
   id: number;
@@ -49,16 +50,16 @@ export default function VehiclePage() {
   }
 
   const filtered = vehicles.filter((v) => {
-    const text = `
+    const text = normalizeForSearch(`
 ${v.registrationNumber}
 ${v.vin}
 ${v.carName}
+${v.commonModelName}
 ${v.model}
 ${v.customer?.customerName}
-`
-      .toLowerCase();
+`);
 
-    return text.includes(keyword.toLowerCase());
+    return text.includes(normalizeForSearch(keyword));
   });
 
   const sorted = [...filtered].sort((a, b) => {

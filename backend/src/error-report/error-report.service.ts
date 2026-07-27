@@ -20,8 +20,18 @@ export class ErrorReportService {
     pageLabel?: string;
     userAgent?: string;
     message?: string;
+    screenshotBase64?: string;
+    screenshotMimeType?: string;
   }) {
-    const report = await this.masterPrisma.errorReport.create({ data });
+    const { screenshotBase64, ...rest } = data;
+
+    const report = await this.masterPrisma.errorReport.create({
+      data: {
+        ...rest,
+        screenshotData: screenshotBase64 ? Buffer.from(screenshotBase64, 'base64') : undefined,
+        screenshotMimeType: screenshotBase64 ? data.screenshotMimeType || 'image/png' : undefined,
+      },
+    });
 
     const adminLineUserId = process.env.SYSTEM_ADMIN_LINE_USER_ID;
 
@@ -45,10 +55,34 @@ export class ErrorReportService {
     return report;
   }
 
-  async list() {
-    return this.masterPrisma.errorReport.findMany({
+  /** 未対応分のみ返す(既定)。resolvedを渡すと絞り込みを切り替えられる */
+  async list(resolved = false) {
+    const reports = await this.masterPrisma.errorReport.findMany({
+      where: { resolved },
       orderBy: { createdAt: 'desc' },
       take: 100,
+    });
+
+    return reports.map((r) => ({
+      ...r,
+      screenshotData: undefined,
+      screenshotBase64: r.screenshotData
+        ? `data:${r.screenshotMimeType || 'image/png'};base64,${Buffer.from(r.screenshotData).toString('base64')}`
+        : null,
+    }));
+  }
+
+  async resolve(id: number, note?: string) {
+    return this.masterPrisma.errorReport.update({
+      where: { id },
+      data: { resolved: true, resolvedNote: note || undefined, resolvedAt: new Date() },
+    });
+  }
+
+  async reopen(id: number) {
+    return this.masterPrisma.errorReport.update({
+      where: { id },
+      data: { resolved: false, resolvedNote: null, resolvedAt: null },
     });
   }
 }

@@ -123,7 +123,9 @@ export default function CustomerDetailPage() {
 
       <div className="panel mb-4">
         {editing ? (
-          <div className="grid2">
+          // グリッド/フレックスでの列崩れを避けるため、この編集フォームだけは
+          // 列組みをせず単純に縦積みにする(1項目1行、常に幅いっぱい)
+          <div>
             <label className="field-label">
               顧客名
               <input
@@ -136,15 +138,6 @@ export default function CustomerDetailPage() {
             </label>
 
             <label className="field-label">
-              電話番号
-              <input
-                className="input"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-            </label>
-
-            <label className="field-label col-span-2">
               住所
               <input
                 className="input"
@@ -154,12 +147,26 @@ export default function CustomerDetailPage() {
                 }
               />
             </label>
+
+            <label className="field-label">
+              電話番号
+              <input
+                className="input"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+            </label>
           </div>
         ) : (
-          <div className="grid2">
-            <div>
+          <div>
+            <div className="mb-4">
               <div className="text-xs text-[var(--muted)]">顧客名</div>
               <div className="cname disp text-xl">{customer.customerName}</div>
+            </div>
+
+            <div className="mb-4">
+              <div className="text-xs text-[var(--muted)]">住所</div>
+              <div>{customer.customerAddress}</div>
             </div>
 
             <div>
@@ -173,11 +180,6 @@ export default function CustomerDetailPage() {
                   '-'
                 )}
               </div>
-            </div>
-
-            <div className="col-span-2">
-              <div className="text-xs text-[var(--muted)]">住所</div>
-              <div>{customer.customerAddress}</div>
             </div>
           </div>
         )}

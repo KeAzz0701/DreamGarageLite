@@ -14,6 +14,12 @@ export interface PlanLimits {
   multiLocation: boolean;
   lineHistoryView: boolean;
   reservationNotifications: boolean;
+  /**
+   * 顧客ポータル(整備履歴・次回整備おすすめ等)を顧客に開放するかどうか。
+   * 顧客個人への課金はせず、店舗のプランに含める形にしている
+   * (連携している店舗のうちどれか1つでもこのプラン以上なら、その顧客はポータルを使える)。
+   */
+  portalAccess: boolean;
 }
 
 /** 無料版・初月お試し期間(全機能+OCR30件) */
@@ -29,6 +35,7 @@ const FREE_TRIAL_LIMITS: PlanLimits = {
   multiLocation: false,
   lineHistoryView: true,
   reservationNotifications: true,
+  portalAccess: true,
 };
 
 /** 無料版・2ヶ月目以降(車検満了通知のみ、OCR5件) */
@@ -44,6 +51,7 @@ const FREE_STANDARD_LIMITS: PlanLimits = {
   multiLocation: false,
   lineHistoryView: false,
   reservationNotifications: false,
+  portalAccess: false,
 };
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
@@ -60,6 +68,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     multiLocation: false,
     lineHistoryView: false,
     reservationNotifications: true,
+    portalAccess: false,
   },
   STANDARD: {
     label: 'STANDARD',
@@ -73,6 +82,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     multiLocation: false,
     lineHistoryView: true,
     reservationNotifications: true,
+    portalAccess: true,
   },
   PRO: {
     label: 'PRO',
@@ -86,6 +96,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     multiLocation: false,
     lineHistoryView: true,
     reservationNotifications: true,
+    portalAccess: true,
   },
   // 通常の申し込み画面(PLAN_ORDER)には出さない特別枠。大規模チェーン等から個別相談があった場合、
   // 運営管理画面から直接このプランに設定する想定
@@ -101,6 +112,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     multiLocation: true,
     lineHistoryView: true,
     reservationNotifications: true,
+    portalAccess: true,
   },
   DEMO: {
     label: 'デモプレイ版',
@@ -114,6 +126,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     multiLocation: true,
     lineHistoryView: true,
     reservationNotifications: true,
+    portalAccess: true,
   },
 };
 

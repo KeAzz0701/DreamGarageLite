@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, extractErrorMessage } from '@/lib/api';
+import { normalizeForSearch } from '@/lib/kana';
 import {
   EstimateItemRow,
   emptyEstimateItem,
@@ -53,12 +54,16 @@ export default function NewEstimatePage() {
   }, []);
 
   const filteredVehicles = vehicles.filter((v) => {
-    const text = `${v.registrationNumber} ${v.vin} ${v.carName} ${v.model} ${v.customer?.customerName}`.toLowerCase();
-    return text.includes(keyword.toLowerCase());
+    const text = normalizeForSearch(
+      `${v.registrationNumber} ${v.vin} ${v.carName} ${v.commonModelName} ${v.model} ${v.customer?.customerName}`,
+    );
+    return text.includes(normalizeForSearch(keyword));
   });
 
   const filteredCustomers = customers.filter((c) =>
-    c.customerName.toLowerCase().includes(keyword.toLowerCase()),
+    normalizeForSearch(`${c.customerName} ${c.customerNameReading ?? ''}`).includes(
+      normalizeForSearch(keyword),
+    ),
   );
 
   function updateItem(index: number, patch: Partial<EstimateItemDraft>) {

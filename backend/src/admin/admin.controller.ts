@@ -94,6 +94,12 @@ export class AdminController {
   }
 
   @UseGuards(AdminAuthGuard)
+  @Delete('companies/:id')
+  async deleteCompany(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.deleteCompany(id);
+  }
+
+  @UseGuards(AdminAuthGuard)
   @Get('users')
   async listAdminUsers() {
     return this.adminService.listAdminUsers();
@@ -164,32 +170,23 @@ export class AdminController {
 
   @UseGuards(AdminAuthGuard)
   @Get('error-reports')
-  async listErrorReports() {
-    return this.adminService.listErrorReports();
+  async listErrorReports(@Query('resolved') resolved?: string) {
+    return this.adminService.listErrorReports(resolved === 'true');
   }
 
   @UseGuards(AdminAuthGuard)
-  @Get('portal-customers')
-  async searchPortalCustomersAcrossCompanies(@Query('q') q?: string) {
-    return this.adminService.searchPortalCustomersAcrossCompanies(q ?? '');
-  }
-
-  @UseGuards(AdminAuthGuard)
-  @Get('companies/:id/portal-customers')
-  async searchPortalCustomers(
+  @Patch('error-reports/:id/resolve')
+  async resolveErrorReport(
     @Param('id', ParseIntPipe) id: number,
-    @Query('q') q?: string,
+    @Body() body: { note?: string },
   ) {
-    return this.adminService.searchPortalCustomers(id, q ?? '');
+    return this.adminService.resolveErrorReport(id, body?.note);
   }
 
   @UseGuards(AdminAuthGuard)
-  @Patch('companies/:id/portal-customers/:customerId')
-  async setPortalPaid(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('customerId', ParseIntPipe) customerId: number,
-    @Body() body: { portalPaid: boolean },
-  ) {
-    return this.adminService.setPortalPaid(id, customerId, !!body?.portalPaid);
+  @Patch('error-reports/:id/reopen')
+  async reopenErrorReport(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.reopenErrorReport(id);
   }
+
 }

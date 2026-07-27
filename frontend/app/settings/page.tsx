@@ -29,21 +29,42 @@ export default function SettingsPage() {
   const [planInfo, setPlanInfo] = useState<any>(null);
   const [planRequests, setPlanRequests] = useState<any[]>([]);
   const [feeRates, setFeeRates] = useState<any[]>([]);
+  const [newFeeRateDraft, setNewFeeRateDraft] = useState<
+    Record<string, { name: string; price: string }>
+  >({});
   const [staffJoinCode, setStaffJoinCode] = useState('');
   const [staffLinks, setStaffLinks] = useState<
-    { id: number; displayName: string | null; joinedAt: string }[]
+    { id: number; displayName: string | null; joinedAt: string; staffAccessCode: string | null }[]
   >([]);
+  const [isStaff, setIsStaff] = useState(false);
 
   useEffect(() => {
     load();
   }, []);
 
   async function load() {
+    // 社員のLINE入室セッションかどうかで、会社情報・振込先・料金プラン・
+    // 社員用LINE連携の各パネルを表示するかを決める(バックエンドも同様に書き込みを制限している)
+    const me = await api<any>('/auth/me');
+    const staffSession = !!me.staffDisplayName;
+    setIsStaff(staffSession);
+
     const companyJson = await api<any>('/company');
 
     setCompany(companyJson);
 
     if (!companyJson) return;
+
+    const settingsJson = await api<any>(
+      `/settings/${companyJson.id}`,
+    );
+
+    setSettings(settingsJson);
+
+    const rates = await api<any[]>('/fee-rates');
+    setFeeRates(rates);
+
+    if (staffSession) return;
 
     if (companyJson.license?.licenseKey) {
       const licenseJson = await api<any>(
@@ -52,12 +73,6 @@ export default function SettingsPage() {
 
       setLicense(licenseJson);
     }
-
-    const settingsJson = await api<any>(
-      `/settings/${companyJson.id}`,
-    );
-
-    setSettings(settingsJson);
 
     const planJson = await api<any>(
       `/license/company/${companyJson.id}/plans`,
@@ -71,14 +86,11 @@ export default function SettingsPage() {
 
     setPlanRequests(requests);
 
-    const rates = await api<any[]>('/fee-rates');
-    setFeeRates(rates);
-
     const staffLineInfo = await api<{ joinCode: string }>('/company/staff-line-info');
     setStaffJoinCode(staffLineInfo.joinCode);
 
     const staffLinkList = await api<
-      { id: number; displayName: string | null; joinedAt: string }[]
+      { id: number; displayName: string | null; joinedAt: string; staffAccessCode: string | null }[]
     >('/company/staff-line-links');
     setStaffLinks(staffLinkList);
   }
@@ -133,11 +145,32 @@ export default function SettingsPage() {
   }
 
   async function removeStaffLink(id: number) {
-    if (!window.confirm('このスタッフの連携を解除しますか？毎朝の通知が届かなくなります。')) return;
+    if (
+      !window.confirm(
+        'このスタッフの連携を解除しますか？毎朝の通知が届かなくなるほか、この入室IDでのガレージ・カルテへのログインもできなくなります。',
+      )
+    )
+      return;
 
     try {
       await api(`/company/staff-line-links/${id}`, { method: 'DELETE' });
       setStaffLinks((links) => links.filter((l) => l.id !== id));
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function regenerateStaffAccessCode(id: number) {
+    if (!window.confirm('入室IDを再発行しますか？今まで使っていた入室IDは使えなくなります。')) return;
+
+    try {
+      const { staffAccessCode } = await api<{ staffAccessCode: string | null }>(
+        `/company/staff-line-links/${id}/regenerate-code`,
+        { method: 'POST' },
+      );
+      setStaffLinks((links) =>
+        links.map((l) => (l.id === id ? { ...l, staffAccessCode } : l)),
+      );
     } catch (e: any) {
       alert(extractErrorMessage(e));
     }
@@ -164,14 +197,94 @@ export default function SettingsPage() {
   }
 
   async function submitFeeRate(rate: any) {
-    await api('/fee-rates', {
-      method: 'POST',
-      body: JSON.stringify({
-        vehicleCategory: rate.vehicleCategory,
-        itemName: rate.itemName,
-        price: rate.price,
-      }),
+    await api(`/fee-rates/${rate.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ price: rate.price }),
     });
+  }
+
+  function renameFeeRateDraft(id: number, itemName: string) {
+    setFeeRates((rates) => rates.map((r) => (r.id === id ? { ...r, itemName } : r)));
+  }
+
+  async function submitFeeRateName(id: number) {
+    const rate = feeRates.find((r) => r.id === id);
+    if (!rate) return;
+
+    try {
+      await api(`/fee-rates/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ itemName: rate.itemName }),
+      });
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+      load();
+    }
+  }
+
+  async function removeFeeRateItem(id: number) {
+    if (!window.confirm('この項目を削除しますか？')) return;
+
+    try {
+      await api(`/fee-rates/${id}`, { method: 'DELETE' });
+      setFeeRates((rates) => rates.filter((r) => r.id !== id));
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function addFeeRateItem(category: string) {
+    const draft = newFeeRateDraft[category];
+    const name = draft?.name?.trim();
+
+    if (!name) return;
+
+    try {
+      const created = await api<any>('/fee-rates', {
+        method: 'POST',
+        body: JSON.stringify({
+          vehicleCategory: category,
+          itemName: name,
+          price: Number(draft?.price) || 0,
+        }),
+      });
+      setFeeRates((rates) => [...rates, created]);
+      setNewFeeRateDraft((d) => ({ ...d, [category]: { name: '', price: '' } }));
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function moveFeeRateItem(category: string, id: number, direction: -1 | 1) {
+    const rows = feeRates
+      .filter((r) => r.vehicleCategory === category)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const idx = rows.findIndex((r) => r.id === id);
+    const swapIdx = idx + direction;
+
+    if (idx < 0 || swapIdx < 0 || swapIdx >= rows.length) return;
+
+    const reordered = [...rows];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    const orderedIds = reordered.map((r) => r.id);
+
+    setFeeRates((rates) =>
+      rates.map((r) => {
+        const newIndex = orderedIds.indexOf(r.id);
+        return newIndex >= 0 ? { ...r, sortOrder: newIndex } : r;
+      }),
+    );
+
+    try {
+      await api('/fee-rates/reorder', {
+        method: 'POST',
+        body: JSON.stringify({ vehicleCategory: category, orderedIds }),
+      });
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+      load();
+    }
   }
 
   if (!company || !settings) {
@@ -211,66 +324,83 @@ export default function SettingsPage() {
         </Link>
       </div>
 
-      <div className="panel mb-4">
-        <h2 className="disp text-xl mb-3">社員用LINE通知</h2>
-        <p className="note mb-3">
-          このQRコードを社員のLINEで読み取っていただくと、毎朝6時ごろに本日のご予約と、車検満了日が2ヶ月以内のお客様一覧(お名前・車両名・電話番号・住所)が届きます。
-          お客様用の連携コードとは別枠なので、お客様には表示しないでください。
-        </p>
+      {!isStaff && (
+        <div className="panel mb-4">
+          <h2 className="disp text-xl mb-3">社員用LINE連携・ログイン</h2>
+          <p className="note mb-3">
+            このQRコードを社員のLINEで読み取っていただくと、毎朝6時ごろに本日のご予約と、車検満了日が2ヶ月以内のお客様一覧(お名前・車両名・電話番号・住所)が届くほか、会社パスワードを教えなくても「入室ID」でガレージ・カルテにログインできるようになります。
+            お客様用の連携コードとは別枠なので、お客様には表示しないでください。連携を解除すると、その社員はログインもできなくなります。
+          </p>
 
-        {staffJoinCode && (
-          <div className="flex flex-wrap items-start gap-6">
-            {LINE_BASIC_ID ? (
-              <div className="text-center">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                    `https://line.me/R/oaMessage/${LINE_BASIC_ID}/?${encodeURIComponent('GKSTAFF-' + staffJoinCode)}`,
-                  )}`}
-                  alt="社員用LINE参加QRコード"
-                  className="mx-auto"
-                  style={{ width: 180, height: 180 }}
-                />
-                <div className="mono mt-2 text-sm">GKSTAFF-{staffJoinCode}</div>
-              </div>
-            ) : (
-              <div className="text-sm">
-                参加コード：<span className="mono font-bold">GKSTAFF-{staffJoinCode}</span>
-              </div>
-            )}
-
-            <div className="flex-1 min-w-[220px]">
-              <div className="kicker mono text-xs text-[var(--muted)] mb-2">
-                登録済みスタッフ（{staffLinks.length}名）
-              </div>
-
-              {staffLinks.length === 0 ? (
-                <div className="empty">まだ誰も登録していません。</div>
+          {staffJoinCode && (
+            <div className="flex flex-wrap items-start gap-6">
+              {LINE_BASIC_ID ? (
+                <div className="text-center">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                      `https://line.me/R/oaMessage/${LINE_BASIC_ID}/?${encodeURIComponent('GKSTAFF-' + staffJoinCode)}`,
+                    )}`}
+                    alt="社員用LINE参加QRコード"
+                    className="mx-auto"
+                    style={{ width: 180, height: 180 }}
+                  />
+                  <div className="mono mt-2 text-sm">GKSTAFF-{staffJoinCode}</div>
+                </div>
               ) : (
-                staffLinks.map((s) => (
-                  <div key={s.id} className="minirow">
-                    <span className="l">{s.displayName ?? '(表示名未取得)'}</span>
-                    <span className="r flex items-center gap-2">
-                      <span className="mono text-xs text-[var(--muted)]">
-                        {new Date(s.joinedAt).toLocaleDateString('ja-JP')}
-                      </span>
-                      <button
-                        onClick={() => removeStaffLink(s.id)}
-                        className="btn-icon"
-                        title="登録解除"
-                      >
-                        ✕
-                      </button>
-                    </span>
-                  </div>
-                ))
+                <div className="text-sm">
+                  参加コード：<span className="mono font-bold">GKSTAFF-{staffJoinCode}</span>
+                </div>
               )}
+
+              <div className="flex-1 min-w-[220px]">
+                <div className="kicker mono text-xs text-[var(--muted)] mb-2">
+                  登録済みスタッフ（{staffLinks.length}名）
+                </div>
+
+                {staffLinks.length === 0 ? (
+                  <div className="empty">まだ誰も登録していません。</div>
+                ) : (
+                  staffLinks.map((s) => (
+                    <div key={s.id} className="minirow">
+                      <span className="l">
+                        {s.displayName ?? '(表示名未取得)'}
+                        {s.staffAccessCode && (
+                          <span className="mono text-xs text-[var(--muted)] ml-2">
+                            入室ID: {s.staffAccessCode}
+                          </span>
+                        )}
+                      </span>
+                      <span className="r flex items-center gap-2">
+                        <span className="mono text-xs text-[var(--muted)]">
+                          {new Date(s.joinedAt).toLocaleDateString('ja-JP')}
+                        </span>
+                        <button
+                          onClick={() => regenerateStaffAccessCode(s.id)}
+                          className="btn-icon"
+                          title="入室IDを再発行"
+                        >
+                          🔄
+                        </button>
+                        <button
+                          onClick={() => removeStaffLink(s.id)}
+                          className="btn-icon"
+                          title="登録解除"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       <GoogleCalendarIntegrationCard />
 
+      {!isStaff && (
       <div className="panel space-y-5 mb-4">
         <h2 className="disp text-xl">会社情報（見積書・請求書に使用）</h2>
 
@@ -319,6 +449,7 @@ export default function SettingsPage() {
           会社情報を保存
         </button>
       </div>
+      )}
 
       <div className="panel mb-4">
         <h2 className="disp text-xl mb-3">料金表（見積の自動入力に使用）</h2>
@@ -334,9 +465,11 @@ export default function SettingsPage() {
             CARGO: '貨物自動車',
           };
 
-          const rows = feeRates.filter((r) => r.vehicleCategory === category);
+          const rows = feeRates
+            .filter((r) => r.vehicleCategory === category)
+            .sort((a, b) => a.sortOrder - b.sortOrder);
 
-          if (rows.length === 0) return null;
+          const draft = newFeeRateDraft[category] ?? { name: '', price: '' };
 
           return (
             <div key={category} className="mb-4">
@@ -344,9 +477,42 @@ export default function SettingsPage() {
                 {CATEGORY_LABELS[category]}
               </div>
 
-              {rows.map((rate) => (
+              {rows.length === 0 && (
+                <div className="text-xs text-[var(--muted)] mb-2">項目がありません。</div>
+              )}
+
+              {rows.map((rate, i) => (
                 <div key={rate.id} className="minirow">
-                  <span className="l">{rate.itemName}</span>
+                  <span className="l flex items-center gap-1">
+                    <span className="flex flex-col">
+                      <button
+                        type="button"
+                        onClick={() => moveFeeRateItem(category, rate.id, -1)}
+                        disabled={i === 0}
+                        className="btn-icon"
+                        style={{ padding: 0, lineHeight: 1, opacity: i === 0 ? 0.3 : 1 }}
+                        title="上に移動"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveFeeRateItem(category, rate.id, 1)}
+                        disabled={i === rows.length - 1}
+                        className="btn-icon"
+                        style={{ padding: 0, lineHeight: 1, opacity: i === rows.length - 1 ? 0.3 : 1 }}
+                        title="下に移動"
+                      >
+                        ▼
+                      </button>
+                    </span>
+                    <input
+                      className="input"
+                      value={rate.itemName}
+                      onChange={(e) => renameFeeRateDraft(rate.id, e.target.value)}
+                      onBlur={() => submitFeeRateName(rate.id)}
+                    />
+                  </span>
                   <span className="r flex items-center gap-2">
                     <input
                       type="number"
@@ -362,14 +528,57 @@ export default function SettingsPage() {
                       }
                     />
                     円
+                    <button
+                      type="button"
+                      onClick={() => removeFeeRateItem(rate.id)}
+                      className="btn-icon"
+                      title="この項目を削除"
+                    >
+                      ✕
+                    </button>
                   </span>
                 </div>
               ))}
+
+              <div className="minirow">
+                <span className="l">
+                  <input
+                    className="input"
+                    placeholder="新しい項目名"
+                    value={draft.name}
+                    onChange={(e) =>
+                      setNewFeeRateDraft((d) => ({ ...d, [category]: { ...draft, name: e.target.value } }))
+                    }
+                  />
+                </span>
+                <span className="r flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="100"
+                    className="input"
+                    style={{ width: 100 }}
+                    placeholder="0"
+                    value={draft.price}
+                    onChange={(e) =>
+                      setNewFeeRateDraft((d) => ({ ...d, [category]: { ...draft, price: e.target.value } }))
+                    }
+                  />
+                  円
+                  <button
+                    type="button"
+                    onClick={() => addFeeRateItem(category)}
+                    className="btn btn-ghost btn-sm"
+                  >
+                    ＋追加
+                  </button>
+                </span>
+              </div>
             </div>
           );
         })}
       </div>
 
+      {!isStaff && (
       <div className="panel space-y-5 mb-4">
         <h2 className="disp text-xl">振込先情報（納品書・請求書に印刷されます）</h2>
 
@@ -431,6 +640,7 @@ export default function SettingsPage() {
           振込先を保存
         </button>
       </div>
+      )}
 
       <div className="panel space-y-5">
         <h2 className="disp text-xl">見積書設定</h2>

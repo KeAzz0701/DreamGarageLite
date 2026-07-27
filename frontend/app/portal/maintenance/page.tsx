@@ -2,9 +2,9 @@
 
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, extractErrorMessage } from '@/lib/api';
+import PortalHeader from '@/components/portal/PortalHeader';
 
 type ShakenCandidate = {
   vehicleId: number;
@@ -37,12 +37,18 @@ export default function PortalMaintenancePage() {
 
   return (
     <>
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="disp text-2xl">次回整備のおすすめ</h1>
-        <Link href="/portal" className="btn btn-ghost btn-sm">戻る</Link>
-      </div>
+      <PortalHeader title="次回整備のおすすめ" />
+      <div className="portal-body">
 
-      {error && <div className="panel"><div className="empty">{error}</div></div>}
+      {error && (
+        <div className="panel">
+          <div className="empty">
+            {error.includes('このプランではご利用いただけません')
+              ? 'この店舗ではおすすめ表示機能がまだご利用いただけません。店舗にお問い合わせいただくか、別の連携店舗に切り替えてご確認ください。'
+              : error}
+          </div>
+        </div>
+      )}
 
       {!error && !data && (
         <div className="text-center text-[var(--muted)] py-10">読み込み中...</div>
@@ -94,6 +100,7 @@ export default function PortalMaintenancePage() {
           ))}
         </div>
       )}
+      </div>
     </>
   );
 }

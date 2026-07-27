@@ -5,7 +5,7 @@ import { VehicleCategory } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { LicenseService } from '../license/license.service';
-import { FeeRateService, SHOP_SHAKEN_ITEMS } from '../fee-rate/fee-rate.service';
+import { FeeRateService } from '../fee-rate/fee-rate.service';
 
 interface EstimateItemDto {
   name: string;
@@ -113,16 +113,16 @@ export class EstimateService {
       apiKey ?? undefined,
     );
 
+    // 会社ごとに追加・削除・並び替えできる価格表(FeeRate)をそのまま項目として使う
     const shopRates = await this.feeRateService.getByCategory(vehicleCategory);
-    const rateMap = new Map(shopRates.map((r) => [r.itemName, r.price]));
 
     const items = [
       { name: '自動車重量税', unitPrice: legalFees.weightTax, quantity: 1, isFee: true },
       { name: '自賠責保険料', unitPrice: legalFees.insuranceFee, quantity: 1, isFee: true },
       { name: '印紙代', unitPrice: legalFees.stampFee, quantity: 1, isFee: true },
-      ...SHOP_SHAKEN_ITEMS.map((name) => ({
-        name,
-        unitPrice: rateMap.get(name) ?? 0,
+      ...shopRates.map((r) => ({
+        name: r.itemName,
+        unitPrice: r.price,
         quantity: 1,
         isFee: true,
       })),

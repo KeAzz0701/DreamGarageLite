@@ -75,16 +75,22 @@ export class LicenseService {
       throw new BadRequestException('Company not found');
     }
 
+    // 既に一度でも認証済みなら、activatedAtは変更しない。ここを毎回更新すると
+    // 同じライセンスキーを/licenseページで再入力するだけで無料お試し期間が
+    // 何度でも復活してしまう(既知の抜け穴として2026-07-27に修正)。
+    const existing = await this.prisma.license.findUnique({
+      where: { licenseKey },
+    });
+
     const license = await this.prisma.license.upsert({
 
       where: {
         licenseKey,
       },
 
-      update: {
-        activatedAt: new Date(),
-        status: 'ACTIVE',
-      },
+      update: existing?.activatedAt
+        ? { status: 'ACTIVE' }
+        : { activatedAt: new Date(), status: 'ACTIVE' },
 
       create: {
 
@@ -382,8 +388,11 @@ export class LicenseService {
     }
 
     if (plan === 'DEMO' && company.license.plan !== 'DEMO') {
-      const demoCount = await this.prisma.license.count({
-        where: { plan: 'DEMO' },
+      // this.prisma(テナントDB)は自社の1件しか見えないため、必ずマスターDBの
+      // currentPlanミラー列を使って全社を横断カウントする(修正前は自社1件しか
+      // 数えられず、実質10社制限が機能していなかった)
+      const demoCount = await this.masterPrisma.companyAccount.count({
+        where: { currentPlan: 'DEMO' },
       });
 
       if (demoCount >= DEMO_PLAN_CAPACITY) {

@@ -1,12 +1,14 @@
 // backend/src/auth/auth.controller.ts
 
-import { Body, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from './public.decorator';
-import { SESSION_COOKIE } from './session.service';
+import { SessionPayload, SESSION_COOKIE } from './session.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
 import { LoginRateLimitGuard } from '../common/login-rate-limit.guard';
+
+type AuthRequest = Request & { staffSession?: SessionPayload };
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -41,6 +43,27 @@ export class AuthController {
   }
 
   @Public()
+  @UseGuards(LoginRateLimitGuard)
+  @Post('staff-login')
+  async staffLogin(
+    @Body() body: { code: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { token, displayName, staffDisplayName } =
+      await this.authService.loginWithStaffCode(body?.code ?? '');
+
+    res.cookie(SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: isProd,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    return { displayName, staffDisplayName };
+  }
+
+  @Public()
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie(SESSION_COOKIE, { path: '/' });
@@ -48,12 +71,13 @@ export class AuthController {
   }
 
   @Get('me')
-  async me() {
+  async me(@Req() req: AuthRequest) {
     const company = this.tenantContext.current()!.company;
 
     return {
       displayName: company.displayName,
       companyCode: company.companyCode,
+      staffDisplayName: req.staffSession?.staffDisplayName ?? null,
     };
   }
 }

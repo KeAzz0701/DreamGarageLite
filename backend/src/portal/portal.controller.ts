@@ -7,6 +7,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -29,22 +30,37 @@ export class PortalController {
 
   @Get('me')
   async me(@Req() req: PortalRequest) {
-    return this.portalService.getMe(req.portalSession!.tenantCustomerId);
+    return this.portalService.getMe(
+      req.portalSession!.tenantCustomerId,
+      req.portalSession!.lineUserId,
+    );
   }
 
   @Get('service-history')
-  async serviceHistory(@Req() req: PortalRequest) {
-    return this.portalService.getServiceHistory(req.portalSession!.tenantCustomerId);
+  async serviceHistory(
+    @Req() req: PortalRequest,
+    @Query('companyAccountId') companyAccountId?: string,
+  ) {
+    return this.portalService.getServiceHistoryAcrossCompanies(
+      req.portalSession!.lineUserId,
+      companyAccountId ? Number(companyAccountId) : undefined,
+    );
   }
 
   @Get('maintenance-recommendations')
   async maintenanceRecommendations(@Req() req: PortalRequest) {
-    return this.portalService.getMaintenanceRecommendations(req.portalSession!.tenantCustomerId);
+    return this.portalService.getMaintenanceRecommendations(
+      req.portalSession!.tenantCustomerId,
+      req.portalSession!.lineUserId,
+    );
   }
 
   @Get('tire-wear')
   async tireWear(@Req() req: PortalRequest) {
-    return this.portalService.getTireWear(req.portalSession!.tenantCustomerId);
+    return this.portalService.getTireWear(
+      req.portalSession!.tenantCustomerId,
+      req.portalSession!.lineUserId,
+    );
   }
 
   @Post('competitor-estimate')
