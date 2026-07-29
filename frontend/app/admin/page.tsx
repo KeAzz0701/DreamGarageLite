@@ -64,6 +64,15 @@ interface ErrorReportRow {
   resolvedNote: string | null;
   resolvedAt: string | null;
   createdAt: string;
+  diagnosisNote: string | null;
+  diagnosisSuggestedFix: string | null;
+  diagnosedAt: string | null;
+}
+
+interface SystemAdminLineRow {
+  id: number;
+  lineUserId: string;
+  registeredAt: string;
 }
 
 export default function AdminPage() {
@@ -93,6 +102,10 @@ export default function AdminPage() {
   const [errorReports, setErrorReports] = useState<ErrorReportRow[]>([]);
   const [showResolvedReports, setShowResolvedReports] = useState(false);
 
+  const [systemAdminLines, setSystemAdminLines] = useState<SystemAdminLineRow[]>([]);
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState<{ code: string; expiresAt: string } | null>(null);
+
   useEffect(() => {
     api<{ ok: boolean; username: string | null }>('/admin/me')
       .then((me) => {
@@ -103,6 +116,7 @@ export default function AdminPage() {
         loadApiKeys();
         loadPlanRequests();
         loadErrorReports();
+        loadSystemAdminLines();
       })
       .catch(() => router.replace('/admin/login'));
   }, []);
@@ -111,6 +125,41 @@ export default function AdminPage() {
     try {
       const json = await api<ErrorReportRow[]>(`/admin/error-reports?resolved=${resolved}`);
       setErrorReports(json);
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function loadSystemAdminLines() {
+    try {
+      const json = await api<SystemAdminLineRow[]>('/admin/system-line');
+      setSystemAdminLines(json);
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function generateSystemAdminLineCode() {
+    setGeneratingCode(true);
+
+    try {
+      const result = await api<{ code: string; expiresAt: string }>('/admin/system-line/generate-code', {
+        method: 'POST',
+      });
+      setGeneratedCode(result);
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    } finally {
+      setGeneratingCode(false);
+    }
+  }
+
+  async function unregisterSystemAdminLine(row: SystemAdminLineRow) {
+    if (!window.confirm('このLINEへの通知を解除しますか？')) return;
+
+    try {
+      await api(`/admin/system-line/${row.id}`, { method: 'DELETE' });
+      await loadSystemAdminLines();
     } catch (e: any) {
       alert(extractErrorMessage(e));
     }
@@ -711,6 +760,27 @@ export default function AdminPage() {
                       />
                     </a>
                   )}
+                  {r.diagnosisNote && (
+                    <div
+                      className="mt-2 p-2"
+                      style={{ background: 'var(--paper-dim)', borderRadius: 6, fontSize: 12.5 }}
+                    >
+                      <div className="text-xs text-[var(--muted)] mb-1">
+                        🔍 自動診断結果
+                        {r.diagnosedAt && `(${new Date(r.diagnosedAt).toLocaleString('ja-JP')})`}
+                      </div>
+                      <div>
+                        <b>原因: </b>
+                        {r.diagnosisNote}
+                      </div>
+                      {r.diagnosisSuggestedFix && (
+                        <div className="mt-1">
+                          <b>修正方針: </b>
+                          {r.diagnosisSuggestedFix}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {r.resolved && (
                     <div className="mt-2">
                       <span className="badge-ok">
@@ -729,6 +799,45 @@ export default function AdminPage() {
                   {r.resolved ? '未対応に戻す' : '✅ 訂正済みにする'}
                 </button>
               </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="panel mt-4">
+        <h2 className="disp text-xl mb-3">運営者LINE通知の登録</h2>
+        <p className="note mb-3">
+          ここに登録したLINEアカウントにだけ、エラー報告などの運営者向け通知が届きます。
+          「登録コードを発行」を押して表示されたコードを、ガレージ・カルテの公式LINEに送信すると登録されます(10分間有効)。
+        </p>
+
+        <button onClick={generateSystemAdminLineCode} disabled={generatingCode} className="btn btn-blue mb-3">
+          {generatingCode ? '発行中...' : '🔑 登録コードを発行'}
+        </button>
+
+        {generatedCode && (
+          <div className="veh mb-3">
+            <div className="mono text-2xl font-bold text-center">{generatedCode.code}</div>
+            <div className="text-xs text-[var(--muted)] text-center mt-1">
+              このコードを公式LINEに送信してください({new Date(generatedCode.expiresAt).toLocaleTimeString('ja-JP')}まで有効)
+            </div>
+          </div>
+        )}
+
+        {systemAdminLines.length === 0 ? (
+          <div className="empty">登録されているLINEはありません。</div>
+        ) : (
+          systemAdminLines.map((row) => (
+            <div key={row.id} className="veh mb-2 flex justify-between items-center">
+              <div>
+                <span className="mono text-xs">{row.lineUserId}</span>
+                <span className="ml-2 text-xs text-[var(--muted)]">
+                  登録日: {new Date(row.registeredAt).toLocaleString('ja-JP')}
+                </span>
+              </div>
+              <button onClick={() => unregisterSystemAdminLine(row)} className="btn btn-ghost btn-sm">
+                解除
+              </button>
             </div>
           ))
         )}

@@ -10,6 +10,7 @@ import { GeminiModule } from '../gemini/gemini.module';
 import { OpenRouterModule } from '../openrouter/openrouter.module';
 import { LicenseModule } from '../license/license.module';
 import { AnnouncementModule } from '../announcement/announcement.module';
+import { SystemAdminLineModule } from '../system-admin-line/system-admin-line.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AnnouncementModule } from '../announcement/announcement.module';
     OpenRouterModule,
     LicenseModule,
     AnnouncementModule,
+    SystemAdminLineModule,
   ],
   controllers: [LineController],
   providers: [LineService],

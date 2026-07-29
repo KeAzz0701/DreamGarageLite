@@ -10,6 +10,7 @@ import { MasterPrismaService } from '../prisma/master-prisma.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
 import { LicenseService } from '../license/license.service';
 import { ErrorReportService } from '../error-report/error-report.service';
+import { SystemAdminLineService } from '../system-admin-line/system-admin-line.service';
 import { getEffectivePlanLimits, getTrialDaysRemaining } from '../common/plans';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -55,10 +56,23 @@ export class AdminService {
     private readonly licenseService: LicenseService,
     private readonly prisma: PrismaService,
     private readonly errorReportService: ErrorReportService,
+    private readonly systemAdminLineService: SystemAdminLineService,
   ) {}
 
   async listErrorReports(resolved = false) {
     return this.errorReportService.list(resolved);
+  }
+
+  generateSystemAdminLineCode() {
+    return this.systemAdminLineService.generateCode();
+  }
+
+  async listSystemAdminLines() {
+    return this.systemAdminLineService.list();
+  }
+
+  async unregisterSystemAdminLine(id: number) {
+    return this.systemAdminLineService.unregister(id);
   }
 
   async resolveErrorReport(id: number, note?: string) {
@@ -67,6 +81,10 @@ export class AdminService {
 
   async reopenErrorReport(id: number) {
     return this.errorReportService.reopen(id);
+  }
+
+  async setErrorReportDiagnosis(id: number, diagnosisNote: string, diagnosisSuggestedFix: string) {
+    return this.errorReportService.setDiagnosis(id, diagnosisNote, diagnosisSuggestedFix);
   }
 
   /**

@@ -18,6 +18,7 @@ import { GeminiService } from '../gemini/gemini.service';
 import { OpenRouterService } from '../openrouter/openrouter.service';
 import { LicenseService } from '../license/license.service';
 import { AnnouncementService } from '../announcement/announcement.service';
+import { SystemAdminLineService } from '../system-admin-line/system-admin-line.service';
 
 // 全社共有のLINE公式アカウントは、実際に稼働しているDream Garage社のチャンネルをそのまま使う
 const SHARED_LINE_CHANNEL_COMPANY_CODE = 'ZK5NBWM4';
@@ -169,6 +170,7 @@ export class LineService {
     private readonly openRouterService: OpenRouterService,
     private readonly licenseService: LicenseService,
     private readonly announcementService: AnnouncementService,
+    private readonly systemAdminLineService: SystemAdminLineService,
   ) {}
 
   /** 指定した会社をテナントコンテキストとして確立した状態でfnを実行する */
@@ -383,6 +385,15 @@ export class LineService {
 
     const trimmed = text.trim();
     const upper = trimmed.toUpperCase();
+
+    // 運営者本人が管理画面で発行した登録コードと一致するかを、他のどの処理より先に確認する。
+    // 会社に紐づかないシステムレベルの操作のため、テナント文脈の解決より前に行う
+    if (await this.systemAdminLineService.tryConsumeCode(lineUserId, trimmed)) {
+      await this.reply(replyToken, [
+        { type: 'text', text: '✅ 運営者としてLINE通知の登録が完了しました。' },
+      ]);
+      return;
+    }
 
     const staffJoinMatch = upper.match(STAFF_JOIN_PATTERN);
 

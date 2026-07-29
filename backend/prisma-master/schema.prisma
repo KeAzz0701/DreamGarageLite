@@ -8,6 +8,17 @@ datasource db {
   url      = env("DATABASE_URL_MASTER")
 }
 
+// 運営者本人が「自分のLINE」として管理画面から登録したLINEユーザーID。
+// エラー報告などの運営者向けシステム通知は、ここに登録されている人にだけ送る。
+// 以前は環境変数(SYSTEM_ADMIN_LINE_USER_ID)を手動設定していたが、
+// 「Dream Garageの社員として連携したIDを流用する」という間に合わせだったため、
+// 管理画面から正式に登録できるこの仕組みに置き換える。
+model SystemAdminLine {
+  id           Int      @id @default(autoincrement())
+  lineUserId   String   @unique
+  registeredAt DateTime @default(now())
+}
+
 model CompanyAccount {
   id           Int      @id @default(autoincrement())
 
@@ -115,6 +126,12 @@ model ErrorReport {
   resolved         Boolean        @default(false)
   resolvedNote     String?
   resolvedAt       DateTime?
+
+  // 自動診断エージェント(スケジュール実行)が調査した原因・修正方針。実際のコード変更は行わず、
+  // ここに書かれた内容を運営者本人が管理画面で確認し、デプロイするかどうかを判断する
+  diagnosisNote        String?
+  diagnosisSuggestedFix String?
+  diagnosedAt          DateTime?
 
   createdAt        DateTime       @default(now())
 }

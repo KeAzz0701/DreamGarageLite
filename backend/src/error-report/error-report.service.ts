@@ -3,6 +3,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MasterPrismaService } from '../prisma/master-prisma.service';
 import { LineService } from '../line/line.service';
+import { SystemAdminLineService } from '../system-admin-line/system-admin-line.service';
 
 @Injectable()
 export class ErrorReportService {
@@ -11,6 +12,7 @@ export class ErrorReportService {
   constructor(
     private readonly masterPrisma: MasterPrismaService,
     private readonly lineService: LineService,
+    private readonly systemAdminLineService: SystemAdminLineService,
   ) {}
 
   async create(data: {
@@ -33,9 +35,9 @@ export class ErrorReportService {
       },
     });
 
-    const adminLineUserId = process.env.SYSTEM_ADMIN_LINE_USER_ID;
+    const adminLineUserIds = await this.systemAdminLineService.listLineUserIds();
 
-    if (adminLineUserId) {
+    if (adminLineUserIds.length > 0) {
       const text =
         `🚨 エラー報告が届きました\n` +
         `会社: ${data.companyName}\n` +
@@ -43,21 +45,23 @@ export class ErrorReportService {
         (data.message ? `内容: ${data.message}\n` : '') +
         (data.userAgent ? `環境: ${data.userAgent}` : '');
 
-      try {
-        // 運営者向けのシステム通知であり、たまたま同じLINE IDが何らかの会社の顧客と
-        // 一致していてもその顧客とのやり取りとしてログに残らないようにする
-        await this.lineService.pushMessage(
-          adminLineUserId,
-          [{ type: 'text', text }],
-          undefined,
-          false,
-          true,
-        );
-      } catch (err) {
-        this.logger.warn(`エラー報告のLINE通知送信に失敗しました: ${err}`);
+      for (const adminLineUserId of adminLineUserIds) {
+        try {
+          // 運営者向けのシステム通知であり、たまたま同じLINE IDが何らかの会社の顧客と
+          // 一致していてもその顧客とのやり取りとしてログに残らないようにする
+          await this.lineService.pushMessage(
+            adminLineUserId,
+            [{ type: 'text', text }],
+            undefined,
+            false,
+            true,
+          );
+        } catch (err) {
+          this.logger.warn(`エラー報告のLINE通知送信に失敗しました: ${err}`);
+        }
       }
     } else {
-      this.logger.warn('SYSTEM_ADMIN_LINE_USER_ID が未設定のため、LINE通知をスキップしました。');
+      this.logger.warn('運営者LINEが未登録のため、LINE通知をスキップしました。');
     }
 
     return report;
@@ -91,6 +95,18 @@ export class ErrorReportService {
     return this.masterPrisma.errorReport.update({
       where: { id },
       data: { resolved: false, resolvedNote: null, resolvedAt: null },
+    });
+  }
+
+  /** 自動診断エージェント(スケジュール実行)が調査結果を登録する。コード変更は行わず、原因と修正方針のテキストのみ */
+  async setDiagnosis(id: number, diagnosisNote: string, diagnosisSuggestedFix: string) {
+    return this.masterPrisma.errorReport.update({
+      where: { id },
+      data: {
+        diagnosisNote,
+        diagnosisSuggestedFix,
+        diagnosedAt: new Date(),
+      },
     });
   }
 }

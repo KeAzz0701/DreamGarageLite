@@ -189,4 +189,37 @@ export class AdminController {
     return this.adminService.reopenErrorReport(id);
   }
 
+  /** 自動診断エージェント(スケジュール実行)専用。コードは変更せず、原因と修正方針のテキストのみ登録する */
+  @UseGuards(AdminAuthGuard)
+  @Patch('error-reports/:id/diagnosis')
+  async setErrorReportDiagnosis(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { diagnosisNote?: string; diagnosisSuggestedFix?: string },
+  ) {
+    return this.adminService.setErrorReportDiagnosis(
+      id,
+      body?.diagnosisNote ?? '',
+      body?.diagnosisSuggestedFix ?? '',
+    );
+  }
+
+  /** 運営者本人のLINE登録。1回限りの登録コードを発行し、それをLINEで送信すると連携される */
+  @UseGuards(AdminAuthGuard)
+  @Post('system-line/generate-code')
+  generateSystemAdminLineCode() {
+    return this.adminService.generateSystemAdminLineCode();
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Get('system-line')
+  async listSystemAdminLines() {
+    return this.adminService.listSystemAdminLines();
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Delete('system-line/:id')
+  async unregisterSystemAdminLine(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.unregisterSystemAdminLine(id);
+  }
+
 }
