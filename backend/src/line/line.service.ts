@@ -119,6 +119,25 @@ function buildStaffMenuQuickReply(staffAccessCode?: string): messagingApi.QuickR
   return { items };
 }
 
+/**
+ * 顧客ポータルへの入口ボタン。LIFF専用リンクではなく通常のhttpsリンクにしているのは、
+ * frontend/lib/portal-liff.tsのinitLiff()がwithLoginOnExternalBrowser:trueで
+ * 初期化しているため、LINE内蔵ブラウザ以外(通常のブラウザ)からでも認証できるため。
+ * お客様専用の導線であり、社員向けメニューには含めない。
+ */
+function buildPortalQuickReplyItem(): messagingApi.QuickReplyItem {
+  const appUrl = process.env.PUBLIC_APP_URL ?? 'https://app.dreamgaragelite.com';
+
+  return {
+    type: 'action',
+    action: {
+      type: 'uri',
+      label: '🌐 マイページを開く',
+      uri: `${appUrl}/portal`,
+    },
+  };
+}
+
 type LinkWithCompany = {
   lineUserId: string;
   companyAccountId: number;
@@ -1681,6 +1700,7 @@ export class LineService {
                   displayText: '予約確認',
                 },
               },
+              buildPortalQuickReplyItem(),
             ],
           },
         },
@@ -1694,6 +1714,7 @@ export class LineService {
         altText: 'オススメメニュー',
         contents:
           bubbles.length === 1 ? bubbles[0] : { type: 'carousel', contents: bubbles.slice(0, 10) },
+        quickReply: { items: [buildPortalQuickReplyItem()] },
       },
     ]);
   }
