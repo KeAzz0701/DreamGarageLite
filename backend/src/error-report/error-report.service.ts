@@ -44,7 +44,15 @@ export class ErrorReportService {
         (data.userAgent ? `環境: ${data.userAgent}` : '');
 
       try {
-        await this.lineService.pushMessage(adminLineUserId, [{ type: 'text', text }]);
+        // 運営者向けのシステム通知であり、たまたま同じLINE IDが何らかの会社の顧客と
+        // 一致していてもその顧客とのやり取りとしてログに残らないようにする
+        await this.lineService.pushMessage(
+          adminLineUserId,
+          [{ type: 'text', text }],
+          undefined,
+          false,
+          true,
+        );
       } catch (err) {
         this.logger.warn(`エラー報告のLINE通知送信に失敗しました: ${err}`);
       }

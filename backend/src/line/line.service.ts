@@ -2471,6 +2471,10 @@ export class LineService {
     messages: messagingApi.Message[],
     shopLabel?: string,
     appLinkButton?: boolean,
+    // エラー報告など、顧客・社員宛てではない運営者向けのシステム通知をpushMessageで
+    // 送る場合にtrueを渡す。送信先IDがたまたま何らかの会社の顧客と一致していても、
+    // その顧客とのやり取りとして誤ってログに残さないようにするため
+    skipCustomerLog = false,
   ) {
     const client = await this.getClient();
 
@@ -2491,7 +2495,7 @@ export class LineService {
     // 残すと、次のAI応答生成時にその会話履歴を読んだAIが「自分の過去の発言」を真似て
     // 自らプレフィックスを付けはじめ、そこにさらにこちら側のプレフィックスが重なって
     // 【店舗名】が二重に表示される不具合になる
-    if (this.tenantContext.current()) {
+    if (!skipCustomerLog && this.tenantContext.current()) {
       const customer = await this.customerService.findByLineUserId(lineUserId);
 
       if (customer) {
