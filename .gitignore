@@ -1,2 +1,3 @@
 # 外部ツール(バイナリ)。各自ダウンロードして配置する想定
 /tools/
+.claude/settings.local.json

@@ -5,6 +5,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { formatFlexibleDate } from '@/lib/japaneseDate';
 
 type Customer = {
   id: number;
@@ -128,7 +129,7 @@ export default function Home() {
                   {r.customerName}様 {r.vehicleLabel}
                   {r.registrationNumber ? `(${r.registrationNumber})` : ''}
                 </Link>
-                　車検満了: {r.expirationDate}
+                　車検満了: {formatFlexibleDate(r.expirationDate)}
                 {r.daysRemaining >= 0 && (
                   <span className="ml-1 text-[var(--muted)]">(あと{r.daysRemaining}日)</span>
                 )}

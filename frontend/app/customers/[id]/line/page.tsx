@@ -58,6 +58,8 @@ export default function CustomerLinePage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+  const prevMessageCountRef = useRef(0);
 
   useEffect(() => {
     api<Customer>(`/customer/${customerId}`).then(setCustomer).catch(() => {});
@@ -72,8 +74,26 @@ export default function CustomerLinePage() {
   }, [customerId, loaded, lineHistoryAllowed]);
 
   useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+    const el = logRef.current;
+    if (!el) return;
+
+    const hasNewMessages = messages.length > prevMessageCountRef.current;
+    const isInitialLoad = prevMessageCountRef.current === 0;
+
+    // 新しいメッセージが届いた時、既に一番下を見ていた場合だけ追従する。
+    // 過去の履歴をさかのぼって見ている最中に、ポーリングで最新へ引き戻されないようにする
+    if (isInitialLoad || (hasNewMessages && isNearBottomRef.current)) {
+      el.scrollTo({ top: el.scrollHeight });
+    }
+
+    prevMessageCountRef.current = messages.length;
   }, [messages]);
+
+  function handleLogScroll() {
+    const el = logRef.current;
+    if (!el) return;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }
 
   async function loadMessages() {
     try {
@@ -140,7 +160,7 @@ export default function CustomerLinePage() {
         </div>
       ) : (
         <div className="panel chat-shell">
-          <div className="chat-log" ref={logRef}>
+          <div className="chat-log" ref={logRef} onScroll={handleLogScroll}>
             {messages.length === 0 ? (
               <div className="empty">まだメッセージのやり取りがありません。</div>
             ) : (

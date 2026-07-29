@@ -5,7 +5,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { parseFlexibleDate } from '@/lib/japaneseDate';
+import { parseFlexibleDate, formatFlexibleDate } from '@/lib/japaneseDate';
 import { normalizeForSearch } from '@/lib/kana';
 
 type Vehicle = {
@@ -151,7 +151,7 @@ ${v.customer?.customerName}
                   <div className="mt-2 text-xs text-[var(--muted)]">
                     車検満了
                     <div className="mono font-bold text-[var(--ink)]">
-                      {vehicle.expirationDate || '-'}
+                      {formatFlexibleDate(vehicle.expirationDate) || '-'}
                     </div>
                   </div>
                 </div>

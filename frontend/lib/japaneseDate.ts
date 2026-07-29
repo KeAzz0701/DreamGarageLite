@@ -37,3 +37,19 @@ export function parseFlexibleDate(str: string | null | undefined): Date | null {
 
   return isNaN(d.getTime()) ? null : d;
 }
+
+/**
+ * 車検証OCRの結果には「令和8年8月20日」「2026-09-10」など和暦・西暦が混在するため、
+ * 表示前に "YYYY-MM-DD" へ揃える。解釈できない文字列はそのまま返す
+ */
+export function formatFlexibleDate(str: string | null | undefined): string {
+  if (!str) return '';
+
+  const d = parseFlexibleDate(str);
+  if (!d) return str;
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}

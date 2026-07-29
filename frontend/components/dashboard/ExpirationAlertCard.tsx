@@ -3,6 +3,7 @@
 'use client';
 
 import Link from 'next/link';
+import { parseFlexibleDate } from '@/lib/japaneseDate';
 
 interface Vehicle {
   id: number;
@@ -21,7 +22,9 @@ interface Props {
 function calcRemain(date?: string | null) {
   if (!date) return null;
 
-  const target = new Date(date);
+  const target = parseFlexibleDate(date);
+  if (!target) return null;
+
   const today = new Date();
 
   target.setHours(0, 0, 0, 0);

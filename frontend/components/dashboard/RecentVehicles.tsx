@@ -3,6 +3,7 @@
 'use client';
 
 import Link from 'next/link';
+import { formatFlexibleDate } from '@/lib/japaneseDate';
 
 interface Vehicle {
   id: number;
@@ -53,7 +54,7 @@ export default function RecentVehicles({
             </div>
             <div>{vehicle.model}</div>
             <div className="text-[var(--orange)]">
-              車検：{vehicle.expirationDate || '-'}
+              車検：{formatFlexibleDate(vehicle.expirationDate) || '-'}
             </div>
           </div>
         </Link>

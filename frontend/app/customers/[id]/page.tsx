@@ -8,6 +8,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { api, extractErrorMessage } from '@/lib/api';
 import { usePlanLimits } from '@/lib/usePlanLimits';
 import { PlanGatedLink } from '@/components/ui/PlanGatedLink';
+import { formatFlexibleDate } from '@/lib/japaneseDate';
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID;
 
@@ -352,7 +353,7 @@ export default function CustomerDetailPage() {
               <div className="mt-2 text-sm">
                 車検満了日：
                 <span className="font-semibold">
-                  {vehicle.expirationDate || '-'}
+                  {formatFlexibleDate(vehicle.expirationDate) || '-'}
                 </span>
               </div>
             </Link>

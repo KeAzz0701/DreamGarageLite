@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { api, extractErrorMessage } from '@/lib/api';
 import PortalHeader from '@/components/portal/PortalHeader';
+import { formatFlexibleDate } from '@/lib/japaneseDate';
 
 type ShakenCandidate = {
   vehicleId: number;
@@ -66,7 +67,7 @@ export default function PortalMaintenancePage() {
           {data.shaken.map((c) => (
             <div key={c.vehicleId} className="veh mb-2">
               <div className="font-semibold">{c.vehicleLabel}</div>
-              <div className="text-sm">車検満了: {c.expirationDate}</div>
+              <div className="text-sm">車検満了: {formatFlexibleDate(c.expirationDate)}</div>
             </div>
           ))}
         </div>

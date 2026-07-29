@@ -27,7 +27,6 @@ import { LineService } from '../line/line.service';
 
 @Controller('ocr')
 @UseGuards(LicenseGuard)
-@UseInterceptors(LicenseInterceptor)
 export class OcrController {
   private readonly logger = new Logger(OcrController.name);
 
@@ -40,7 +39,7 @@ export class OcrController {
   ) {}
 
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file'), LicenseInterceptor)
   async upload(
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,

@@ -100,6 +100,7 @@ export default function AdminPage() {
   const [processingPlanRequest, setProcessingPlanRequest] = useState<number | null>(null);
 
   const [errorReports, setErrorReports] = useState<ErrorReportRow[]>([]);
+  const [zoomedScreenshot, setZoomedScreenshot] = useState<string | null>(null);
   const [showResolvedReports, setShowResolvedReports] = useState(false);
 
   const [systemAdminLines, setSystemAdminLines] = useState<SystemAdminLineRow[]>([]);
@@ -744,7 +745,11 @@ export default function AdminPage() {
                     <div className="text-xs text-[var(--muted)] mt-1">環境: {r.userAgent}</div>
                   )}
                   {r.screenshotBase64 && (
-                    <a href={r.screenshotBase64} target="_blank" rel="noreferrer">
+                    <button
+                      type="button"
+                      onClick={() => setZoomedScreenshot(r.screenshotBase64)}
+                      style={{ display: 'block', padding: 0, border: 0, background: 'none', cursor: 'zoom-in' }}
+                    >
                       <img
                         src={r.screenshotBase64}
                         alt="報告時のスクリーンショット"
@@ -758,7 +763,7 @@ export default function AdminPage() {
                           marginTop: 8,
                         }}
                       />
-                    </a>
+                    </button>
                   )}
                   {r.diagnosisNote && (
                     <div
@@ -842,6 +847,29 @@ export default function AdminPage() {
           ))
         )}
       </div>
+
+      {zoomedScreenshot && (
+        <div
+          onClick={() => setZoomedScreenshot(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.85)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            cursor: 'zoom-out',
+          }}
+        >
+          <img
+            src={zoomedScreenshot}
+            alt="報告時のスクリーンショット(拡大)"
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }}
+          />
+        </div>
+      )}
 
     </div>
   );

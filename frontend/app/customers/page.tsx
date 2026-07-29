@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { usePlanLimits } from '@/lib/usePlanLimits';
 import { PlanGatedLink } from '@/components/ui/PlanGatedLink';
 import { normalizeForSearch } from '@/lib/kana';
+import { formatFlexibleDate } from '@/lib/japaneseDate';
 
 type Vehicle = {
   id: number;
@@ -142,7 +143,7 @@ export default function CustomerPage() {
 
                     <div className="text-sm">
                       車検満了：
-                      {v.expirationDate || '-'}
+                      {formatFlexibleDate(v.expirationDate) || '-'}
                     </div>
                   </div>
                 ))}

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { initLiff, isLoggedIn, loginWithLiff, getIdToken } from '@/lib/portal-liff';
+import { formatFlexibleDate } from '@/lib/japaneseDate';
 
 type Vehicle = {
   id: number;
@@ -215,7 +216,7 @@ export default function PortalHomePage() {
               </div>
               <div className="text-sm text-[var(--muted)]">{v.registrationNumber}</div>
               <div className="mt-1 text-sm">
-                車検満了日：<span className="font-semibold">{v.expirationDate || '-'}</span>
+                車検満了日：<span className="font-semibold">{formatFlexibleDate(v.expirationDate) || '-'}</span>
               </div>
             </div>
           ))

@@ -48,6 +48,8 @@ export class GeminiService {
 
 commonModelName には、carName（車名/メーカー名）と model（型式）から、あなたの知識をもとに一般的に知られている車種名（例:プリウス、ノア、フィット、セレナ）を日本語で推測して入れてください。自信が持てない場合は "" にしてください。
 
+firstRegistration と expirationDate は、車検証に和暦（令和/平成など）で印字されていても、必ず西暦の "YYYY-MM-DD" 形式に変換して返してください。
+
 {
   "registrationNumber":"",
   "vin":"",
