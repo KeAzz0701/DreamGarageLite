@@ -11,6 +11,7 @@ interface EstimateItemDto {
   name: string;
   quantity?: number;
   unitPrice?: number;
+  laborCost?: number;
   isFee?: boolean;
 }
 
@@ -31,12 +32,14 @@ function buildItemsData(items: EstimateItemDto[]) {
     .map((i) => {
       const quantity = Math.max(1, Number(i.quantity) || 1);
       const unitPrice = Number(i.unitPrice) || 0;
+      const laborCost = Number(i.laborCost) || 0;
 
       return {
         name: i.name.trim(),
         quantity,
         unitPrice,
-        cost: quantity * unitPrice,
+        laborCost,
+        cost: quantity * unitPrice + laborCost,
         isFee: Boolean(i.isFee),
       };
     });
@@ -180,6 +183,7 @@ export class EstimateService {
               cost: i.cost,
               quantity: i.quantity,
               unitPrice: i.unitPrice,
+              laborCost: i.laborCost,
               isFee: i.isFee,
             })),
           },

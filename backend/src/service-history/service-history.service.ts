@@ -9,6 +9,7 @@ interface ServiceHistoryItemDto {
   cost: number;
   quantity?: number;
   unitPrice?: number;
+  laborCost?: number;
   isFee?: boolean;
 }
 
@@ -34,12 +35,14 @@ function buildCorrectionItemsData(items: ServiceHistoryItemDto[]) {
     .map((i) => {
       const quantity = Math.max(1, Number(i.quantity) || 1);
       const unitPrice = Number(i.unitPrice) || 0;
+      const laborCost = Number(i.laborCost) || 0;
 
       return {
         name: i.name.trim(),
         quantity,
         unitPrice,
-        cost: quantity * unitPrice,
+        laborCost,
+        cost: quantity * unitPrice + laborCost,
         isFee: Boolean(i.isFee),
       };
     });

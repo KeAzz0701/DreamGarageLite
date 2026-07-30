@@ -5,6 +5,7 @@ interface PrintItem {
   name: string;
   quantity: number;
   unitPrice: number;
+  laborCost: number;
   cost: number;
   isFee: boolean;
 }
@@ -28,9 +29,10 @@ function ItemTable({
           <thead>
             <tr>
               <th>項目</th>
-              <th style={{ width: 50, textAlign: 'center' }}>数量</th>
-              <th style={{ width: 90, textAlign: 'right' }}>単価</th>
-              <th style={{ width: 100, textAlign: 'right' }}>金額</th>
+              <th style={{ width: 44, textAlign: 'center' }}>数量</th>
+              <th style={{ width: 90, textAlign: 'right' }}>部品・油脂代</th>
+              <th style={{ width: 80, textAlign: 'right' }}>技術料</th>
+              <th style={{ width: 90, textAlign: 'right' }}>金額</th>
             </tr>
           </thead>
           <tbody>
@@ -38,12 +40,17 @@ function ItemTable({
               <tr key={item.id}>
                 <td>{item.name}</td>
                 <td style={{ textAlign: 'center' }}>{item.quantity}</td>
-                <td style={{ textAlign: 'right' }}>¥{item.unitPrice.toLocaleString()}</td>
+                <td style={{ textAlign: 'right' }}>
+                  ¥{(item.quantity * item.unitPrice).toLocaleString()}
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  {item.laborCost ? `¥${item.laborCost.toLocaleString()}` : ''}
+                </td>
                 <td style={{ textAlign: 'right' }}>¥{item.cost.toLocaleString()}</td>
               </tr>
             ))}
             <tr>
-              <td colSpan={3} className="font-bold">
+              <td colSpan={4} className="font-bold">
                 {totalRowLabel}
               </td>
               <td className="font-bold mono" style={{ textAlign: 'right' }}>

@@ -159,7 +159,7 @@ export default function CustomerLinePage() {
           </div>
         </div>
       ) : (
-        <div className="panel chat-shell">
+        <div className="panel chat-shell line-style">
           <div className="chat-log" ref={logRef} onScroll={handleLogScroll}>
             {messages.length === 0 ? (
               <div className="empty">まだメッセージのやり取りがありません。</div>
@@ -169,11 +169,19 @@ export default function CustomerLinePage() {
                   key={m.id}
                   className={`chat-bubble-row ${m.direction === 'OUT' ? 'user' : 'model'}`}
                 >
-                  {m.lineOcrSubmissionId ? (
-                    <OcrImageBubble submissionId={m.lineOcrSubmissionId} />
-                  ) : (
-                    <div className="chat-bubble">{m.text}</div>
-                  )}
+                  <div className="chat-bubble-col">
+                    {m.lineOcrSubmissionId ? (
+                      <OcrImageBubble submissionId={m.lineOcrSubmissionId} />
+                    ) : (
+                      <div className="chat-bubble">{m.text}</div>
+                    )}
+                    <div className="chat-bubble-time">
+                      {new Date(m.createdAt).toLocaleTimeString('ja-JP', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                  </div>
                 </div>
               ))
             )}

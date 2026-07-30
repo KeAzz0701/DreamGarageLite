@@ -457,6 +457,7 @@ model ServiceHistoryItem {
 
   quantity          Float           @default(1)
   unitPrice         Int             @default(0)
+  laborCost         Int             @default(0)
   isFee             Boolean         @default(false)
 }
 
@@ -495,6 +496,7 @@ model EstimateItem {
 
   quantity    Float     @default(1)
   unitPrice   Int       @default(0)
+  laborCost   Int       @default(0)
   isFee       Boolean   @default(false)
 }
 

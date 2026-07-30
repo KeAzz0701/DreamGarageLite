@@ -374,6 +374,7 @@ export default function VehicleDetailPage() {
         name: it.name,
         quantity: String(it.quantity ?? 1),
         unitPrice: String(it.unitPrice ?? it.cost ?? 0),
+        laborCost: it.laborCost ? String(it.laborCost) : '',
         isFee: !!it.isFee,
       })),
     );
@@ -402,6 +403,7 @@ export default function VehicleDetailPage() {
               name: i.name,
               quantity: Number(i.quantity) || 1,
               unitPrice: Number(i.unitPrice) || 0,
+              laborCost: Number(i.laborCost) || 0,
               isFee: i.isFee,
             })),
           visibleInPortal: correctionVisibleInPortal,
@@ -431,6 +433,7 @@ export default function VehicleDetailPage() {
               name: i.name,
               quantity: Number(i.quantity) || 1,
               unitPrice: Number(i.unitPrice) || 0,
+              laborCost: Number(i.laborCost) || 0,
               isFee: i.isFee,
             })),
         }),
@@ -464,6 +467,7 @@ export default function VehicleDetailPage() {
           name: i.name,
           quantity: String(i.quantity ?? 1),
           unitPrice: String(i.unitPrice ?? i.cost ?? 0),
+          laborCost: '',
           isFee: i.isFee ?? true,
         })),
       );

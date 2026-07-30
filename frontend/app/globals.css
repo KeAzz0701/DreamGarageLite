@@ -349,6 +349,87 @@ button.card:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* 営業時間・定休日: 曜日ごとに1行へ圧縮し、休憩時間は必要な時だけ展開する */
+.hours-table {
+  display: flex;
+  flex-direction: column;
+}
+.hours-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.hours-row:first-child {
+  padding-top: 0;
+}
+.hours-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hours-day {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--paper-dim);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.hours-closed {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.hours-times {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.input-time {
+  width: auto;
+  min-width: 0;
+  margin-top: 0;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.hours-tilde {
+  color: var(--muted);
+  font-size: 12px;
+}
+.hours-break-toggle {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 11.5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hours-break-toggle.active {
+  color: var(--orange);
+  border-color: var(--orange);
+}
+.hours-break-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-left: 34px;
+}
 .shitemrow {
   display: grid;
   grid-template-columns: 1fr 100px 28px;
@@ -363,7 +444,7 @@ button.card:hover {
 }
 .shitemrow-detail {
   display: grid;
-  grid-template-columns: 1.6fr 64px 90px 90px 64px 28px;
+  grid-template-columns: 1.4fr 56px 80px 80px 84px 60px 28px;
   gap: 6px;
   margin-bottom: 6px;
   align-items: center;
@@ -802,8 +883,25 @@ button.minirow:hover {
 .chat-bubble-row.model {
   justify-content: flex-start;
 }
-.chat-bubble {
+.chat-bubble-col {
+  display: flex;
+  flex-direction: column;
   max-width: 82%;
+}
+.chat-bubble-row.user .chat-bubble-col {
+  align-items: flex-end;
+}
+.chat-bubble-row.model .chat-bubble-col {
+  align-items: flex-start;
+}
+.chat-bubble-time {
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 3px;
+  padding: 0 4px;
+}
+.chat-bubble {
+  max-width: 100%;
   padding: 10px 14px;
   border-radius: 14px;
   font-size: 14px;
@@ -854,6 +952,49 @@ button.minirow:hover {
 }
 .chat-input-bar .btn {
   flex-shrink: 0;
+}
+
+/* LINEやり取り画面: 社内AIチャットと骨格は共有しつつ、見た目だけLINEアプリ風にする */
+.chat-shell.line-style {
+  background: #92c890;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.10) 1px, transparent 1px);
+  background-size: 14px 14px;
+  border-radius: 12px;
+  padding: 14px 10px;
+}
+.chat-shell.line-style .chat-log {
+  gap: 4px;
+}
+.chat-shell.line-style .chat-bubble-row.user .chat-bubble {
+  background: #8de055;
+  color: #1e2023;
+  border-radius: 16px;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
+}
+.chat-shell.line-style .chat-bubble-row.model .chat-bubble {
+  background: white;
+  color: #1e2023;
+  border: none;
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
+}
+.chat-shell.line-style .chat-bubble-row.model .chat-bubble.pending {
+  color: var(--muted);
+  font-style: italic;
+}
+.chat-shell.line-style .chat-bubble-time {
+  color: rgba(30, 32, 35, 0.55);
+}
+.chat-shell.line-style .chat-input-bar {
+  border-top: none;
+  margin-top: 8px;
+}
+.chat-shell.line-style .chat-input-bar textarea {
+  border-radius: 20px;
+  padding: 10px 16px;
 }
 
 /* ==================== 顧客用ポータル(LIFF) ==================== */

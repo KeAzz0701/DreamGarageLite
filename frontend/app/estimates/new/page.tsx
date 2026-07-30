@@ -71,7 +71,8 @@ export default function NewEstimatePage() {
   }
 
   const total = items.reduce(
-    (sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
+    (sum, it) =>
+      sum + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0) + (Number(it.laborCost) || 0),
     0,
   );
 
@@ -94,6 +95,7 @@ export default function NewEstimatePage() {
           name: i.name,
           quantity: String(i.quantity ?? 1),
           unitPrice: String(i.unitPrice ?? i.cost ?? 0),
+          laborCost: '',
           isFee: i.isFee ?? true,
         })),
       );
@@ -133,6 +135,7 @@ export default function NewEstimatePage() {
               name: i.name,
               quantity: Number(i.quantity) || 1,
               unitPrice: Number(i.unitPrice) || 0,
+              laborCost: Number(i.laborCost) || 0,
               isFee: i.isFee,
             })),
         }),
