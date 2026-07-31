@@ -79,11 +79,8 @@ export default function ErrorReportButton() {
       <button
         onClick={openReport}
         disabled={capturing}
+        className="error-report-fab"
         style={{
-          position: 'fixed',
-          left: 16,
-          bottom: 16,
-          zIndex: 1000,
           borderRadius: 999,
           padding: '10px 16px',
           background: 'var(--danger)',
