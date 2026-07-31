@@ -24,8 +24,8 @@ export class FeeRateService {
     });
   }
 
-  /** 既存項目の価格・名称を更新する(id指定。名称変更にも使う) */
-  async update(id: number, data: { itemName?: string; price?: number }) {
+  /** 既存項目の価格・名称・区分を更新する(id指定。名称変更にも使う) */
+  async update(id: number, data: { itemName?: string; price?: number; isLaborItem?: boolean }) {
     const trimmedName = data.itemName?.trim();
 
     if (data.itemName !== undefined && !trimmedName) {
@@ -38,6 +38,7 @@ export class FeeRateService {
         data: {
           itemName: trimmedName,
           price: data.price,
+          isLaborItem: data.isLaborItem,
         },
       });
     } catch (e: any) {
@@ -49,7 +50,12 @@ export class FeeRateService {
   }
 
   /** 新しい項目を末尾に追加する */
-  async create(vehicleCategory: VehicleCategory, itemName: string, price: number) {
+  async create(
+    vehicleCategory: VehicleCategory,
+    itemName: string,
+    price: number,
+    isLaborItem = false,
+  ) {
     const name = itemName.trim();
 
     if (!name) {
@@ -67,6 +73,7 @@ export class FeeRateService {
           vehicleCategory,
           itemName: name,
           price,
+          isLaborItem,
           sortOrder: (last?.sortOrder ?? -1) + 1,
         },
       });

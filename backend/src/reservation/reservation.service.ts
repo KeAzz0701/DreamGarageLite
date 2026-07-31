@@ -355,17 +355,18 @@ export class ReservationService {
       const slotStartMinutes = t.getHours() * 60 + t.getMinutes();
       const slotEndMinutes = slotEnd.getHours() * 60 + slotEnd.getMinutes();
 
+      if (overlapsBreak(slotStartMinutes, slotEndMinutes, hours)) continue;
+
       const overlapReservation = existing.some(
         (r) => t < r.scheduledEnd && slotEnd > r.scheduledStart,
       );
-      const inBreak = overlapsBreak(slotStartMinutes, slotEndMinutes, hours);
       const outOfRange = t < min || t > max;
 
       slots.push({
         start: t,
         end: slotEnd,
         label: `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`,
-        available: !overlapReservation && !inBreak && !outOfRange,
+        available: !overlapReservation && !outOfRange,
       });
     }
 
@@ -561,16 +562,17 @@ export class ReservationService {
       const slotStartMinutes = t.getHours() * 60 + t.getMinutes();
       const slotEndMinutes = slotEnd.getHours() * 60 + slotEnd.getMinutes();
 
+      if (overlapsBreak(slotStartMinutes, slotEndMinutes, hours)) continue;
+
       const overlapReservation = existing.some(
         (r) => t < r.scheduledEnd && slotEnd > r.scheduledStart,
       );
-      const inBreak = overlapsBreak(slotStartMinutes, slotEndMinutes, hours);
 
       slots.push({
         start: t,
         end: slotEnd,
         label: `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`,
-        occupied: overlapReservation || inBreak,
+        occupied: overlapReservation,
       });
     }
 

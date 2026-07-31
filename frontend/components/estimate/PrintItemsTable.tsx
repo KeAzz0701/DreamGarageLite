@@ -10,6 +10,28 @@ interface PrintItem {
   isFee: boolean;
 }
 
+/** 法定費用・手数料(重量税・自賠責保険料・印紙代・検査代行手数料等)。金額は定額のため
+ *  部品代・技術料の内訳は持たず、ディーラー見積書のような枠付きの簡易リストで見せる */
+function LegalFeeBox({ items, totalRowLabel }: { items: PrintItem[]; totalRowLabel: string }) {
+  const subtotal = items.reduce((s, i) => s + i.cost, 0);
+
+  return (
+    <div className="print-legalfee-box">
+      <div className="print-legalfee-title">法定費用・手数料</div>
+      {items.map((item) => (
+        <div key={item.id} className="print-legalfee-row">
+          <span>{item.name}</span>
+          <span>¥{item.cost.toLocaleString()}</span>
+        </div>
+      ))}
+      <div className="print-legalfee-row print-legalfee-total">
+        <span>{totalRowLabel}</span>
+        <span>¥{subtotal.toLocaleString()}</span>
+      </div>
+    </div>
+  );
+}
+
 function ItemTable({
   items,
   label,
@@ -79,7 +101,7 @@ export function PrintItemsTable({
   if (feeItems.length > 0 && workItems.length > 0) {
     return (
       <>
-        <ItemTable items={feeItems} label="法定費用・手数料" totalRowLabel="小計" />
+        <LegalFeeBox items={feeItems} totalRowLabel="小計" />
         <ItemTable items={workItems} label="整備項目" totalRowLabel="小計" />
         <div
           className="flex justify-between mt-3 pt-2"
@@ -90,6 +112,10 @@ export function PrintItemsTable({
         </div>
       </>
     );
+  }
+
+  if (feeItems.length > 0) {
+    return <LegalFeeBox items={feeItems} totalRowLabel={totalRowLabel} />;
   }
 
   return <ItemTable items={items} totalRowLabel={totalRowLabel} />;

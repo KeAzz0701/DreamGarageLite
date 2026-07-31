@@ -120,14 +120,17 @@ export class EstimateService {
     const shopRates = await this.feeRateService.getByCategory(vehicleCategory);
 
     const items = [
-      { name: '自動車重量税', unitPrice: legalFees.weightTax, quantity: 1, isFee: true },
-      { name: '自賠責保険料', unitPrice: legalFees.insuranceFee, quantity: 1, isFee: true },
-      { name: '印紙代', unitPrice: legalFees.stampFee, quantity: 1, isFee: true },
+      { name: '自動車重量税', unitPrice: legalFees.weightTax, laborCost: 0, quantity: 1, isFee: true },
+      { name: '自賠責保険料', unitPrice: legalFees.insuranceFee, laborCost: 0, quantity: 1, isFee: true },
+      { name: '印紙代', unitPrice: legalFees.stampFee, laborCost: 0, quantity: 1, isFee: true },
+      // お店の料金表(部品代・整備工賃)は法定費用ではなく整備項目として扱う。
+      // 工賃区分(isLaborItem)の項目は技術料として、それ以外は部品代として反映する
       ...shopRates.map((r) => ({
         name: r.itemName,
-        unitPrice: r.price,
+        unitPrice: r.isLaborItem ? 0 : r.price,
+        laborCost: r.isLaborItem ? r.price : 0,
         quantity: 1,
-        isFee: true,
+        isFee: false,
       })),
     ];
 

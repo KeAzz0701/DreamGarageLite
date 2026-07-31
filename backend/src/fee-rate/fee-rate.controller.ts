@@ -21,24 +21,27 @@ export class FeeRateController {
       vehicleCategory: VehicleCategory;
       itemName: string;
       price: number;
+      isLaborItem?: boolean;
     },
   ) {
     return this.feeRateService.create(
       body.vehicleCategory,
       body.itemName,
       Number(body.price) || 0,
+      Boolean(body.isLaborItem),
     );
   }
 
-  /** 既存項目の名称・価格を更新する */
+  /** 既存項目の名称・価格・部品代/工賃区分を更新する */
   @Put(':id')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { itemName?: string; price?: number },
+    @Body() body: { itemName?: string; price?: number; isLaborItem?: boolean },
   ) {
     return this.feeRateService.update(id, {
       itemName: body.itemName,
       price: body.price === undefined ? undefined : Number(body.price) || 0,
+      isLaborItem: body.isLaborItem,
     });
   }
 

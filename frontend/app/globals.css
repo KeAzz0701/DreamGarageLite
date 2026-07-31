@@ -458,6 +458,89 @@ button.card:hover {
   gap: 6px;
   margin-top: 6px;
 }
+.hours-apply-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+.hours-apply-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--blue);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hours-apply-btn:hover {
+  border-color: var(--blue);
+  background: var(--paper-dim);
+}
+
+/* 料金表: 大分類ごとのアコーディオン */
+.feerate-category {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.feerate-category-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--paper-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.feerate-category-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.feerate-count {
+  background: white;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+.feerate-chevron {
+  color: var(--muted);
+  transition: transform 0.15s var(--ease);
+}
+.feerate-chevron.is-open {
+  transform: rotate(180deg);
+}
+.feerate-category-body {
+  padding: 10px 12px;
+}
+.feerate-type-toggle {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: white;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.feerate-type-toggle.parts {
+  color: var(--blue);
+  border-color: var(--blue);
+}
+.feerate-type-toggle.labor {
+  color: var(--orange);
+  border-color: var(--orange);
+}
 .shitemrow {
   display: grid;
   grid-template-columns: 1fr 100px 28px;
@@ -510,6 +593,12 @@ button.card:hover {
   .shitemrow-detail .subtotal {
     text-align: left;
     grid-column: 1 / -1;
+  }
+  .shitemrow-detail .btn-icon {
+    /* グリッドの1fr幅いっぱいに広がって誤タップしやすくなっていたため、ボタン自体は
+       アイコンの見た目サイズに留め、セル内で右端に寄せる */
+    justify-self: end;
+    padding: 8px 10px;
   }
 }
 .kicker {

@@ -14,13 +14,17 @@ export function emptyEstimateItem(): EstimateItemDraft {
   return { name: '', quantity: '1', unitPrice: '', laborCost: '', isFee: false };
 }
 
-/** 工賃項目のひな形。数量欄を工数(時間)として使い、単価には保存済みの時間単価を入れておく */
+/**
+ * 工賃のみの項目のひな形。技術料(laborCost)にそのまま金額を入れる形にしないと、
+ * 印刷時に「部品・油脂代」列に工賃の金額が表示されてしまう(技術料列は空のまま)
+ * という不具合があったため、単価(部品代)ではなく技術料へ初期値を入れる
+ */
 export function laborEstimateItem(hourlyRate: number | null | undefined): EstimateItemDraft {
   return {
     name: '工賃',
     quantity: '1',
-    unitPrice: hourlyRate ? String(hourlyRate) : '',
-    laborCost: '',
+    unitPrice: '',
+    laborCost: hourlyRate ? String(hourlyRate) : '',
     isFee: false,
   };
 }
@@ -50,7 +54,7 @@ export function EstimateItemRow({
         type="number"
         min={0}
         step="0.5"
-        placeholder="数量(工賃は工数)"
+        placeholder="数量"
         value={item.quantity}
         onChange={(e) => onChange({ quantity: e.target.value })}
       />

@@ -168,6 +168,33 @@ export default function ReservationsPage() {
     });
   }
 
+  /** ある曜日の営業時間(開始・終了・休憩)を、指定した曜日群にまとめてコピーする */
+  function applyHoursToDays(sourceWeekday: number, targetWeekdays: number[]) {
+    const source = hours.find((h) => h.weekday === sourceWeekday);
+    if (!source) return;
+
+    setHours((prev) =>
+      prev.map((h) =>
+        targetWeekdays.includes(h.weekday)
+          ? {
+              ...h,
+              isClosed: source.isClosed,
+              startTime: source.startTime,
+              endTime: source.endTime,
+              breakStartTime: source.breakStartTime,
+              breakEndTime: source.breakEndTime,
+            }
+          : h,
+      ),
+    );
+
+    if (source.breakStartTime || source.breakEndTime) {
+      setBreakOpenDays((prev) => new Set([...prev, ...targetWeekdays]));
+    }
+
+    setOpenDays((prev) => new Set([...prev, ...targetWeekdays]));
+  }
+
   function toggleDayOpen(weekday: number) {
     setOpenDays((prev) => {
       const next = new Set(prev);
@@ -434,6 +461,26 @@ export default function ReservationsPage() {
                             updateHour(h.weekday, { breakEndTime: e.target.value || null })
                           }
                         />
+                      </div>
+                    )}
+
+                    {!h.isClosed && (
+                      <div className="hours-apply-row">
+                        <span className="text-xs text-[var(--muted)]">この時間を適用:</span>
+                        <button
+                          type="button"
+                          className="hours-apply-btn"
+                          onClick={() => applyHoursToDays(h.weekday, [1, 2, 3, 4, 5])}
+                        >
+                          平日(月〜金)
+                        </button>
+                        <button
+                          type="button"
+                          className="hours-apply-btn"
+                          onClick={() => applyHoursToDays(h.weekday, [0, 1, 2, 3, 4, 5, 6])}
+                        >
+                          全曜日
+                        </button>
                       </div>
                     )}
                   </div>

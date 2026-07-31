@@ -30,8 +30,9 @@ export default function SettingsPage() {
   const [planRequests, setPlanRequests] = useState<any[]>([]);
   const [feeRates, setFeeRates] = useState<any[]>([]);
   const [newFeeRateDraft, setNewFeeRateDraft] = useState<
-    Record<string, { name: string; price: string }>
+    Record<string, { name: string; price: string; isLaborItem: boolean }>
   >({});
+  const [openFeeCategories, setOpenFeeCategories] = useState<Set<string>>(new Set());
   const [staffJoinCode, setStaffJoinCode] = useState('');
   const [staffLinks, setStaffLinks] = useState<
     { id: number; displayName: string | null; joinedAt: string; staffAccessCode: string | null }[]
@@ -203,6 +204,36 @@ export default function SettingsPage() {
     });
   }
 
+  async function toggleFeeRateLaborItem(id: number) {
+    const rate = feeRates.find((r) => r.id === id);
+    if (!rate) return;
+
+    const isLaborItem = !rate.isLaborItem;
+    setFeeRates((rates) => rates.map((r) => (r.id === id ? { ...r, isLaborItem } : r)));
+
+    try {
+      await api(`/fee-rates/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ isLaborItem }),
+      });
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+      load();
+    }
+  }
+
+  function toggleFeeCategoryOpen(category: string) {
+    setOpenFeeCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  }
+
   function renameFeeRateDraft(id: number, itemName: string) {
     setFeeRates((rates) => rates.map((r) => (r.id === id ? { ...r, itemName } : r)));
   }
@@ -246,10 +277,11 @@ export default function SettingsPage() {
           vehicleCategory: category,
           itemName: name,
           price: Number(draft?.price) || 0,
+          isLaborItem: Boolean(draft?.isLaborItem),
         }),
       });
       setFeeRates((rates) => [...rates, created]);
-      setNewFeeRateDraft((d) => ({ ...d, [category]: { name: '', price: '' } }));
+      setNewFeeRateDraft((d) => ({ ...d, [category]: { name: '', price: '', isLaborItem: false } }));
     } catch (e: any) {
       alert(extractErrorMessage(e));
     }
@@ -345,6 +377,17 @@ export default function SettingsPage() {
                     style={{ width: 180, height: 180 }}
                   />
                   <div className="mono mt-2 text-sm">GKSTAFF-{staffJoinCode}</div>
+                  <a
+                    href={`https://line.me/R/oaMessage/${LINE_BASIC_ID}/?${encodeURIComponent('GKSTAFF-' + staffJoinCode)}`}
+                    className="btn btn-primary btn-sm mt-2"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    💬 このスマホの公式LINEを開く
+                  </a>
+                  <div className="text-xs text-[var(--muted)] mt-1">
+                    タップすると公式LINEのトーク画面が開き、参加コードが入力欄に自動で入ります。送信ボタンを押すだけで連携完了です。
+                  </div>
                 </div>
               ) : (
                 <div className="text-sm">
@@ -469,110 +512,145 @@ export default function SettingsPage() {
             .filter((r) => r.vehicleCategory === category)
             .sort((a, b) => a.sortOrder - b.sortOrder);
 
-          const draft = newFeeRateDraft[category] ?? { name: '', price: '' };
+          const draft = newFeeRateDraft[category] ?? { name: '', price: '', isLaborItem: false };
+          const categoryOpen = openFeeCategories.has(category);
 
           return (
-            <div key={category} className="mb-4">
-              <div className="grouptitle text-xs font-semibold border-b border-[var(--line)] pb-1 mb-2">
-                {CATEGORY_LABELS[category]}
+            <div key={category} className="feerate-category mb-2">
+              <div
+                className="feerate-category-head"
+                onClick={() => toggleFeeCategoryOpen(category)}
+              >
+                <span className="feerate-category-title">
+                  {CATEGORY_LABELS[category]}
+                  <span className="feerate-count">{rows.length}</span>
+                </span>
+                <span className={`feerate-chevron ${categoryOpen ? 'is-open' : ''}`} aria-hidden>
+                  ▾
+                </span>
               </div>
 
-              {rows.length === 0 && (
-                <div className="text-xs text-[var(--muted)] mb-2">項目がありません。</div>
-              )}
+              {categoryOpen && (
+                <div className="feerate-category-body">
+                  {rows.length === 0 && (
+                    <div className="text-xs text-[var(--muted)] mb-2">項目がありません。</div>
+                  )}
 
-              {rows.map((rate, i) => (
-                <div key={rate.id} className="minirow">
-                  <span className="l flex items-center gap-1">
-                    <span className="flex flex-col">
+                  {rows.map((rate, i) => (
+                    <div key={rate.id} className="minirow">
+                      <span className="l flex items-center gap-1">
+                        <span className="flex flex-col">
+                          <button
+                            type="button"
+                            onClick={() => moveFeeRateItem(category, rate.id, -1)}
+                            disabled={i === 0}
+                            className="btn-icon"
+                            style={{ padding: 0, lineHeight: 1, opacity: i === 0 ? 0.3 : 1 }}
+                            title="上に移動"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveFeeRateItem(category, rate.id, 1)}
+                            disabled={i === rows.length - 1}
+                            className="btn-icon"
+                            style={{ padding: 0, lineHeight: 1, opacity: i === rows.length - 1 ? 0.3 : 1 }}
+                            title="下に移動"
+                          >
+                            ▼
+                          </button>
+                        </span>
+                        <input
+                          className="input"
+                          value={rate.itemName}
+                          onChange={(e) => renameFeeRateDraft(rate.id, e.target.value)}
+                          onBlur={() => submitFeeRateName(rate.id)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleFeeRateLaborItem(rate.id)}
+                          className={`feerate-type-toggle ${rate.isLaborItem ? 'labor' : 'parts'}`}
+                          title="部品代／技術料の区分を切り替え"
+                        >
+                          {rate.isLaborItem ? '🔧 技術料' : '🔩 部品代'}
+                        </button>
+                      </span>
+                      <span className="r flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="100"
+                          className="input"
+                          style={{ width: 100 }}
+                          value={rate.price}
+                          onChange={(e) =>
+                            saveFeeRate(rate.id, Number(e.target.value))
+                          }
+                          onBlur={() =>
+                            submitFeeRate(feeRates.find((r) => r.id === rate.id))
+                          }
+                        />
+                        円
+                        <button
+                          type="button"
+                          onClick={() => removeFeeRateItem(rate.id)}
+                          className="btn-icon"
+                          title="この項目を削除"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+
+                  <div className="minirow">
+                    <span className="l flex items-center gap-1">
+                      <input
+                        className="input"
+                        placeholder="新しい項目名"
+                        value={draft.name}
+                        onChange={(e) =>
+                          setNewFeeRateDraft((d) => ({ ...d, [category]: { ...draft, name: e.target.value } }))
+                        }
+                      />
                       <button
                         type="button"
-                        onClick={() => moveFeeRateItem(category, rate.id, -1)}
-                        disabled={i === 0}
-                        className="btn-icon"
-                        style={{ padding: 0, lineHeight: 1, opacity: i === 0 ? 0.3 : 1 }}
-                        title="上に移動"
+                        onClick={() =>
+                          setNewFeeRateDraft((d) => ({
+                            ...d,
+                            [category]: { ...draft, isLaborItem: !draft.isLaborItem },
+                          }))
+                        }
+                        className={`feerate-type-toggle ${draft.isLaborItem ? 'labor' : 'parts'}`}
+                        title="部品代／技術料の区分を切り替え"
                       >
-                        ▲
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveFeeRateItem(category, rate.id, 1)}
-                        disabled={i === rows.length - 1}
-                        className="btn-icon"
-                        style={{ padding: 0, lineHeight: 1, opacity: i === rows.length - 1 ? 0.3 : 1 }}
-                        title="下に移動"
-                      >
-                        ▼
+                        {draft.isLaborItem ? '🔧 技術料' : '🔩 部品代'}
                       </button>
                     </span>
-                    <input
-                      className="input"
-                      value={rate.itemName}
-                      onChange={(e) => renameFeeRateDraft(rate.id, e.target.value)}
-                      onBlur={() => submitFeeRateName(rate.id)}
-                    />
-                  </span>
-                  <span className="r flex items-center gap-2">
-                    <input
-                      type="number"
-                      step="100"
-                      className="input"
-                      style={{ width: 100 }}
-                      value={rate.price}
-                      onChange={(e) =>
-                        saveFeeRate(rate.id, Number(e.target.value))
-                      }
-                      onBlur={() =>
-                        submitFeeRate(feeRates.find((r) => r.id === rate.id))
-                      }
-                    />
-                    円
-                    <button
-                      type="button"
-                      onClick={() => removeFeeRateItem(rate.id)}
-                      className="btn-icon"
-                      title="この項目を削除"
-                    >
-                      ✕
-                    </button>
-                  </span>
+                    <span className="r flex items-center gap-2">
+                      <input
+                        type="number"
+                        step="100"
+                        className="input"
+                        style={{ width: 100 }}
+                        placeholder="0"
+                        value={draft.price}
+                        onChange={(e) =>
+                          setNewFeeRateDraft((d) => ({ ...d, [category]: { ...draft, price: e.target.value } }))
+                        }
+                      />
+                      円
+                      <button
+                        type="button"
+                        onClick={() => addFeeRateItem(category)}
+                        className="btn btn-ghost btn-sm"
+                      >
+                        ＋追加
+                      </button>
+                    </span>
+                  </div>
                 </div>
-              ))}
-
-              <div className="minirow">
-                <span className="l">
-                  <input
-                    className="input"
-                    placeholder="新しい項目名"
-                    value={draft.name}
-                    onChange={(e) =>
-                      setNewFeeRateDraft((d) => ({ ...d, [category]: { ...draft, name: e.target.value } }))
-                    }
-                  />
-                </span>
-                <span className="r flex items-center gap-2">
-                  <input
-                    type="number"
-                    step="100"
-                    className="input"
-                    style={{ width: 100 }}
-                    placeholder="0"
-                    value={draft.price}
-                    onChange={(e) =>
-                      setNewFeeRateDraft((d) => ({ ...d, [category]: { ...draft, price: e.target.value } }))
-                    }
-                  />
-                  円
-                  <button
-                    type="button"
-                    onClick={() => addFeeRateItem(category)}
-                    className="btn btn-ghost btn-sm"
-                  >
-                    ＋追加
-                  </button>
-                </span>
-              </div>
+              )}
             </div>
           );
         })}

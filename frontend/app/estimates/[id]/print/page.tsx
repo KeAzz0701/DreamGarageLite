@@ -106,6 +106,30 @@ export default function EstimatePrintPage() {
           text-align: right;
           min-width: 200px;
         }
+        .print-legalfee-box {
+          margin-top: 16px;
+          border: 1px solid #cfcabf;
+          border-radius: 6px;
+          background: #f5f3ee;
+          padding: 10px 14px;
+        }
+        .print-legalfee-title {
+          font-size: 12px;
+          font-weight: 700;
+          margin-bottom: 6px;
+        }
+        .print-legalfee-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 13px;
+          padding: 3px 0;
+        }
+        .print-legalfee-total {
+          margin-top: 4px;
+          padding-top: 6px;
+          border-top: 1px solid #cfcabf;
+          font-weight: 700;
+        }
         @media screen and (max-width: 560px) {
           .print-table-wrap {
             overflow-x: auto;

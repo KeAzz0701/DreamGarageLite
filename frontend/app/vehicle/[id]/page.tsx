@@ -12,6 +12,7 @@ import {
   laborEstimateItem,
   type EstimateItemDraft,
 } from '@/components/estimate/EstimateItemRow';
+import { inferVehicleCategory } from '@/lib/vehicleCategory';
 
 const DOCUMENT_TYPES = [
   {
@@ -466,8 +467,8 @@ export default function VehicleDetailPage() {
         result.items.map((i) => ({
           name: i.name,
           quantity: String(i.quantity ?? 1),
-          unitPrice: String(i.unitPrice ?? i.cost ?? 0),
-          laborCost: '',
+          unitPrice: i.unitPrice ? String(i.unitPrice) : '',
+          laborCost: i.laborCost ? String(i.laborCost) : '',
           isFee: i.isFee ?? true,
         })),
       );
@@ -1195,7 +1196,10 @@ export default function VehicleDetailPage() {
           <h2 className="disp text-xl">見積書</h2>
           {!showEstimateForm && (
             <button
-              onClick={() => setShowEstimateForm(true)}
+              onClick={() => {
+                setShowEstimateForm(true);
+                setEstimateVehicleCategory(inferVehicleCategory(vehicle));
+              }}
               className="btn btn-blue btn-sm"
             >
               ➕ 見積を作成

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, extractErrorMessage } from '@/lib/api';
 import { normalizeForSearch } from '@/lib/kana';
+import { inferVehicleCategory } from '@/lib/vehicleCategory';
 import {
   EstimateItemRow,
   emptyEstimateItem,
@@ -94,8 +95,8 @@ export default function NewEstimatePage() {
         result.items.map((i) => ({
           name: i.name,
           quantity: String(i.quantity ?? 1),
-          unitPrice: String(i.unitPrice ?? i.cost ?? 0),
-          laborCost: '',
+          unitPrice: i.unitPrice ? String(i.unitPrice) : '',
+          laborCost: i.laborCost ? String(i.laborCost) : '',
           isFee: i.isFee ?? true,
         })),
       );
@@ -209,7 +210,10 @@ export default function NewEstimatePage() {
                 <div
                   key={v.id}
                   className="minirow cursor-pointer"
-                  onClick={() => setSelectedVehicle(v)}
+                  onClick={() => {
+                    setSelectedVehicle(v);
+                    setVehicleCategory(inferVehicleCategory(v));
+                  }}
                 >
                   <span className="l">
                     {v.carName} {v.commonModelName}（{v.registrationNumber ?? '登録番号未登録'}）

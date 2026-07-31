@@ -217,6 +217,10 @@ model FeeRate {
   price           Int             @default(0)
   sortOrder       Int             @default(0)
 
+  // 車検見積の自動入力時、部品代(unitPrice)と技術料(laborCost)のどちらとして
+  // EstimateItemに反映するかを分けるためのフラグ
+  isLaborItem     Boolean         @default(false)
+
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
