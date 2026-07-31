@@ -1563,7 +1563,7 @@ button.minirow:hover {
     top: 0;
     left: 0;
     bottom: 0;
-    width: 252px;
+    width: 216px;
     display: flex;
     flex-direction: column;
     border-bottom: none;
@@ -1573,37 +1573,49 @@ button.minirow:hover {
   .gk-headrow {
     flex-direction: column;
     align-items: flex-start;
-    gap: 16px;
-    padding: 28px 22px 22px;
+    gap: 12px;
+    padding: 20px 16px 16px;
+  }
+  .gk-logo {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
   }
   .gk-apptitle {
-    font-size: 20px;
+    font-size: 17px;
+  }
+  .gk-subtitle {
+    font-size: 10px;
   }
   .gk-stats {
     flex-direction: column;
     align-items: stretch;
     width: 100%;
     margin-left: 0;
-    gap: 6px;
+    gap: 4px;
   }
   .gk-stats span,
   .gk-stats a {
     justify-content: flex-start;
     width: 100%;
     box-sizing: border-box;
+    padding: 4px 8px;
+    font-size: 11px;
   }
   .gk-tabs {
     flex-direction: column;
     align-items: stretch;
-    padding: 10px 14px 24px;
-    gap: 3px;
+    padding: 6px 10px 20px;
+    gap: 1px;
     overflow-x: visible;
   }
   .gk-tab-btn {
     border-bottom: none;
-    border-left: 3px solid transparent;
-    border-radius: 0 8px 8px 0;
-    padding: 12px 14px;
+    border-left: 2px solid transparent;
+    border-radius: 6px;
+    padding: 9px 12px;
+    font-size: 13px;
+    gap: 9px;
   }
   .gk-tab-btn:hover {
     background: rgba(255, 255, 255, 0.06);
@@ -1611,15 +1623,15 @@ button.minirow:hover {
   .gk-tab-btn.active {
     border-bottom-color: transparent;
     border-left-color: var(--orange);
-    background: rgba(232, 89, 46, 0.14);
+    background: rgba(232, 89, 46, 0.12);
   }
 
   main {
-    margin-left: 252px;
+    margin-left: 216px;
     margin-right: 0;
   }
 
   .error-report-fab {
-    left: 268px;
+    left: 232px;
   }
 }
