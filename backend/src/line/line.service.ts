@@ -49,6 +49,8 @@ const ANNOUNCEMENT_ACTION_SHOW = 'announcement_show';
 const RECOMMEND_ACTION_SHOW = 'recommend_show';
 const IMAGE_ACTION_PICK_COMPANY = 'image_pick_company';
 const SWITCH_ACTION_PICK_COMPANY = 'switch_pick_company';
+const SHAKEN_REMINDER_ACTION_RESERVE = 'shaken_reminder_reserve';
+const SHAKEN_REMINDER_ACTION_DISMISS = 'shaken_reminder_dismiss';
 const RESERVATION_CATEGORIES = [
   'オイル交換',
   'タイヤ交換',
@@ -1782,6 +1784,32 @@ export class LineService {
     };
   }
 
+  /** 車検満了リマインドのプッシュ通知に添える「予約する」「通知を止める」ボタン */
+  buildShakenReminderQuickReply(vehicleId: number, companyAccountId: number): messagingApi.QuickReply {
+    return {
+      items: [
+        {
+          type: 'action',
+          action: {
+            type: 'postback',
+            label: '📅 予約する',
+            data: `action=${SHAKEN_REMINDER_ACTION_RESERVE}&companyAccountId=${companyAccountId}&vehicleId=${vehicleId}`,
+            displayText: '予約する',
+          },
+        },
+        {
+          type: 'action',
+          action: {
+            type: 'postback',
+            label: '🔕 通知を止める',
+            data: `action=${SHAKEN_REMINDER_ACTION_DISMISS}&companyAccountId=${companyAccountId}&vehicleId=${vehicleId}`,
+            displayText: '通知を止める',
+          },
+        },
+      ],
+    };
+  }
+
   /**
    * 2社以上と連携している場合、今応答している店舗以外への切り替えボタンをクイックリプライに添える。
    * 会話の自然な流れを保ちつつ、必要な時だけ店舗を切り替えられるようにするため
@@ -1907,6 +1935,36 @@ export class LineService {
       if (!messageId) return;
 
       await this.processVehicleImage(replyToken, lineUserId, company, messageId, showLabel);
+      return;
+    }
+
+    if (action === SHAKEN_REMINDER_ACTION_RESERVE) {
+      await this.promptReservationCategory(replyToken, lineUserId, company, showLabel);
+      return;
+    }
+
+    if (action === SHAKEN_REMINDER_ACTION_DISMISS) {
+      const vehicleIdStr = params.get('vehicleId');
+      const vehicleId = vehicleIdStr ? Number(vehicleIdStr) : null;
+
+      if (!vehicleId) return;
+
+      await this.withCompany(company, async () => {
+        const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+        if (!vehicle) return;
+
+        await this.prisma.vehicle.update({
+          where: { id: vehicleId },
+          data: { shakenReminderDismissedFor: vehicle.expirationDate },
+        });
+      });
+
+      await this.reply(replyToken, [
+        {
+          type: 'text',
+          text: '車検満了のお知らせを停止しました。次の車検サイクルになりましたら、また改めてお知らせします。',
+        },
+      ]);
       return;
     }
 
