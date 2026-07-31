@@ -261,6 +261,50 @@ export class CustomerService {
     });
   }
 
+  /** ホーム画面の通知一覧用。顧客ごとに未読件数・最新の未読メッセージ・画像添付の有無をまとめる */
+  async listUnreadLineSummaries() {
+    const unread = await this.prisma.lineMessage.findMany({
+      where: { direction: 'IN', readAt: null },
+      orderBy: { createdAt: 'desc' },
+      include: { customer: { select: { id: true, customerName: true } } },
+    });
+
+    const byCustomer = new Map<
+      number,
+      {
+        customerId: number;
+        customerName: string;
+        count: number;
+        hasImage: boolean;
+        latestText: string;
+        latestAt: Date;
+      }
+    >();
+
+    for (const m of unread) {
+      const hasImage = m.lineOcrSubmissionId != null;
+      const existing = byCustomer.get(m.customerId);
+
+      if (existing) {
+        existing.count += 1;
+        if (hasImage) existing.hasImage = true;
+      } else {
+        byCustomer.set(m.customerId, {
+          customerId: m.customerId,
+          customerName: m.customer.customerName,
+          count: 1,
+          hasImage,
+          latestText: hasImage ? '[画像]' : m.text,
+          latestAt: m.createdAt,
+        });
+      }
+    }
+
+    return Array.from(byCustomer.values()).sort(
+      (a, b) => b.latestAt.getTime() - a.latestAt.getTime(),
+    );
+  }
+
   /** スタッフがその顧客とのLINE画面を開いたら、その時点までの受信分を既読にする */
   async markLineMessagesRead(customerId: number) {
     await this.prisma.lineMessage.updateMany({

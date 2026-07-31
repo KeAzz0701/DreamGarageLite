@@ -67,6 +67,8 @@ interface ErrorReportRow {
   diagnosisNote: string | null;
   diagnosisSuggestedFix: string | null;
   diagnosedAt: string | null;
+  diagnosisVerdict: 'APPROVED' | 'REJECTED' | null;
+  diagnosisVerdictAt: string | null;
 }
 
 interface SystemAdminLineRow {
@@ -186,6 +188,18 @@ export default function AdminPage() {
   async function reopenErrorReport(report: ErrorReportRow) {
     try {
       await api(`/admin/error-reports/${report.id}/reopen`, { method: 'PATCH' });
+      await loadErrorReports();
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function setDiagnosisVerdict(report: ErrorReportRow, verdict: 'APPROVED' | 'REJECTED' | null) {
+    try {
+      await api(`/admin/error-reports/${report.id}/diagnosis-verdict`, {
+        method: 'PATCH',
+        body: JSON.stringify({ verdict }),
+      });
       await loadErrorReports();
     } catch (e: any) {
       alert(extractErrorMessage(e));
@@ -782,6 +796,51 @@ export default function AdminPage() {
                         <div className="mt-1">
                           <b>修正方針: </b>
                           {r.diagnosisSuggestedFix}
+                        </div>
+                      )}
+
+                      {r.diagnosisVerdict === 'APPROVED' ? (
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="badge-ok">
+                            ✅ 採用
+                            {r.diagnosisVerdictAt &&
+                              `(${new Date(r.diagnosisVerdictAt).toLocaleString('ja-JP')})`}
+                          </span>
+                          <button
+                            onClick={() => setDiagnosisVerdict(r, null)}
+                            className="btn btn-ghost btn-sm"
+                          >
+                            判定を取り消す
+                          </button>
+                        </div>
+                      ) : r.diagnosisVerdict === 'REJECTED' ? (
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="badge-danger">
+                            ❌ 却下
+                            {r.diagnosisVerdictAt &&
+                              `(${new Date(r.diagnosisVerdictAt).toLocaleString('ja-JP')})`}
+                          </span>
+                          <button
+                            onClick={() => setDiagnosisVerdict(r, null)}
+                            className="btn btn-ghost btn-sm"
+                          >
+                            判定を取り消す
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            onClick={() => setDiagnosisVerdict(r, 'APPROVED')}
+                            className="btn btn-blue btn-sm"
+                          >
+                            ✅ 採用する
+                          </button>
+                          <button
+                            onClick={() => setDiagnosisVerdict(r, 'REJECTED')}
+                            className="btn btn-ghost btn-sm"
+                          >
+                            ❌ 却下する
+                          </button>
                         </div>
                       )}
                     </div>

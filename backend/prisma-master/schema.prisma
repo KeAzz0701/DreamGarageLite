@@ -133,6 +133,11 @@ model ErrorReport {
   diagnosisSuggestedFix String?
   diagnosedAt          DateTime?
 
+  // 運営者が診断結果(原因・修正方針)を見て、採用するか却下するかを管理画面から記録する。
+  // null=未判定、APPROVED=採用、REJECTED=却下
+  diagnosisVerdict     String?
+  diagnosisVerdictAt   DateTime?
+
   createdAt        DateTime       @default(now())
 }
 

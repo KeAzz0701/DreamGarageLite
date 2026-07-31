@@ -41,6 +41,12 @@ export class CustomerController {
     return { count };
   }
 
+  /** ':id'ルートより前に置く必要がある。ホーム画面の通知一覧用、顧客ごとに未読をまとめて返す */
+  @Get('unread-line-summary')
+  async getUnreadLineSummary() {
+    return this.customerService.listUnreadLineSummaries();
+  }
+
   @Get(':id')
   async getOne(
     @Param('id', ParseIntPipe) id: number,

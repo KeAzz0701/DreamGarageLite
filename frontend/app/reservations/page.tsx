@@ -60,9 +60,13 @@ export default function ReservationsPage() {
   const [hours, setHours] = useState<BusinessHour[]>([]);
   const [closedDates, setClosedDates] = useState<ClosedDate[]>([]);
   const [newClosedDate, setNewClosedDate] = useState('');
+  const [newClosedDateEnd, setNewClosedDateEnd] = useState('');
   const [newClosedReason, setNewClosedReason] = useState('');
+  const [closedDateMode, setClosedDateMode] = useState<'single' | 'range'>('single');
   const [savingHours, setSavingHours] = useState(false);
+  const [addingClosedDate, setAddingClosedDate] = useState(false);
   const [breakOpenDays, setBreakOpenDays] = useState<Set<number>>(new Set());
+  const [openDays, setOpenDays] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     load();
@@ -164,6 +168,18 @@ export default function ReservationsPage() {
     });
   }
 
+  function toggleDayOpen(weekday: number) {
+    setOpenDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(weekday)) {
+        next.delete(weekday);
+      } else {
+        next.add(weekday);
+      }
+      return next;
+    });
+  }
+
   async function saveHours() {
     setSavingHours(true);
     try {
@@ -180,18 +196,45 @@ export default function ReservationsPage() {
     }
   }
 
+  function dateRange(startStr: string, endStr: string): string[] {
+    const start = new Date(`${startStr}T00:00:00`);
+    const end = new Date(`${endStr}T00:00:00`);
+    const dates: string[] = [];
+    for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      dates.push(d.toISOString().slice(0, 10));
+    }
+    return dates;
+  }
+
   async function addClosedDate() {
     if (!newClosedDate) return;
+    if (closedDateMode === 'range' && !newClosedDateEnd) return;
+
+    setAddingClosedDate(true);
     try {
-      await api('/business-hours/closed-dates', {
-        method: 'POST',
-        body: JSON.stringify({ date: newClosedDate, reason: newClosedReason || undefined }),
-      });
+      const dates =
+        closedDateMode === 'range' ? dateRange(newClosedDate, newClosedDateEnd) : [newClosedDate];
+
+      if (dates.length > 31) {
+        alert('連休指定は31日以内にしてください');
+        return;
+      }
+
+      for (const date of dates) {
+        await api('/business-hours/closed-dates', {
+          method: 'POST',
+          body: JSON.stringify({ date, reason: newClosedReason || undefined }),
+        });
+      }
+
       setNewClosedDate('');
+      setNewClosedDateEnd('');
       setNewClosedReason('');
       await loadHours();
     } catch (e: any) {
       alert(extractErrorMessage(e));
+    } finally {
+      setAddingClosedDate(false);
     }
   }
 
@@ -317,66 +360,87 @@ export default function ReservationsPage() {
         <h2 className="disp text-xl mb-3">営業時間・定休日</h2>
 
         <div className="hours-table mb-4">
-          {hours.map((h) => (
-            <div key={h.weekday} className="hours-row">
-              <div className="hours-main">
-                <span className="hours-day">{WEEKDAY_LABELS[h.weekday]}</span>
+          {hours.map((h) => {
+            const dayOpen = openDays.has(h.weekday);
+            return (
+              <div key={h.weekday} className={`hours-row ${dayOpen ? 'is-open' : ''}`}>
+                <div className="hours-main" onClick={() => toggleDayOpen(h.weekday)}>
+                  <span className="hours-day">{WEEKDAY_LABELS[h.weekday]}</span>
+                  <span className="hours-summary">
+                    {h.isClosed ? '定休日' : `${h.startTime ?? '--:--'} 〜 ${h.endTime ?? '--:--'}`}
+                  </span>
+                  <span className="hours-chevron" aria-hidden>
+                    ▾
+                  </span>
+                </div>
 
-                <label className="hours-closed">
-                  <input
-                    type="checkbox"
-                    checked={h.isClosed}
-                    onChange={(e) => updateHour(h.weekday, { isClosed: e.target.checked })}
-                  />
-                  定休日
-                </label>
+                {dayOpen && (
+                  <div className="hours-detail" onClick={(e) => e.stopPropagation()}>
+                    <label className="hours-closed">
+                      <input
+                        type="checkbox"
+                        checked={h.isClosed}
+                        onChange={(e) => updateHour(h.weekday, { isClosed: e.target.checked })}
+                      />
+                      定休日
+                    </label>
 
-                {!h.isClosed && (
-                  <div className="hours-times">
-                    <input
-                      type="time"
-                      className="input input-time"
-                      value={h.startTime ?? ''}
-                      onChange={(e) => updateHour(h.weekday, { startTime: e.target.value })}
-                    />
-                    <span className="hours-tilde">〜</span>
-                    <input
-                      type="time"
-                      className="input input-time"
-                      value={h.endTime ?? ''}
-                      onChange={(e) => updateHour(h.weekday, { endTime: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => toggleBreak(h.weekday)}
-                      className={`hours-break-toggle ${breakOpenDays.has(h.weekday) ? 'active' : ''}`}
-                    >
-                      休憩{breakOpenDays.has(h.weekday) ? ' ✕' : ' ＋'}
-                    </button>
+                    {!h.isClosed && (
+                      <div className="hours-times">
+                        <input
+                          type="time"
+                          step={900}
+                          className="input input-time"
+                          value={h.startTime ?? ''}
+                          onChange={(e) => updateHour(h.weekday, { startTime: e.target.value })}
+                        />
+                        <span className="hours-tilde">〜</span>
+                        <input
+                          type="time"
+                          step={900}
+                          className="input input-time"
+                          value={h.endTime ?? ''}
+                          onChange={(e) => updateHour(h.weekday, { endTime: e.target.value })}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleBreak(h.weekday)}
+                          className={`hours-break-toggle ${breakOpenDays.has(h.weekday) ? 'active' : ''}`}
+                        >
+                          休憩{breakOpenDays.has(h.weekday) ? ' ✕' : ' ＋'}
+                        </button>
+                      </div>
+                    )}
+
+                    {!h.isClosed && breakOpenDays.has(h.weekday) && (
+                      <div className="hours-break-row">
+                        <span className="text-xs text-[var(--muted)]">休憩</span>
+                        <input
+                          type="time"
+                          step={900}
+                          className="input input-time"
+                          value={h.breakStartTime ?? ''}
+                          onChange={(e) =>
+                            updateHour(h.weekday, { breakStartTime: e.target.value || null })
+                          }
+                        />
+                        <span className="hours-tilde">〜</span>
+                        <input
+                          type="time"
+                          step={900}
+                          className="input input-time"
+                          value={h.breakEndTime ?? ''}
+                          onChange={(e) =>
+                            updateHour(h.weekday, { breakEndTime: e.target.value || null })
+                          }
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-
-              {!h.isClosed && breakOpenDays.has(h.weekday) && (
-                <div className="hours-break-row">
-                  <span className="text-xs text-[var(--muted)]">休憩</span>
-                  <input
-                    type="time"
-                    className="input input-time"
-                    value={h.breakStartTime ?? ''}
-                    onChange={(e) => updateHour(h.weekday, { breakStartTime: e.target.value || null })}
-                  />
-                  <span className="hours-tilde">〜</span>
-                  <input
-                    type="time"
-                    className="input input-time"
-                    value={h.breakEndTime ?? ''}
-                    onChange={(e) => updateHour(h.weekday, { breakEndTime: e.target.value || null })}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
 
           <button onClick={saveHours} disabled={savingHours} className="btn btn-primary btn-sm mt-2">
             {savingHours ? '保存中...' : '💾 営業時間を保存'}
@@ -397,21 +461,50 @@ export default function ReservationsPage() {
           </div>
         ))}
 
-        <div className="flex gap-2 mt-2">
+        <div className="flex gap-2 mt-3 mb-2">
+          <button
+            type="button"
+            onClick={() => setClosedDateMode('single')}
+            className={`btn btn-sm ${closedDateMode === 'single' ? 'btn-blue' : 'btn-ghost'}`}
+          >
+            単日指定
+          </button>
+          <button
+            type="button"
+            onClick={() => setClosedDateMode('range')}
+            className={`btn btn-sm ${closedDateMode === 'range' ? 'btn-blue' : 'btn-ghost'}`}
+          >
+            連休指定
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mt-2 items-center">
           <input
             type="date"
             className="input"
             value={newClosedDate}
             onChange={(e) => setNewClosedDate(e.target.value)}
           />
+          {closedDateMode === 'range' && (
+            <>
+              <span className="hours-tilde">〜</span>
+              <input
+                type="date"
+                className="input"
+                value={newClosedDateEnd}
+                min={newClosedDate || undefined}
+                onChange={(e) => setNewClosedDateEnd(e.target.value)}
+              />
+            </>
+          )}
           <input
             className="input flex-1"
             placeholder="理由(任意)"
             value={newClosedReason}
             onChange={(e) => setNewClosedReason(e.target.value)}
           />
-          <button onClick={addClosedDate} className="btn btn-blue btn-sm">
-            ➕ 追加
+          <button onClick={addClosedDate} disabled={addingClosedDate} className="btn btn-blue btn-sm">
+            {addingClosedDate ? '追加中...' : '➕ 追加'}
           </button>
         </div>
       </div>

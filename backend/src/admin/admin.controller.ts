@@ -203,6 +203,16 @@ export class AdminController {
     );
   }
 
+  /** 運営者本人が診断結果を見て採用/却下を記録する。verdictを省略すると未判定に戻す */
+  @UseGuards(AdminAuthGuard)
+  @Patch('error-reports/:id/diagnosis-verdict')
+  async setErrorReportDiagnosisVerdict(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { verdict?: 'APPROVED' | 'REJECTED' | null },
+  ) {
+    return this.adminService.setErrorReportDiagnosisVerdict(id, body?.verdict ?? null);
+  }
+
   /** 運営者本人のLINE登録。1回限りの登録コードを発行し、それをLINEで送信すると連携される */
   @UseGuards(AdminAuthGuard)
   @Post('system-line/generate-code')

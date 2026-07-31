@@ -87,6 +87,10 @@ export class AdminService {
     return this.errorReportService.setDiagnosis(id, diagnosisNote, diagnosisSuggestedFix);
   }
 
+  async setErrorReportDiagnosisVerdict(id: number, verdict: 'APPROVED' | 'REJECTED' | null) {
+    return this.errorReportService.setDiagnosisVerdict(id, verdict);
+  }
+
   /**
    * ユーザー名が指定されていれば担当者アカウントでの個別ログイン。
    * ユーザー名が空の場合は、担当者アカウントが1件も無い時に限り

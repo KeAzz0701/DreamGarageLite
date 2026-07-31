@@ -365,8 +365,9 @@ button.card:hover {
 .hours-main {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
 }
 .hours-day {
   flex-shrink: 0;
@@ -380,6 +381,27 @@ button.card:hover {
   font-size: 12.5px;
   font-weight: 700;
 }
+.hours-summary {
+  flex: 1;
+  font-size: 13px;
+  color: var(--muted);
+}
+.hours-row.is-open .hours-summary {
+  color: var(--ink);
+  font-weight: 500;
+}
+.hours-chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 0.15s var(--ease);
+}
+.hours-row.is-open .hours-chevron {
+  transform: rotate(180deg);
+}
+.hours-detail {
+  padding: 10px 0 2px 34px;
+  cursor: default;
+}
 .hours-closed {
   flex-shrink: 0;
   display: flex;
@@ -388,13 +410,13 @@ button.card:hover {
   font-size: 12px;
   color: var(--muted);
   white-space: nowrap;
+  margin-bottom: 8px;
 }
 .hours-times {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 1;
-  min-width: 0;
+  flex-wrap: wrap;
 }
 .input-time {
   width: auto;
@@ -428,7 +450,6 @@ button.card:hover {
   align-items: center;
   gap: 6px;
   margin-top: 6px;
-  padding-left: 34px;
 }
 .shitemrow {
   display: grid;
@@ -631,6 +652,16 @@ button.card:hover {
   padding: 8px 12px;
   border-radius: 8px;
 }
+.badge-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--danger);
+  background: #f5dfd9;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
 
 .veh {
   padding: 10px 12px;
@@ -699,11 +730,6 @@ button.card:hover {
   gap: 10px;
   margin-bottom: 16px;
 }
-@media (max-width: 520px) {
-  .statgrid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
 .statcard {
   background: white;
   border: 1px solid var(--line);
@@ -728,6 +754,23 @@ button.card:hover {
   font-size: 11px;
   color: var(--muted);
   margin-top: 3px;
+}
+@media (max-width: 520px) {
+  /* 3個を横一列に保ったまま、幅の狭いスマホでも窮屈にならないよう小さめにする */
+  .statgrid {
+    gap: 6px;
+  }
+  .statcard {
+    padding: 10px 6px;
+    border-radius: 8px;
+  }
+  .statcard .num {
+    font-size: 20px;
+  }
+  .statcard .lbl {
+    font-size: 9.5px;
+    margin-top: 2px;
+  }
 }
 
 .sectionhead {
@@ -779,6 +822,166 @@ button.minirow:hover {
 .minirow .r {
   color: var(--muted);
   flex-shrink: 0;
+}
+
+/* ホーム画面: お客様からのLINE未読通知。画像添付があるものはより目立たせる */
+.line-notify-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.line-notify {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #eaf7e8;
+  border: 1px solid #b9dfb4;
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  animation: line-notify-in 0.2s var(--ease);
+}
+.line-notify:hover {
+  box-shadow: var(--shadow-md);
+}
+.line-notify.has-image {
+  background: #fff1e8;
+  border-color: var(--orange);
+}
+.line-notify-icon {
+  flex-shrink: 0;
+  font-size: 20px;
+}
+.line-notify-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.line-notify-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.line-notify-text {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.line-notify-count {
+  flex-shrink: 0;
+  background: var(--orange);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+@keyframes line-notify-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ホーム画面のダッシュボードパネル。スマホ幅では従来のsectionheadと全く同じ見た目・常時展開で、
+   PC幅(下のmin-width:1024pxブロック)でのみカード化・開閉式に切り替わる */
+.dash-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 20px 0 10px;
+}
+.dash-panel-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--ink);
+}
+.dash-panel-count {
+  background: var(--paper-dim);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+.dash-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dash-panel-actions a {
+  font-size: 11px;
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 500;
+}
+.dash-panel-actions a:hover {
+  text-decoration: underline;
+}
+.dash-panel-chevron {
+  display: none;
+}
+.dash-panel-body {
+  display: block;
+}
+@media (min-width: 1024px) {
+  /* ホーム画面(.dash-shell)を開いている時だけ、中央カラムの横幅を広げてダッシュボード用のグリッドが
+     ゆったり収まるようにする。他の画面のmain幅には一切影響しない */
+  main:has(.dash-shell) {
+    max-width: 1180px;
+  }
+  .dash-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    align-items: start;
+    gap: 16px;
+  }
+  .dash-panel {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .dash-panel-head {
+    margin: 0;
+    cursor: pointer;
+    user-select: none;
+  }
+  .dash-panel-chevron {
+    display: inline-block;
+    color: var(--muted);
+    transition: transform 0.15s var(--ease);
+  }
+  .dash-panel.is-open .dash-panel-chevron {
+    transform: rotate(180deg);
+  }
+  .dash-panel-body {
+    display: none;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .dash-panel.is-open .dash-panel-body {
+    display: block;
+  }
 }
 
 /* license screen */

@@ -109,4 +109,15 @@ export class ErrorReportService {
       },
     });
   }
+
+  /** 運営者が診断結果を見て採用(APPROVED)/却下(REJECTED)を記録する。verdict=nullで未判定に戻す */
+  async setDiagnosisVerdict(id: number, verdict: 'APPROVED' | 'REJECTED' | null) {
+    return this.masterPrisma.errorReport.update({
+      where: { id },
+      data: {
+        diagnosisVerdict: verdict,
+        diagnosisVerdictAt: verdict ? new Date() : null,
+      },
+    });
+  }
 }
