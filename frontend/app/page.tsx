@@ -125,6 +125,23 @@ export default function Home() {
 
   return (
     <div className="dash-shell">
+      <div className="statgrid">
+        <Link href="/ocr" className="statcard block">
+          <div className="num">📷</div>
+          <div className="lbl">車検証OCR</div>
+        </Link>
+
+        <Link href="/reservations" className="statcard block">
+          <div className="num">📅</div>
+          <div className="lbl">予約管理</div>
+        </Link>
+
+        <Link href="/ai-chat" className="statcard block">
+          <div className="num">🤖</div>
+          <div className="lbl">AIチャット</div>
+        </Link>
+      </div>
+
       {unreadLine.length > 0 && (
         <div className="line-notify-list">
           {unreadLine.map((u) => (
@@ -145,23 +162,6 @@ export default function Home() {
           ))}
         </div>
       )}
-
-      <div className="statgrid">
-        <Link href="/ocr" className="statcard block">
-          <div className="num">📷</div>
-          <div className="lbl">車検証OCR</div>
-        </Link>
-
-        <Link href="/reservations" className="statcard block">
-          <div className="num">📅</div>
-          <div className="lbl">予約管理</div>
-        </Link>
-
-        <Link href="/ai-chat" className="statcard block">
-          <div className="num">🤖</div>
-          <div className="lbl">AIチャット</div>
-        </Link>
-      </div>
 
       <div className="dash-grid">
         {shakenReminders.length > 0 && (
