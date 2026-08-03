@@ -35,6 +35,7 @@ import { TireMeasurementModule } from './tire-measurement/tire-measurement.modul
 import { PortalModule } from './portal/portal.module';
 import { PortalMiddleware } from './portal/portal.middleware';
 import { CompetitorEstimateModule } from './competitor-estimate/competitor-estimate.module';
+import { MarketingInquiryModule } from './marketing-inquiry/marketing-inquiry.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { CompetitorEstimateModule } from './competitor-estimate/competitor-estim
     TireMeasurementModule,
     PortalModule,
     CompetitorEstimateModule,
+    MarketingInquiryModule,
   ],
   controllers: [AppController],
 })

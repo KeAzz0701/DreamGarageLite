@@ -154,6 +154,20 @@ model ErrorReport {
   createdAt        DateTime       @default(now())
 }
 
+// 宣伝用HP(dreamgaragelite.com)のお問い合わせフォームから届いた内容。
+// テナント(会社)に紐づかない、運営者向けの問い合わせのため master 側に保存する
+model MarketingInquiry {
+  id        Int      @id @default(autoincrement())
+
+  company   String
+  name      String
+  email     String
+  phone     String?
+  message   String
+
+  createdAt DateTime @default(now())
+}
+
 // 運営管理画面(/admin)にログインする担当者アカウント。ADMIN_PASSWORD(共有パスワード)の
 // 代わりに、担当者ごとの個別ログインを可能にする。
 model AdminUser {
