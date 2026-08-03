@@ -1,0 +1,86 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-asphalt: var(--asphalt);
+  --color-asphalt-foreground: var(--asphalt-foreground);
+
+  --font-sans: var(--font-noto-sans-jp), 'Noto Sans JP Fallback', sans-serif;
+  --font-mono: var(--font-noto-sans-mono), monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+:root {
+  color-scheme: light;
+  --radius: 0.75rem;
+
+  /* warm paper / cream */
+  --background: #eae7e0;
+  /* near-black ink */
+  --foreground: #1e2023;
+
+  --card: #f4f2ec;
+  --card-foreground: #1e2023;
+
+  --popover: #f4f2ec;
+  --popover-foreground: #1e2023;
+
+  /* vivid orange accent */
+  --primary: #e8592e;
+  --primary-foreground: #fdfbf7;
+
+  /* dark asphalt gray */
+  --secondary: #24262b;
+  --secondary-foreground: #eae7e0;
+
+  --muted: #ddd9cf;
+  --muted-foreground: #63625d;
+
+  --accent: #e8592e;
+  --accent-foreground: #fdfbf7;
+
+  --destructive: #c0392b;
+
+  --border: #d3cec2;
+  --input: #cfc9bc;
+  --ring: #e8592e;
+
+  /* dark asphalt sections */
+  --asphalt: #24262b;
+  --asphalt-foreground: #eae7e0;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
