@@ -17,6 +17,7 @@ import { CompetitorEstimateService } from './competitor-estimate.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { LicenseService } from '../license/license.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
+import { inferVehicleCategory } from '../common/vehicle-category';
 
 @Controller()
 export class CompetitorEstimateController {
@@ -45,6 +46,7 @@ export class CompetitorEstimateController {
     return this.competitorEstimateService.analyzeAndCreate(
       vehicleId,
       vehicle.customerId,
+      inferVehicleCategory(vehicle),
       file,
       'STAFF',
       true,
@@ -55,6 +57,12 @@ export class CompetitorEstimateController {
   @Get('vehicle/:vehicleId/competitor-estimate')
   async getByVehicle(@Param('vehicleId', ParseIntPipe) vehicleId: number) {
     return this.competitorEstimateService.getByVehicle(vehicleId);
+  }
+
+  /** 車種区分×項目カテゴリごとの他店舗見積の比較表(件数/平均/最小/最大) */
+  @Get('competitor-estimates/comparison-table')
+  async getComparisonTable() {
+    return this.competitorEstimateService.getComparisonTable();
   }
 
   @Get('competitor-estimate/:id/image')

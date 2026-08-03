@@ -1,8 +1,16 @@
 // backend/src/competitor-estimate/competitor-estimate.service.ts
 
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { VehicleCategory } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeminiService } from '../gemini/gemini.service';
+
+const VEHICLE_CATEGORY_LABEL: Record<VehicleCategory, string> = {
+  KEI: '軽自動車',
+  REGULAR: '普通乗用',
+  LARGE: '大型・特殊',
+  CARGO: '貨物自動車',
+};
 
 @Injectable()
 export class CompetitorEstimateService {
@@ -17,6 +25,7 @@ export class CompetitorEstimateService {
   async analyzeAndCreate(
     vehicleId: number,
     customerId: number,
+    vehicleCategory: VehicleCategory,
     file: { buffer: Buffer; mimetype: string },
     createdBy: 'STAFF' | 'CUSTOMER',
     sharedWithShop: boolean,
@@ -37,6 +46,7 @@ export class CompetitorEstimateService {
       data: {
         vehicleId,
         customerId,
+        vehicleCategory,
         imageData: Buffer.from(file.buffer),
         mimeType: file.mimetype,
         shopName: extracted.shopName || undefined,
@@ -57,6 +67,73 @@ export class CompetitorEstimateService {
         createdAt: true,
       },
     });
+  }
+
+  /**
+   * 共有された他店舗見積を、車種区分×項目カテゴリごとに件数/平均/最小/最大へ集計する。
+   * itemsはAIが自由に付けたcategory文字列を含むJSONのため、SQLでの集計ではなくここでまとめる
+   */
+  async getComparisonTable() {
+    const rows = await this.prisma.competitorEstimate.findMany({
+      where: { sharedWithShop: true, vehicleCategory: { not: null } },
+      select: { vehicleCategory: true, items: true },
+    });
+
+    type Bucket = {
+      vehicleCategory: VehicleCategory;
+      itemCategory: string;
+      count: number;
+      total: number;
+      min: number;
+      max: number;
+    };
+
+    const buckets = new Map<string, Bucket>();
+
+    for (const row of rows) {
+      if (!row.vehicleCategory || !Array.isArray(row.items)) continue;
+
+      for (const item of row.items as any[]) {
+        const cost = Number(item?.cost);
+        if (!Number.isFinite(cost) || cost <= 0) continue;
+
+        const itemCategory =
+          typeof item?.category === 'string' && item.category ? item.category : 'その他';
+        const key = `${row.vehicleCategory}|${itemCategory}`;
+        const existing = buckets.get(key);
+
+        if (existing) {
+          existing.count += 1;
+          existing.total += cost;
+          existing.min = Math.min(existing.min, cost);
+          existing.max = Math.max(existing.max, cost);
+        } else {
+          buckets.set(key, {
+            vehicleCategory: row.vehicleCategory,
+            itemCategory,
+            count: 1,
+            total: cost,
+            min: cost,
+            max: cost,
+          });
+        }
+      }
+    }
+
+    return Array.from(buckets.values())
+      .map((b) => ({
+        vehicleCategory: b.vehicleCategory,
+        vehicleCategoryLabel: VEHICLE_CATEGORY_LABEL[b.vehicleCategory],
+        itemCategory: b.itemCategory,
+        count: b.count,
+        avgCost: Math.round(b.total / b.count),
+        minCost: b.min,
+        maxCost: b.max,
+      }))
+      .sort(
+        (a, b) =>
+          a.vehicleCategory.localeCompare(b.vehicleCategory) || b.count - a.count,
+      );
   }
 
   /** スタッフ側: 車両に紐づく、共有された他店舗見積の一覧(顧客が非共有にしたものは出さない) */

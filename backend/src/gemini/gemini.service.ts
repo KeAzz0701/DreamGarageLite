@@ -169,11 +169,13 @@ firstRegistration と expirationDate は、車検証に和暦（令和/平成な
 あなたは自動車整備・修理の見積書を読み取るOCR AIです。
 
 必ずJSONのみ返してください。不明な項目は null にしてください。
+items の各項目には、内容に最も近い category を次の中から1つ選んで付けてください:
+"オイル交換", "タイヤ交換", "車検", "点検", "一般整備", "その他"
 
 {
   "shopName": null,
   "estimateDate": null,
-  "items": [{"name": "", "cost": 0}],
+  "items": [{"name": "", "cost": 0, "category": "その他"}],
   "totalAmount": null
 }
           `,

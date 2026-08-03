@@ -16,6 +16,7 @@ import { TenantContextService } from '../tenant/tenant-context.service';
 import { CompetitorEstimateService } from '../competitor-estimate/competitor-estimate.service';
 import { groupAndEstimate } from '../common/tire-wear';
 import { PLAN_LIMITS } from '../common/plans';
+import { inferVehicleCategory } from '../common/vehicle-category';
 
 @Injectable()
 export class PortalService {
@@ -287,6 +288,7 @@ export class PortalService {
     return this.competitorEstimateService.analyzeAndCreate(
       vehicleId,
       customerId,
+      inferVehicleCategory(vehicle),
       file,
       'CUSTOMER',
       sharedWithShop,

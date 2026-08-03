@@ -15,6 +15,7 @@ const TABS = [
   { href: '/reservations', icon: '📅', label: '予約管理' },
   { href: '/estimates/new', icon: '📝', label: '見積作成' },
   { href: '/ocr', icon: '📷', label: '車検証OCR' },
+  { href: '/competitor-estimates', icon: '📊', label: '他店比較' },
   { href: '/settings', icon: '⚙️', label: '設定' },
 ];
 

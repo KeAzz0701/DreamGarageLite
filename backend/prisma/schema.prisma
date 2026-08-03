@@ -342,6 +342,11 @@ model CompetitorEstimate {
   imageData      Bytes
   mimeType       String
 
+  // 登録時点の車両区分を非正規化して保存(車種区分ごとの比較表集計に使う。
+  // 車両側のdisplacement/usage/vehicleWeightが後から変わっても、この見積が
+  // どの区分で比較されたかは変わらないようにするため)
+  vehicleCategory VehicleCategory?
+
   shopName       String?
   estimateDate   String?
   items          Json?
