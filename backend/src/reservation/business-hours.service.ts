@@ -109,4 +109,25 @@ export class BusinessHoursService {
 
     return !closedDate;
   }
+
+  /** 「今まさに」営業時間内かを判定する(休憩時間は除外しない。短時間の離席で緊急連絡先を
+   * 案内してしまわないようにするため、始業〜終業の範囲内であればtrueとする) */
+  async isWithinBusinessHoursNow(): Promise<boolean> {
+    const now = new Date();
+
+    if (!(await this.isBusinessDay(now))) return false;
+
+    const hours = await this.getWeekday(now.getDay());
+
+    if (!hours?.startTime || !hours?.endTime) return false;
+
+    const toMinutes = (hhmm: string) => {
+      const [h, m] = hhmm.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    return nowMinutes >= toMinutes(hours.startTime) && nowMinutes < toMinutes(hours.endTime);
+  }
 }

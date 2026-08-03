@@ -10,6 +10,7 @@ import { validateSignature, messagingApi, webhook } from '@line/bot-sdk';
 import type { CompanyAccount } from '.prisma/master-client';
 import { CustomerService } from '../customer/customer.service';
 import { ReservationService } from '../reservation/reservation.service';
+import { BusinessHoursService } from '../reservation/business-hours.service';
 import { parseFlexibleDate, daysUntil } from '../common/japanese-date';
 import { TenantContextService } from '../tenant/tenant-context.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -42,6 +43,24 @@ const RESERVATION_KEYWORD = '予約';
 const ANNOUNCEMENT_KEYWORD = 'お知らせ';
 const RECOMMEND_KEYWORD_HIRAGANA = 'おすすめ';
 const RECOMMEND_KEYWORD_KATAKANA = 'オススメ';
+// 車が動かせない・事故等ですぐ連絡が要りそうな自由文を拾うキーワード(単純な部分一致)
+const EMERGENCY_KEYWORDS = [
+  '緊急',
+  '故障',
+  '事故',
+  '動かない',
+  '動かせない',
+  'パンク',
+  'バッテリー上がり',
+  'エンスト',
+  '立ち往生',
+  'レッカー',
+  '牽引',
+  'JAF',
+  'ロードサービス',
+];
+// 日本自動車連盟(JAF)ロードサービス要請用の全国共通番号。会社ごとの設定は不要
+const JAF_PHONE = '#8139(携帯) / 0570-00-8139';
 const RESERVATION_ACTION_PICK_COMPANY = 'reserve_pick_company';
 const RESERVATION_ACTION_PICK_CATEGORY = 'reserve_pick_category';
 const RESERVATION_ACTION_PICK_DATE = 'reserve_pick_date';
@@ -187,6 +206,7 @@ export class LineService {
     private readonly customerService: CustomerService,
     @Inject(forwardRef(() => ReservationService))
     private readonly reservationService: ReservationService,
+    private readonly businessHoursService: BusinessHoursService,
     private readonly tenantContext: TenantContextService,
     private readonly prisma: PrismaService,
     private readonly masterPrisma: MasterPrismaService,
@@ -470,6 +490,13 @@ export class LineService {
       });
     }
 
+    // 故障・事故等ですぐ連絡が要りそうな内容は、AIの応答を待たず最優先で
+    // 連絡先(営業時間内なら店舗電話、時間外なら緊急連絡先・JAF等)を案内する
+    if (links.length > 0 && EMERGENCY_KEYWORDS.some((kw) => trimmed.includes(kw))) {
+      await this.replyEmergencyContact(replyToken, links);
+      return;
+    }
+
     // 「整備履歴」「予約」はスタッフ向けの自由文と紛れることが無い明確なお客様コマンドのため、
     // スタッフとしても連携されている(同一人物がお客様兼スタッフの)場合でも必ずお客様コマンドとして扱う
     // 完全一致だけでなく、「整備履歴を教えて」「予約確認したい」のような
@@ -536,6 +563,48 @@ export class LineService {
     // その他のフリーテキストは、直近やり取りのあった店舗(links[0]、lastActiveAt降順)にAIが応答する。
     // 複数店舗と連携している場合は、返信に他店舗へ切り替えるボタンを添える
     await this.replyWithAiAssistant(replyToken, links, trimmed);
+  }
+
+  /**
+   * 故障・事故等の緊急ワードを検知した時の返信。営業時間内なら店舗の電話番号、
+   * 時間外なら会社側で設定した緊急連絡先とJAF等ロードサービスの連絡先を案内する。
+   * AIの生成を待たず即座に返す(緊急時にAI応答の遅延・不確実さを挟まないため)
+   */
+  private async replyEmergencyContact(replyToken: string, links: LinkWithCompany[]) {
+    const link = links[0];
+
+    await this.withCompany(link.companyAccount, async () => {
+      const customer = await this.customerService.findByLineUserId(link.lineUserId);
+
+      const [company, settings, withinBusinessHours] = await Promise.all([
+        this.prisma.company.findFirst(),
+        this.prisma.settings.findFirst(),
+        this.businessHoursService.isWithinBusinessHoursNow(),
+      ]);
+
+      const lines: string[] = ['🚨 緊急のご連絡でしょうか。'];
+
+      if (withinBusinessHours && company?.phone) {
+        lines.push('ただいまの時間でしたら、下記までお電話ください。');
+        lines.push(`📞 ${company.phone}`);
+      } else {
+        lines.push('恐れ入りますが、ただいま営業時間外です。');
+
+        if (settings?.emergencyContactPhone) {
+          lines.push(`緊急連絡先: 📞 ${settings.emergencyContactPhone}`);
+        }
+
+        lines.push('お車が動かせない状況でしたら、JAF等のロードサービスもご検討ください。');
+        lines.push(`📞 JAF(日本自動車連盟): ${JAF_PHONE}`);
+      }
+
+      await this.reply(
+        replyToken,
+        [{ type: 'text', text: lines.join('\n') }],
+        customer?.id,
+        link.companyAccount.displayName,
+      );
+    });
   }
 
   /**

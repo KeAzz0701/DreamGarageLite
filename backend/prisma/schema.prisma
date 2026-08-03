@@ -169,6 +169,10 @@ model Settings {
   bankAccountNumber String?
   bankAccountHolder String?
 
+  // 顧客LINEで故障・事故等の緊急ワードを検知した際、営業時間外に案内する連絡先
+  // (未設定ならJAF等ロードサービスの案内のみを返す)
+  emergencyContactPhone String?
+
   createdAt        DateTime  @default(now())
 
   updatedAt        DateTime  @updatedAt

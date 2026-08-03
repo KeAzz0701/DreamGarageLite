@@ -763,6 +763,30 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      <div className="panel space-y-5">
+        <h2 className="disp text-xl">緊急時のご案内(顧客LINE)</h2>
+        <p className="note">
+          お客様がLINEで「故障」「事故」「動かない」等のメッセージを送ると、AIの応答より先にこちらの連絡先を自動でご案内します。
+          営業時間内は会社情報の電話番号を、営業時間外は下記の緊急連絡先(未設定ならJAF等ロードサービスの案内のみ)を返信します。
+        </p>
+
+        <label className="field-label">
+          営業時間外の緊急連絡先(任意)
+          <input
+            className="input"
+            placeholder="例: 090-0000-0000(担当者の携帯番号など)"
+            value={settings.emergencyContactPhone ?? ''}
+            onChange={(e) =>
+              setSettings({ ...settings, emergencyContactPhone: e.target.value })
+            }
+          />
+        </label>
+
+        <button onClick={save} className="btn btn-primary">
+          保存
+        </button>
+      </div>
+
       <div className="panel space-y-5 mb-4">
         <h2 className="disp text-xl">整備リマインド設定</h2>
         <p className="note">
