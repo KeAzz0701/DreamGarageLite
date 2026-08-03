@@ -5,12 +5,12 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, extractErrorMessage } from '@/lib/api';
 
-export default function AutoLoginPage() {
+function AutoLoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState('');
@@ -54,5 +54,13 @@ export default function AutoLoginPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AutoLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <AutoLoginInner />
+    </Suspense>
   );
 }
