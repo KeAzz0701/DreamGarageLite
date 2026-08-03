@@ -40,6 +40,8 @@ const STAFF_ENTRY_ID_KEYWORD = '入室ID';
 const SERVICE_HISTORY_KEYWORD = '整備履歴';
 const RESERVATION_KEYWORD = '予約';
 const ANNOUNCEMENT_KEYWORD = 'お知らせ';
+const RECOMMEND_KEYWORD_HIRAGANA = 'おすすめ';
+const RECOMMEND_KEYWORD_KATAKANA = 'オススメ';
 const RESERVATION_ACTION_PICK_COMPANY = 'reserve_pick_company';
 const RESERVATION_ACTION_PICK_CATEGORY = 'reserve_pick_category';
 const RESERVATION_ACTION_PICK_DATE = 'reserve_pick_date';
@@ -490,6 +492,14 @@ export class LineService {
 
     if (links.length > 0 && trimmed.includes(ANNOUNCEMENT_KEYWORD)) {
       await this.replyAnnouncements(replyToken, lineUserId, links);
+      return;
+    }
+
+    if (
+      links.length > 0 &&
+      (trimmed.includes(RECOMMEND_KEYWORD_HIRAGANA) || trimmed.includes(RECOMMEND_KEYWORD_KATAKANA))
+    ) {
+      await this.replyRecommendMenu(replyToken, lineUserId, links);
       return;
     }
 
@@ -1691,7 +1701,30 @@ export class LineService {
     };
   }
 
-  /** 「オススメメニュー」タップで、車検・オイル・タイヤの各リマインドを本人分に絞ってまとめて案内する */
+  /**
+   * 「オススメメニュー」タップ・「おすすめ」の自由文送信の返信に共通で添える案内。
+   * 車関連のおすすめ(車検・オイル・タイヤの各リマインド)は本文側で案内されるため、
+   * ここでは予約確認とポータルサイトへの導線を必ず添える
+   */
+  private buildRecommendMenuQuickReply(): messagingApi.QuickReply {
+    return {
+      items: [
+        ...(mainMenuQuickReply.items ?? []),
+        {
+          type: 'action',
+          action: {
+            type: 'postback',
+            label: '📋 予約確認',
+            data: `action=${RESERVATION_ACTION_MAIN_CHOICE}&choice=CONFIRM`,
+            displayText: '予約確認',
+          },
+        },
+        buildPortalQuickReplyItem(),
+      ],
+    };
+  }
+
+  /** 「オススメメニュー」タップ・「おすすめ」の自由文送信で、車検・オイル・タイヤの各リマインドを本人分に絞ってまとめて案内する */
   private async replyRecommendMenu(
     replyToken: string,
     lineUserId: string,
@@ -1723,21 +1756,7 @@ export class LineService {
         {
           type: 'text',
           text: '現在おすすめのご案内はありません。',
-          quickReply: {
-            items: [
-              ...(mainMenuQuickReply.items ?? []),
-              {
-                type: 'action',
-                action: {
-                  type: 'postback',
-                  label: '📋 予約確認',
-                  data: `action=${RESERVATION_ACTION_MAIN_CHOICE}&choice=CONFIRM`,
-                  displayText: '予約確認',
-                },
-              },
-              buildPortalQuickReplyItem(),
-            ],
-          },
+          quickReply: this.buildRecommendMenuQuickReply(),
         },
       ]);
       return;
@@ -1749,7 +1768,7 @@ export class LineService {
         altText: 'オススメメニュー',
         contents:
           bubbles.length === 1 ? bubbles[0] : { type: 'carousel', contents: bubbles.slice(0, 10) },
-        quickReply: { items: [buildPortalQuickReplyItem()] },
+        quickReply: this.buildRecommendMenuQuickReply(),
       },
     ]);
   }
