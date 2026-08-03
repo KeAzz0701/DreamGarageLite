@@ -47,6 +47,12 @@ export function FinalCta() {
                 <Mail className="size-4 text-primary" aria-hidden="true" />
                 メールでのお問い合わせ
               </p>
+              <a
+                href="mailto:info@dreamgaragelite.com"
+                className="mt-2 block text-sm font-bold text-primary hover:opacity-80"
+              >
+                info@dreamgaragelite.com
+              </a>
               <p className="mt-2 text-sm leading-relaxed text-secondary-foreground/70">
                 フォームからは24時間受け付けております。2営業日以内に担当者よりご返信いたします。
               </p>

@@ -41,6 +41,12 @@ export function SiteFooter() {
               <p>{siteConfig.companyName}</p>
               <p>〒000-0000 東京都◯◯区◯◯ 0-0-0</p>
               <p>TEL: 00-0000-0000</p>
+              <p>
+                Email:{' '}
+                <a href="mailto:info@dreamgaragelite.com" className="hover:text-primary">
+                  info@dreamgaragelite.com
+                </a>
+              </p>
               <p>受付時間: 平日 9:00〜18:00</p>
             </address>
           </div>

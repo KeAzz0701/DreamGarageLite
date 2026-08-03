@@ -82,7 +82,7 @@ export default function SupportPage() {
                   各機能の詳しい使い方をまとめています。
                 </p>
                 <Link
-                  href="#"
+                  href="/support/manual"
                   className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-primary hover:text-primary/80"
                 >
                   マニュアルを見る

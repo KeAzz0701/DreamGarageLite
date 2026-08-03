@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Phone, Clock, FileText } from 'lucide-react'
+import { Phone, Mail, Clock, FileText } from 'lucide-react'
 import { PageHero } from '@/components/page-hero'
 import { ContactForm } from '@/components/contact/contact-form'
 import { Reveal } from '@/components/motion/reveal'
@@ -36,6 +36,20 @@ export default function ContactPage() {
                   <p className="text-sm font-bold">お電話</p>
                   <a href="tel:0000000000" className="mt-1 block text-xl font-black text-primary">
                     00-0000-0000
+                  </a>
+                </div>
+              </li>
+              <li className="flex items-start gap-4">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Mail className="size-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-sm font-bold">メール</p>
+                  <a
+                    href="mailto:info@dreamgaragelite.com"
+                    className="mt-1 block text-xl font-black text-primary"
+                  >
+                    info@dreamgaragelite.com
                   </a>
                 </div>
               </li>
