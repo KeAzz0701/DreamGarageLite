@@ -17,7 +17,7 @@ export function FeatureMedia({ feature }: { feature: Feature }) {
           loop
           muted
           playsInline
-          className="aspect-[4/3] w-full object-cover"
+          className="aspect-[4/3] w-full object-cover object-top"
         />
       </div>
     )
@@ -31,7 +31,7 @@ export function FeatureMedia({ feature }: { feature: Feature }) {
           alt={`${feature.title}の画面イメージ`}
           width={720}
           height={540}
-          className="aspect-[4/3] w-full object-cover"
+          className="aspect-[4/3] w-full object-cover object-top"
         />
       </div>
     )

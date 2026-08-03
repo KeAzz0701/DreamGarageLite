@@ -23,6 +23,8 @@ export const features: Feature[] = [
     description:
       'お客様の連絡先や車両情報、整備履歴をまとめて記録。車検証の内容や次回点検時期もひと目で確認でき、担当者が変わっても引き継ぎがスムーズです。',
     points: ['車両ごとの整備履歴を時系列で記録', '車検・点検の満了日を自動で管理', 'お客様情報から過去の作業をすぐ検索'],
+    mediaType: 'image',
+    mediaSrc: '/manual/03-vehicle-detail.png',
   },
   {
     id: 'line',
@@ -32,6 +34,8 @@ export const features: Feature[] = [
     description:
       '面倒だったハガキや電話でのご案内を、LINEで自動送信。車検や定期点検のタイミングをお客様にお知らせし、再来店につなげます。',
     points: ['車検・点検時期に合わせて自動配信', 'テンプレートで文面を簡単作成', '開封・予約状況をダッシュボードで確認'],
+    mediaType: 'image',
+    mediaSrc: '/manual/01-home.png',
   },
   {
     id: 'reservation',
@@ -41,6 +45,8 @@ export const features: Feature[] = [
     description:
       '入庫予約をカレンダーで管理。作業内容や担当者、ピットの空き状況を見ながら、電話やLINEからの予約をその場で登録できます。',
     points: ['カレンダーで一日の入庫予定を把握', 'ダブルブッキングを防止', 'スマホからいつでも予約を確認・変更'],
+    mediaType: 'image',
+    mediaSrc: '/manual/05-reservations.png',
   },
   {
     id: 'estimate',
@@ -50,5 +56,7 @@ export const features: Feature[] = [
     description:
       'よく使う整備メニューや部品を登録しておけば、選ぶだけで見積書を作成。そのまま作業指示や請求へ連携でき、転記の手間を減らします。',
     points: ['整備メニュー・部品の登録で入力を効率化', '見積から請求書までワンストップ', 'PDFで発行してそのまま送付'],
+    mediaType: 'image',
+    mediaSrc: '/manual/06-estimate-new.png',
   },
 ]
