@@ -39,6 +39,7 @@ const STAFF_VIEWING_THRESHOLD_MS = 15_000;
 const STAFF_ENTRY_ID_KEYWORD = '入室ID';
 const SERVICE_HISTORY_KEYWORD = '整備履歴';
 const RESERVATION_KEYWORD = '予約';
+const ANNOUNCEMENT_KEYWORD = 'お知らせ';
 const RESERVATION_ACTION_PICK_COMPANY = 'reserve_pick_company';
 const RESERVATION_ACTION_PICK_CATEGORY = 'reserve_pick_category';
 const RESERVATION_ACTION_PICK_DATE = 'reserve_pick_date';
@@ -484,6 +485,11 @@ export class LineService {
       } else {
         await this.startNewReservationFlow(replyToken, lineUserId, links);
       }
+      return;
+    }
+
+    if (links.length > 0 && trimmed.includes(ANNOUNCEMENT_KEYWORD)) {
+      await this.replyAnnouncements(replyToken, lineUserId, links);
       return;
     }
 
@@ -1553,13 +1559,64 @@ export class LineService {
     ]);
   }
 
-  /** 「お知らせ」タップで、連携先各社の直近のお知らせをFlexカルーセルで返す */
-  private async replyAnnouncements(replyToken: string, links: LinkWithCompany[]) {
+  /**
+   * 車検・オイル・タイヤの各リマインドのうち、指定した顧客本人に該当するものだけを
+   * 案内文の配列にして返す。「お知らせ」「オススメメニュー」の両方から使う共通処理
+   */
+  private async buildReminderLines(customerId: number): Promise<string[]> {
+    const limits = await this.licenseService.getCurrentPlanLimits();
+    const predictiveMaintenanceEnabled = !limits || limits.predictiveMaintenance;
+
+    const [shaken, oil, tire] = await Promise.all([
+      this.getShakenReminderCandidates(),
+      predictiveMaintenanceEnabled
+        ? this.getMaintenanceReminderCandidates('OIL')
+        : Promise.resolve([]),
+      predictiveMaintenanceEnabled
+        ? this.getMaintenanceReminderCandidates('TIRE')
+        : Promise.resolve([]),
+    ]);
+
+    const lines: string[] = [];
+
+    for (const c of shaken.filter((c) => c.customerId === customerId)) {
+      lines.push(`🚗 車検: ${c.vehicleLabel}（車検満了: ${c.expirationDate}）`);
+    }
+
+    for (const c of oil.filter((c) => c.customerId === customerId)) {
+      lines.push(
+        `🛢 オイル交換: ${c.vehicleLabel}（${c.dueLabel}）` +
+          (c.recommendElement ? '\n　オイルエレメントの交換もおすすめです。' : ''),
+      );
+    }
+
+    for (const c of tire.filter((c) => c.customerId === customerId)) {
+      lines.push(`🛞 タイヤ交換: ${c.vehicleLabel}（${c.dueLabel}）`);
+    }
+
+    return lines;
+  }
+
+  /**
+   * 「お知らせ」タップ・「お知らせ」の自由文送信で、連携先各社の直近のお知らせと、
+   * 本人の車検・オイル・タイヤ交換のリマインドをまとめてFlexカルーセルで返す
+   */
+  private async replyAnnouncements(
+    replyToken: string,
+    lineUserId: string,
+    links: LinkWithCompany[],
+  ) {
     const bubbles: messagingApi.FlexBubble[] = [];
 
     for (const link of links) {
-      const announcements = await this.withCompany(link.companyAccount, () =>
-        this.announcementService.latest(3),
+      const { announcements, reminderLines } = await this.withCompany(
+        link.companyAccount,
+        async () => {
+          const announcements = await this.announcementService.latest(3);
+          const customer = await this.customerService.findByLineUserId(lineUserId);
+          const reminderLines = customer ? await this.buildReminderLines(customer.id) : [];
+          return { announcements, reminderLines };
+        },
       );
 
       for (const a of announcements) {
@@ -1569,6 +1626,10 @@ export class LineService {
             link.companyAccount.displayName,
           ),
         );
+      }
+
+      if (reminderLines.length > 0) {
+        bubbles.push(this.buildRecommendBubble(reminderLines, link.companyAccount.displayName));
       }
     }
 
@@ -1644,35 +1705,7 @@ export class LineService {
 
         if (!customer) return null;
 
-        const limits = await this.licenseService.getCurrentPlanLimits();
-        const predictiveMaintenanceEnabled = !limits || limits.predictiveMaintenance;
-
-        const [shaken, oil, tire] = await Promise.all([
-          this.getShakenReminderCandidates(),
-          predictiveMaintenanceEnabled
-            ? this.getMaintenanceReminderCandidates('OIL')
-            : Promise.resolve([]),
-          predictiveMaintenanceEnabled
-            ? this.getMaintenanceReminderCandidates('TIRE')
-            : Promise.resolve([]),
-        ]);
-
-        const lines: string[] = [];
-
-        for (const c of shaken.filter((c) => c.customerId === customer.id)) {
-          lines.push(`🚗 車検: ${c.vehicleLabel}（車検満了: ${c.expirationDate}）`);
-        }
-
-        for (const c of oil.filter((c) => c.customerId === customer.id)) {
-          lines.push(
-            `🛢 オイル交換: ${c.vehicleLabel}（${c.dueLabel}）` +
-              (c.recommendElement ? '\n　オイルエレメントの交換もおすすめです。' : ''),
-          );
-        }
-
-        for (const c of tire.filter((c) => c.customerId === customer.id)) {
-          lines.push(`🛞 タイヤ交換: ${c.vehicleLabel}（${c.dueLabel}）`);
-        }
+        const lines = await this.buildReminderLines(customer.id);
 
         if (lines.length === 0) return null;
 
@@ -1856,7 +1889,7 @@ export class LineService {
 
       if (links.length === 0) return;
 
-      await this.replyAnnouncements(replyToken, links);
+      await this.replyAnnouncements(replyToken, lineUserId, links);
       return;
     }
 
