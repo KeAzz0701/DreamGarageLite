@@ -19,6 +19,18 @@ model SystemAdminLine {
   registeredAt DateTime @default(now())
 }
 
+// 運営管理画面で会社を作成した際、その場でQRコードとして発行する自動ログイン用トークン。
+// 会社パスワードそのものをQRコードやURLに含めない(漏えい時の被害範囲を24時間・その会社のみに
+// 限定するため)代わりに、この使い捨てトークンをスキャンすると自動でログインできるようにする。
+model CompanyAutoLoginToken {
+  id               Int            @id @default(autoincrement())
+  token            String         @unique
+  companyAccountId Int
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  expiresAt        DateTime
+  createdAt        DateTime       @default(now())
+}
+
 model CompanyAccount {
   id           Int      @id @default(autoincrement())
 
@@ -47,6 +59,7 @@ model CompanyAccount {
   lineLinks    LineCompanyLink[]
   staffLineLinks LineStaffLink[]
   errorReports ErrorReport[]
+  autoLoginTokens CompanyAutoLoginToken[]
 }
 
 // 全社共有のGemini APIキープール。会社ごとにDBが分かれているため、

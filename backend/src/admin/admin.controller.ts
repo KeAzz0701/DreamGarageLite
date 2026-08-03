@@ -93,6 +93,13 @@ export class AdminController {
     return this.adminService.resetPassword(id);
   }
 
+  /** QRコードで会社パスワードを自動入力/自動ログインさせるための使い捨てトークンを発行する */
+  @UseGuards(AdminAuthGuard)
+  @Post('companies/:id/auto-login-token')
+  async generateAutoLoginToken(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.generateAutoLoginToken(id);
+  }
+
   @UseGuards(AdminAuthGuard)
   @Delete('companies/:id')
   async deleteCompany(@Param('id', ParseIntPipe) id: number) {

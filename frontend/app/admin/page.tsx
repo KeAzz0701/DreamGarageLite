@@ -103,6 +103,12 @@ export default function AdminPage() {
 
   const [errorReports, setErrorReports] = useState<ErrorReportRow[]>([]);
   const [zoomedScreenshot, setZoomedScreenshot] = useState<string | null>(null);
+  const [autoLoginQr, setAutoLoginQr] = useState<{
+    companyName: string;
+    url: string;
+    expiresAt: string;
+  } | null>(null);
+  const [generatingAutoLoginQr, setGeneratingAutoLoginQr] = useState<number | null>(null);
   const [showResolvedReports, setShowResolvedReports] = useState(false);
 
   const [systemAdminLines, setSystemAdminLines] = useState<SystemAdminLineRow[]>([]);
@@ -380,6 +386,23 @@ export default function AdminPage() {
     }
   }
 
+  async function showAutoLoginQr(company: CompanyRow) {
+    setGeneratingAutoLoginQr(company.id);
+    try {
+      const result = await api<{ token: string; expiresAt: string }>(
+        `/admin/companies/${company.id}/auto-login-token`,
+        { method: 'POST' },
+      );
+
+      const url = `${window.location.origin}/auto-login?token=${result.token}`;
+      setAutoLoginQr({ companyName: company.displayName, url, expiresAt: result.expiresAt });
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    } finally {
+      setGeneratingAutoLoginQr(null);
+    }
+  }
+
   async function toggleActive(company: CompanyRow) {
     try {
       await api(`/admin/companies/${company.id}`, {
@@ -528,6 +551,13 @@ export default function AdminPage() {
                 <div className="flex gap-2">
                   <button onClick={() => resetPassword(c)} className="btn btn-blue btn-sm">
                     🔑 パスワード再発行
+                  </button>
+                  <button
+                    onClick={() => showAutoLoginQr(c)}
+                    disabled={generatingAutoLoginQr === c.id}
+                    className="btn btn-ghost btn-sm"
+                  >
+                    {generatingAutoLoginQr === c.id ? '発行中...' : '📱 自動ログインQR'}
                   </button>
                   <button onClick={() => toggleActive(c)} className="btn btn-ghost btn-sm">
                     {c.isActive ? '無効化' : '有効化'}
@@ -927,6 +957,51 @@ export default function AdminPage() {
             alt="報告時のスクリーンショット(拡大)"
             style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }}
           />
+        </div>
+      )}
+
+      {autoLoginQr && (
+        <div
+          onClick={() => setAutoLoginQr(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            className="panel text-center"
+            style={{ maxWidth: 320 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="disp text-lg mb-1">{autoLoginQr.companyName}</h3>
+            <p className="text-xs text-[var(--muted)] mb-3">
+              このQRコードをスマホのカメラで読み取ると、会社コード・パスワードの入力なしで自動的にログインできます。
+              {new Date(autoLoginQr.expiresAt).toLocaleString('ja-JP')}まで有効です。
+            </p>
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(autoLoginQr.url)}`}
+              alt="自動ログインQRコード"
+              className="mx-auto"
+              style={{ width: 220, height: 220 }}
+            />
+            <a
+              href={autoLoginQr.url}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-primary btn-sm mt-3"
+            >
+              リンクを開く
+            </a>
+            <button onClick={() => setAutoLoginQr(null)} className="btn btn-ghost btn-sm mt-2">
+              閉じる
+            </button>
+          </div>
         </div>
       )}
 

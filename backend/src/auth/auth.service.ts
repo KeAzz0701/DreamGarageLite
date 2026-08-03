@@ -38,6 +38,29 @@ export class AuthService {
     return { token, displayName: company.displayName };
   }
 
+  /**
+   * 運営管理画面で発行したQRコード(自動ログイン用の使い捨てトークン)からのログイン。
+   * 会社パスワードそのものはURL・QRコードに含めず、有効期限付きのトークンだけを載せる
+   */
+  async loginWithAutoToken(token: string) {
+    const record = await this.masterPrisma.companyAutoLoginToken.findUnique({
+      where: { token },
+      include: { companyAccount: true },
+    });
+
+    if (!record || !record.companyAccount.isActive || record.expiresAt < new Date()) {
+      throw new UnauthorizedException(
+        'このQRコード・リンクは無効か有効期限が切れています。会社コードとパスワードでログインしてください。',
+      );
+    }
+
+    const sessionToken = this.sessionService.sign({
+      companyAccountId: record.companyAccountId,
+    });
+
+    return { token: sessionToken, displayName: record.companyAccount.displayName };
+  }
+
   /** 従業員のLINE入室(入室IDを手入力するパターン) */
   async loginWithStaffCode(code: string) {
     const staffLink = await this.masterPrisma.lineStaffLink.findUnique({

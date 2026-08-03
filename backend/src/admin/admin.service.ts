@@ -2,6 +2,7 @@
 
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { execSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { Client } from 'pg';
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
@@ -365,6 +366,29 @@ export class AdminService {
     });
 
     return { companyCode: company.companyCode, password };
+  }
+
+  /**
+   * 会社の自動ログインQRコード用トークンを発行する(24時間有効)。会社パスワード自体は
+   * QRコード・URLに含めず、この使い捨てトークンをスキャンすると自動でログインできるようにする
+   */
+  async generateAutoLoginToken(companyAccountId: number) {
+    const company = await this.masterPrisma.companyAccount.findUnique({
+      where: { id: companyAccountId },
+    });
+
+    if (!company) {
+      throw new BadRequestException('会社が見つかりませんでした。');
+    }
+
+    const token = randomBytes(24).toString('base64url');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await this.masterPrisma.companyAutoLoginToken.create({
+      data: { token, companyAccountId, expiresAt },
+    });
+
+    return { token, expiresAt: expiresAt.toISOString() };
   }
 
   async updateCompany(

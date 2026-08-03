@@ -17,7 +17,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const isPortalRoute = pathname.startsWith('/portal');
 
   useEffect(() => {
-    if (pathname === '/login' || isAdminRoute || isPortalRoute) return;
+    if (pathname === '/login' || pathname === '/auto-login' || isAdminRoute || isPortalRoute) return;
 
     let cancelled = false;
 
@@ -34,7 +34,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     };
   }, [pathname, router]);
 
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname === '/auto-login') {
     return <main>{children}</main>;
   }
 
