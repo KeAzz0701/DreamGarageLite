@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, Phone, Mail } from 'lucide-react'
+import { ArrowRight, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Reveal } from '@/components/motion/reveal'
 
@@ -32,31 +32,19 @@ export function FinalCta() {
           </Reveal>
 
           <Reveal direction="right" delay={0.1} className="rounded-2xl border border-background/10 bg-background/5 p-7">
-            <p className="text-sm font-bold text-secondary-foreground">お電話でのお問い合わせ</p>
+            <p className="flex items-center gap-2 text-sm font-bold text-secondary-foreground">
+              <Mail className="size-4 text-primary" aria-hidden="true" />
+              メールでのお問い合わせ
+            </p>
             <a
-              href="tel:0000000000"
-              className="mt-2 flex items-center gap-2 text-3xl font-black text-primary"
+              href="mailto:info@dreamgaragelite.com"
+              className="mt-2 block text-2xl font-black text-primary hover:opacity-80 md:text-3xl"
             >
-              <Phone className="size-6" aria-hidden="true" />
-              00-0000-0000
+              info@dreamgaragelite.com
             </a>
-            <p className="mt-1 text-xs text-secondary-foreground/60">受付時間: 平日 9:00〜18:00</p>
-
-            <div className="mt-6 border-t border-background/10 pt-6">
-              <p className="flex items-center gap-2 text-sm font-bold text-secondary-foreground">
-                <Mail className="size-4 text-primary" aria-hidden="true" />
-                メールでのお問い合わせ
-              </p>
-              <a
-                href="mailto:info@dreamgaragelite.com"
-                className="mt-2 block text-sm font-bold text-primary hover:opacity-80"
-              >
-                info@dreamgaragelite.com
-              </a>
-              <p className="mt-2 text-sm leading-relaxed text-secondary-foreground/70">
-                フォームからは24時間受け付けております。2営業日以内に担当者よりご返信いたします。
-              </p>
-            </div>
+            <p className="mt-3 text-sm leading-relaxed text-secondary-foreground/70">
+              フォームからは24時間受け付けております。2営業日以内に担当者よりご返信いたします。
+            </p>
           </Reveal>
         </div>
       </div>

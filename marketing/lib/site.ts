@@ -1,6 +1,6 @@
 export const siteConfig = {
   productName: 'ガレージ・カルテ',
-  companyName: '株式会社Dream Garage',
+  companyName: 'DreamGarage',
   tagline: '整備工場のカルテ、まるごとデジタル化。',
 }
 

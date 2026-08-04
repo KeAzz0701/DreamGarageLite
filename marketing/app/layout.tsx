@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     template: '%s | ガレージ・カルテ',
   },
   description:
-    '「ガレージ・カルテ」は整備工場（町工場）向けのクラウド管理システム。顧客・車両管理、予約、見積、LINE連携リマインドをひとつに。株式会社Dream Garageが提供します。',
+    '「ガレージ・カルテ」は整備工場（町工場）向けのクラウド管理システム。顧客・車両管理、予約、見積、LINE連携リマインドをひとつに。DreamGarageが提供します。',
   keywords: ['整備工場', '自動車整備', '顧客管理', '車両管理', 'LINE連携', '予約管理', '見積作成', 'SaaS'],
   generator: 'v0.app',
 }

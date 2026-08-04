@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Phone, Mail, Clock, FileText } from 'lucide-react'
+import { Mail, FileText } from 'lucide-react'
 import { PageHero } from '@/components/page-hero'
 import { ContactForm } from '@/components/contact/contact-form'
 import { Reveal } from '@/components/motion/reveal'
@@ -24,21 +24,10 @@ export default function ContactPage() {
           <Reveal direction="left" className="md:col-span-2">
             <h2 className="text-xl font-black tracking-tight">お問い合わせ方法</h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              フォームのほか、お電話でもご相談を承っております。まずはお気軽にご連絡ください。
+              下記のメール、またはフォームからお気軽にご連絡ください。
             </p>
 
             <ul className="mt-8 space-y-6">
-              <li className="flex items-start gap-4">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Phone className="size-5" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="text-sm font-bold">お電話</p>
-                  <a href="tel:0000000000" className="mt-1 block text-xl font-black text-primary">
-                    00-0000-0000
-                  </a>
-                </div>
-              </li>
               <li className="flex items-start gap-4">
                 <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <Mail className="size-5" aria-hidden="true" />
@@ -51,15 +40,6 @@ export default function ContactPage() {
                   >
                     info@dreamgaragelite.com
                   </a>
-                </div>
-              </li>
-              <li className="flex items-start gap-4">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Clock className="size-5" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="text-sm font-bold">受付時間</p>
-                  <p className="mt-1 text-sm text-muted-foreground">平日 9:00〜18:00（土日祝を除く）</p>
                 </div>
               </li>
               <li className="flex items-start gap-4">
