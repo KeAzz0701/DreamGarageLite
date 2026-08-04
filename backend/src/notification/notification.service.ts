@@ -4,13 +4,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { LineService } from '../line/line.service';
-import { parseFlexibleDate, daysUntil } from '../common/japanese-date';
+import { parseFlexibleDate, daysUntil, toJstDateOnly } from '../common/japanese-date';
 import { MasterPrismaService } from '../prisma/master-prisma.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
 
-// 2ヶ月前・1ヶ月前は単発、2週間前からは当日まで毎日お知らせする
-const NOTIFY_THRESHOLDS = new Set([60, 30]);
+// 3ヶ月前・2ヶ月前・1ヶ月前は単発、2週間前からは当日まで毎日お知らせする
+const NOTIFY_THRESHOLDS = new Set([90, 60, 30]);
 const DAILY_NOTIFY_FROM_DAYS = 14;
+
+/** 車検満了日の2ヶ月前(=一般的に車検を受けられるようになる目安日)を返す */
+function earliestBookingDate(expirationDate: Date): Date {
+  const d = new Date(expirationDate);
+  d.setMonth(d.getMonth() - 2);
+  return d;
+}
 
 function shouldNotify(remain: number): boolean {
   return NOTIFY_THRESHOLDS.has(remain) || (remain >= 0 && remain <= DAILY_NOTIFY_FROM_DAYS);
@@ -93,20 +100,38 @@ export class NotificationService {
           ? '本日'
           : `残り${remain}日`;
 
-      const headline =
-        remain >= 45
-          ? 'もう車検のご予約が取れます'
-          : '車検満了のお知らせ';
+      const vehicleLabel =
+        `${vehicle.carName ?? ''}${vehicle.commonModelName ? ' ' + vehicle.commonModelName : ''}` +
+        `（${vehicle.registrationNumber ?? '登録番号未登録'}）`;
+
+      let text: string;
+
+      if (remain === 90) {
+        // 3ヶ月前は「もう予約できます」ではなく、実際に車検を受けられるようになる目安日を案内する
+        const bookingFrom = toJstDateOnly(earliestBookingDate(date));
+
+        text =
+          `📅 車検満了まであと3ヶ月です\n` +
+          `${vehicleLabel}\n` +
+          `車検満了日: ${vehicle.expirationDate}\n` +
+          `${bookingFrom}頃から車検を受けられるようになります。お早めのご予約がおすすめです。`;
+      } else {
+        const headline =
+          remain >= 45
+            ? 'もう車検のご予約が取れます'
+            : '車検満了のお知らせ';
+
+        text =
+          `🚗 ${headline}\n` +
+          `${vehicleLabel}\n` +
+          `車検満了日: ${vehicle.expirationDate}（${label}）\n` +
+          `お早めに整備工場へご連絡ください。`;
+      }
 
       await this.lineService.pushMessage(lineUserId, [
         {
           type: 'text',
-          text:
-            `🚗 ${headline}\n` +
-            `${vehicle.carName ?? ''}${vehicle.commonModelName ? ' ' + vehicle.commonModelName : ''}` +
-            `（${vehicle.registrationNumber ?? '登録番号未登録'}）\n` +
-            `車検満了日: ${vehicle.expirationDate}（${label}）\n` +
-            `お早めに整備工場へご連絡ください。`,
+          text,
           quickReply: this.lineService.buildShakenReminderQuickReply(vehicle.id, companyAccountId),
         },
       ]);
