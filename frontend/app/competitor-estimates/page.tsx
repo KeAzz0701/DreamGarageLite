@@ -8,6 +8,13 @@
 import { useEffect, useState } from 'react';
 import { api, extractErrorMessage } from '@/lib/api';
 
+type ComparisonEntry = {
+  name: string;
+  cost: number;
+  shopName: string | null;
+  estimateDate: string | null;
+};
+
 type ComparisonRow = {
   vehicleCategory: 'KEI' | 'REGULAR' | 'LARGE' | 'CARGO';
   vehicleCategoryLabel: string;
@@ -16,6 +23,7 @@ type ComparisonRow = {
   avgCost: number;
   minCost: number;
   maxCost: number;
+  entries: ComparisonEntry[];
 };
 
 const VEHICLE_CATEGORY_ORDER: ComparisonRow['vehicleCategory'][] = [
@@ -28,6 +36,7 @@ const VEHICLE_CATEGORY_ORDER: ComparisonRow['vehicleCategory'][] = [
 export default function CompetitorEstimatesComparisonPage() {
   const [rows, setRows] = useState<ComparisonRow[] | null>(null);
   const [error, setError] = useState('');
+  const [openKey, setOpenKey] = useState<string | null>(null);
 
   useEffect(() => {
     load();
@@ -76,25 +85,56 @@ export default function CompetitorEstimatesComparisonPage() {
           </h2>
 
           <div className="space-y-2">
-            {g.rows.map((r) => (
-              <div
-                key={r.itemCategory}
-                className="flex items-center justify-between border-b border-[var(--line)] pb-2"
-              >
-                <div>
-                  <span className="font-semibold">{r.itemCategory}</span>
-                  <span className="ml-2 text-xs text-[var(--muted)]">{r.count}件</span>
+            {g.rows.map((r) => {
+              const key = `${r.vehicleCategory}|${r.itemCategory}`;
+              const isOpen = openKey === key;
+
+              return (
+                <div key={key} className="border-b border-[var(--line)] pb-2">
+                  <button
+                    type="button"
+                    onClick={() => setOpenKey(isOpen ? null : key)}
+                    className="flex items-center justify-between w-full text-left"
+                  >
+                    <div>
+                      <span className="font-semibold">{r.itemCategory}</span>
+                      <span className="ml-2 text-xs text-[var(--muted)]">{r.count}件</span>
+                    </div>
+                    <div className="flex items-center gap-4 mono text-sm">
+                      <span className="text-[var(--muted)]">
+                        ¥{r.minCost.toLocaleString()} 〜 ¥{r.maxCost.toLocaleString()}
+                      </span>
+                      <span className="text-[var(--blue)] font-bold">
+                        平均 ¥{r.avgCost.toLocaleString()}
+                      </span>
+                      <span className="text-[var(--muted)]">{isOpen ? '▾' : '▸'}</span>
+                    </div>
+                  </button>
+
+                  {isOpen && (
+                    <div className="mt-2 space-y-1">
+                      {r.entries.map((e, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between text-xs bg-[var(--paper-dim)] rounded px-2 py-1.5"
+                        >
+                          <span>
+                            {e.name}
+                            {e.shopName && (
+                              <span className="ml-2 text-[var(--muted)]">{e.shopName}</span>
+                            )}
+                            {e.estimateDate && (
+                              <span className="ml-2 text-[var(--muted)]">{e.estimateDate}</span>
+                            )}
+                          </span>
+                          <span className="mono font-semibold">¥{e.cost.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-4 mono text-sm">
-                  <span className="text-[var(--muted)]">
-                    ¥{r.minCost.toLocaleString()} 〜 ¥{r.maxCost.toLocaleString()}
-                  </span>
-                  <span className="text-[var(--blue)] font-bold">
-                    平均 ¥{r.avgCost.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}

@@ -724,16 +724,18 @@ export default function AdminPage() {
             <div key={k.id} className="veh mb-2">
               {k.assignedCompanyName ? (
                 <>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between">
                     <span className="mono font-semibold">{k.maskedKey}</span>
-                    <span className="expbadge">{k.tier === 'PAID' ? '有料枠' : '無料枠'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="expbadge">{k.tier === 'PAID' ? '有料枠' : '無料枠'}</span>
+                      <button onClick={() => unassignApiKey(k)} className="btn btn-ghost btn-sm">
+                        割当解除
+                      </button>
+                    </div>
                   </div>
                   <div className="text-xs text-[var(--muted)] mt-1">
                     割当先: {k.assignedCompanyName}
                   </div>
-                  <button onClick={() => unassignApiKey(k)} className="btn btn-ghost btn-sm mt-2">
-                    割当解除
-                  </button>
                 </>
               ) : (
                 <div className="flex items-center gap-2">

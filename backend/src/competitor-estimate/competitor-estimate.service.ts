@@ -76,8 +76,15 @@ export class CompetitorEstimateService {
   async getComparisonTable() {
     const rows = await this.prisma.competitorEstimate.findMany({
       where: { sharedWithShop: true, vehicleCategory: { not: null } },
-      select: { vehicleCategory: true, items: true },
+      select: { vehicleCategory: true, items: true, shopName: true, estimateDate: true },
     });
+
+    type Entry = {
+      name: string;
+      cost: number;
+      shopName: string | null;
+      estimateDate: string | null;
+    };
 
     type Bucket = {
       vehicleCategory: VehicleCategory;
@@ -86,6 +93,7 @@ export class CompetitorEstimateService {
       total: number;
       min: number;
       max: number;
+      entries: Entry[];
     };
 
     const buckets = new Map<string, Bucket>();
@@ -100,6 +108,12 @@ export class CompetitorEstimateService {
         const itemCategory =
           typeof item?.category === 'string' && item.category ? item.category : 'その他';
         const key = `${row.vehicleCategory}|${itemCategory}`;
+        const entry: Entry = {
+          name: typeof item?.name === 'string' && item.name ? item.name : itemCategory,
+          cost,
+          shopName: row.shopName ?? null,
+          estimateDate: row.estimateDate ?? null,
+        };
         const existing = buckets.get(key);
 
         if (existing) {
@@ -107,6 +121,7 @@ export class CompetitorEstimateService {
           existing.total += cost;
           existing.min = Math.min(existing.min, cost);
           existing.max = Math.max(existing.max, cost);
+          existing.entries.push(entry);
         } else {
           buckets.set(key, {
             vehicleCategory: row.vehicleCategory,
@@ -115,6 +130,7 @@ export class CompetitorEstimateService {
             total: cost,
             min: cost,
             max: cost,
+            entries: [entry],
           });
         }
       }
@@ -129,6 +145,7 @@ export class CompetitorEstimateService {
         avgCost: Math.round(b.total / b.count),
         minCost: b.min,
         maxCost: b.max,
+        entries: b.entries.sort((a, c) => a.cost - c.cost),
       }))
       .sort(
         (a, b) =>
