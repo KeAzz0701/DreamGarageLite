@@ -535,43 +535,43 @@ export default function AdminPage() {
         ) : (
           companies.map((c) => (
             <div key={c.id} className="veh mb-2">
-              <div className="flex justify-between items-center">
-                <div>
-                  <span className="font-semibold">{c.displayName}</span>
-                  <span className="ml-2 mono text-xs text-[var(--muted)]">{c.companyCode}</span>
-                  <span className="expbadge ml-2">{c.currentPlan ?? 'FREE'}</span>
-                  {c.trialDaysRemaining != null && (
-                    <span className="expbadge exp-warn ml-2">
-                      お試し残り{c.trialDaysRemaining}日
-                    </span>
-                  )}
-                  {!c.isActive && <span className="expbadge exp-warn ml-2">無効</span>}
-                  {c.lineConnected && <span className="ml-2 text-xs text-[var(--muted)]">LINE連携済み</span>}
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => resetPassword(c)} className="btn btn-blue btn-sm">
-                    🔑 パスワード再発行
-                  </button>
+              <div className="admin-company-head">
+                <span className="font-semibold">{c.displayName}</span>
+                <span className="expbadge">{c.currentPlan ?? 'FREE'}</span>
+              </div>
+              <div className="admin-company-meta">
+                <span className="mono text-xs text-[var(--muted)]">{c.companyCode}</span>
+                <span className="text-xs text-[var(--muted)]">
+                  {c.lineConnected ? '✅ LINE連携済み' : 'LINE未連携'}
+                </span>
+                {c.trialDaysRemaining != null && (
+                  <span className="expbadge exp-warn">お試し残り{c.trialDaysRemaining}日</span>
+                )}
+                {!c.isActive && <span className="expbadge exp-warn">無効</span>}
+              </div>
+              <div className="flex gap-2 flex-wrap mt-2">
+                <button onClick={() => resetPassword(c)} className="btn btn-blue btn-sm">
+                  🔑 パスワード再発行
+                </button>
+                <button onClick={() => toggleActive(c)} className="btn btn-ghost btn-sm">
+                  {c.isActive ? '無効化' : '有効化'}
+                </button>
+                <button
+                  onClick={() => showAutoLoginQr(c)}
+                  disabled={generatingAutoLoginQr === c.id}
+                  className="btn btn-ghost btn-sm"
+                >
+                  {generatingAutoLoginQr === c.id ? '発行中...' : '📱 自動ログインQR'}
+                </button>
+                {!c.isActive && (
                   <button
-                    onClick={() => showAutoLoginQr(c)}
-                    disabled={generatingAutoLoginQr === c.id}
-                    className="btn btn-ghost btn-sm"
+                    onClick={() => deleteCompany(c)}
+                    disabled={deletingCompanyId === c.id}
+                    className="btn btn-danger btn-sm"
                   >
-                    {generatingAutoLoginQr === c.id ? '発行中...' : '📱 自動ログインQR'}
+                    {deletingCompanyId === c.id ? '削除中...' : '🗑 完全に削除'}
                   </button>
-                  <button onClick={() => toggleActive(c)} className="btn btn-ghost btn-sm">
-                    {c.isActive ? '無効化' : '有効化'}
-                  </button>
-                  {!c.isActive && (
-                    <button
-                      onClick={() => deleteCompany(c)}
-                      disabled={deletingCompanyId === c.id}
-                      className="btn btn-danger btn-sm"
-                    >
-                      {deletingCompanyId === c.id ? '削除中...' : '🗑 完全に削除'}
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
               <div className="mt-1 text-xs text-[var(--muted)]">DB: {c.dbName}</div>
             </div>
@@ -722,24 +722,26 @@ export default function AdminPage() {
         ) : (
           apiKeys.map((k) => (
             <div key={k.id} className="veh mb-2">
-              <div className="flex justify-between items-center">
-                <div>
-                  <span className="mono font-semibold">{k.maskedKey}</span>
-                  <span className="expbadge ml-2">{k.tier === 'PAID' ? '有料枠' : '無料枠'}</span>
-                  {k.assignedCompanyName ? (
-                    <span className="ml-2 text-xs text-[var(--muted)]">
-                      割当先: {k.assignedCompanyName}
-                    </span>
-                  ) : (
-                    <span className="ml-2 text-xs text-[var(--muted)]">未割当</span>
-                  )}
-                </div>
-                {k.assignedCompanyName && (
-                  <button onClick={() => unassignApiKey(k)} className="btn btn-ghost btn-sm">
+              {k.assignedCompanyName ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="mono font-semibold">{k.maskedKey}</span>
+                    <span className="expbadge">{k.tier === 'PAID' ? '有料枠' : '無料枠'}</span>
+                  </div>
+                  <div className="text-xs text-[var(--muted)] mt-1">
+                    割当先: {k.assignedCompanyName}
+                  </div>
+                  <button onClick={() => unassignApiKey(k)} className="btn btn-ghost btn-sm mt-2">
                     割当解除
                   </button>
-                )}
-              </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="mono font-semibold">{k.maskedKey}</span>
+                  <span className="expbadge">{k.tier === 'PAID' ? '有料枠' : '無料枠'}</span>
+                  <span className="text-xs text-[var(--muted)]">未割当</span>
+                </div>
+              )}
             </div>
           ))
         )}
@@ -787,27 +789,6 @@ export default function AdminPage() {
                   {r.message && <div className="text-sm mt-1">{r.message}</div>}
                   {r.userAgent && (
                     <div className="text-xs text-[var(--muted)] mt-1">環境: {r.userAgent}</div>
-                  )}
-                  {r.screenshotBase64 && (
-                    <button
-                      type="button"
-                      onClick={() => setZoomedScreenshot(r.screenshotBase64)}
-                      style={{ display: 'block', padding: 0, border: 0, background: 'none', cursor: 'zoom-in' }}
-                    >
-                      <img
-                        src={r.screenshotBase64}
-                        alt="報告時のスクリーンショット"
-                        style={{
-                          maxWidth: 200,
-                          maxHeight: 120,
-                          objectFit: 'cover',
-                          objectPosition: 'top',
-                          borderRadius: 6,
-                          border: '1px solid var(--line)',
-                          marginTop: 8,
-                        }}
-                      />
-                    </button>
                   )}
                   {r.diagnosisNote && (
                     <div
@@ -886,12 +867,34 @@ export default function AdminPage() {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => (r.resolved ? reopenErrorReport(r) : resolveErrorReport(r))}
-                  className="btn btn-ghost btn-sm"
-                >
-                  {r.resolved ? '未対応に戻す' : '✅ 訂正済みにする'}
-                </button>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <button
+                    onClick={() => (r.resolved ? reopenErrorReport(r) : resolveErrorReport(r))}
+                    className="btn btn-ghost btn-sm"
+                  >
+                    {r.resolved ? '未対応に戻す' : '✅ 訂正済みにする'}
+                  </button>
+                  {r.screenshotBase64 && (
+                    <button
+                      type="button"
+                      onClick={() => setZoomedScreenshot(r.screenshotBase64)}
+                      style={{ display: 'block', padding: 0, border: 0, background: 'none', cursor: 'zoom-in' }}
+                    >
+                      <img
+                        src={r.screenshotBase64}
+                        alt="報告時のスクリーンショット"
+                        style={{
+                          maxWidth: 140,
+                          maxHeight: 100,
+                          objectFit: 'cover',
+                          objectPosition: 'top',
+                          borderRadius: 6,
+                          border: '1px solid var(--line)',
+                        }}
+                      />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))

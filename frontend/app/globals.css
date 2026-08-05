@@ -1410,6 +1410,19 @@ button.minirow:hover {
   margin: 0 auto;
   padding: 24px 16px 64px;
 }
+.admin-company-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.admin-company-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
 @media (max-width: 640px) {
   /* 会社一覧・担当者アカウント等の各行は、操作ボタンが3〜4個並ぶため、
      モバイル幅では横1行に収めようとしてボタンが縮み、文字が単語の途中で
