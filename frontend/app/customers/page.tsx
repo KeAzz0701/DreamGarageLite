@@ -79,76 +79,74 @@ export default function CustomerPage() {
         {filtered.map((customer) => (
           <div key={customer.id} className="card">
             <div className="card-body">
-              <div className="flex justify-between">
-                <div>
-                  <div className="cname disp text-xl">
-                    {customer.customerName}
-                  </div>
-
-                  <div className="text-sm text-[var(--muted)] cust-address">
-                    {customer.customerAddress}
-                  </div>
-
-                  <div className="text-sm text-[var(--muted)] cust-phone">
-                    {customer.phone || '-'}
-                  </div>
+              <div className="cust-info">
+                <div className="cname disp text-xl">
+                  {customer.customerName}
                 </div>
 
-                <div className="flex flex-col items-end gap-2 shrink-0 customer-actions">
-                  <span
-                    className={customer.lineUserId ? 'badge-ok text-xs' : 'expbadge exp-warn text-xs'}
+                <div className="text-sm text-[var(--muted)] cust-address">
+                  {customer.customerAddress}
+                </div>
+
+                <div className="text-sm text-[var(--muted)] cust-phone">
+                  {customer.phone || '-'}
+                </div>
+              </div>
+
+              <div className="cust-vehicles">
+                <div className="text-xs text-[var(--muted)] mb-2 veh-section-label">
+                  所有車両
+                </div>
+
+                <div className="space-y-2 veh-list">
+                  {customer.vehicles.map((v) => (
+                    <div key={v.id} className="veh">
+                      <div className="font-semibold">
+                        {v.carName || '-'}
+                        {v.commonModelName && (
+                          <span className="ml-2 text-[var(--blue)]">
+                            {v.commonModelName}
+                          </span>
+                        )}
+                      </div>
+
+                      <div>{v.registrationNumber}</div>
+
+                      <div className="text-sm mono text-[var(--muted)]">
+                        {v.vin}
+                      </div>
+
+                      <div className="text-sm">
+                        車検満了：
+                        {formatFlexibleDate(v.expirationDate) || '-'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col items-end gap-2 shrink-0 customer-actions">
+                <span
+                  className={customer.lineUserId ? 'badge-ok text-xs' : 'expbadge exp-warn text-xs'}
+                >
+                  {customer.lineUserId ? '✅ LINE連携済み' : 'LINE未連携'}
+                </span>
+                <div className="flex gap-2">
+                  <PlanGatedLink
+                    allowed={lineHistoryAllowed}
+                    href={`/customers/${customer.id}/line`}
+                    className="btn btn-ghost btn-sm h-fit"
+                    lockedMessage="LINEメッセージ履歴の閲覧はスタンダードプラン以上でご利用いただけます。"
                   >
-                    {customer.lineUserId ? '✅ LINE連携済み' : 'LINE未連携'}
-                  </span>
-                  <div className="flex gap-2">
-                    <PlanGatedLink
-                      allowed={lineHistoryAllowed}
-                      href={`/customers/${customer.id}/line`}
-                      className="btn btn-ghost btn-sm h-fit"
-                      lockedMessage="LINEメッセージ履歴の閲覧はスタンダードプラン以上でご利用いただけます。"
-                    >
-                      💬 LINE
-                    </PlanGatedLink>
-                    <Link
-                      href={`/customers/${customer.id}`}
-                      className="btn btn-blue btn-sm h-fit"
-                    >
-                      詳細
-                    </Link>
-                  </div>
+                    💬 LINE
+                  </PlanGatedLink>
+                  <Link
+                    href={`/customers/${customer.id}`}
+                    className="btn btn-blue btn-sm h-fit"
+                  >
+                    詳細
+                  </Link>
                 </div>
-              </div>
-
-              <hr className="my-4 border-[var(--line)] veh-divider" />
-
-              <div className="text-xs text-[var(--muted)] mb-2 veh-section-label">
-                所有車両
-              </div>
-
-              <div className="space-y-2 veh-list">
-                {customer.vehicles.map((v) => (
-                  <div key={v.id} className="veh">
-                    <div className="font-semibold">
-                      {v.carName || '-'}
-                      {v.commonModelName && (
-                        <span className="ml-2 text-[var(--blue)]">
-                          {v.commonModelName}
-                        </span>
-                      )}
-                    </div>
-
-                    <div>{v.registrationNumber}</div>
-
-                    <div className="text-sm mono text-[var(--muted)]">
-                      {v.vin}
-                    </div>
-
-                    <div className="text-sm">
-                      車検満了：
-                      {formatFlexibleDate(v.expirationDate) || '-'}
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           </div>

@@ -241,6 +241,28 @@ button.card:hover {
 .card-body {
   padding: 16px 16px 16px 20px;
 }
+/* 顧客カード(.customer-list-shell内)は名前/住所/電話・車両・操作ボタンの3ブロック構成。
+   モバイルは[情報 操作][車両(全幅)]の2行、PC(下のmin-width:1024pxブロック)は横1行に並べ替える */
+.customer-list-shell .card-body {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'info actions' 'vehicles vehicles';
+  column-gap: 14px;
+  row-gap: 10px;
+}
+.customer-list-shell .cust-info {
+  grid-area: info;
+  min-width: 0;
+}
+.customer-list-shell .cust-vehicles {
+  grid-area: vehicles;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 2px;
+}
+.customer-list-shell .customer-actions {
+  grid-area: actions;
+}
 
 .dropzone {
   display: flex;
@@ -1200,7 +1222,7 @@ button.minirow:hover {
     margin-top: 2px;
   }
 
-  /* 顧客管理: 1人分を横長にして、スクロールせずに多くの件数を見渡せるようにする */
+  /* 顧客管理: 1人分を横長にして、車両を右側に並べ、スクロールせずに多くの件数を見渡せるようにする */
   main:has(.customer-list-shell) {
     max-width: 1180px;
   }
@@ -1214,11 +1236,11 @@ button.minirow:hover {
     margin-bottom: 6px;
   }
   .customer-list-shell .card-body {
-    padding: 10px 20px;
-  }
-  .customer-list-shell .card-body > .flex.justify-between {
+    grid-template-columns: minmax(200px, 260px) 1fr auto;
+    grid-template-areas: 'info vehicles actions';
+    column-gap: 24px;
+    padding: 12px 20px;
     align-items: center;
-    gap: 20px;
   }
   .customer-list-shell .cname {
     font-size: 16px;
@@ -1231,13 +1253,15 @@ button.minirow:hover {
     content: '　/　';
     color: var(--line);
   }
+  .customer-list-shell .cust-vehicles {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
   .customer-list-shell .customer-actions {
     flex-direction: row;
     align-items: center;
     gap: 12px;
-  }
-  .customer-list-shell .veh-divider {
-    margin: 8px 0;
   }
   .customer-list-shell .veh-section-label {
     display: none;
@@ -1281,6 +1305,39 @@ button.minirow:hover {
   .estimate-new-shell .shitemrow-detail {
     grid-template-columns: 1.6fr 70px 110px 110px 100px 74px 32px;
     gap: 10px;
+  }
+
+  /* 予約管理画面: 右側に月間カレンダーを固定し、左側の予約リストをスクロールしながら
+     常に予約登録カレンダーが見える2カラム構成にする */
+  main:has(.reservations-shell) {
+    max-width: 1180px;
+  }
+  .reservations-shell {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 20px;
+    align-items: start;
+  }
+  .reservations-shell > .res-header {
+    grid-column: 1 / -1;
+  }
+  .reservations-shell .res-pending {
+    grid-column: 1;
+  }
+  .reservations-shell .res-confirmed {
+    grid-column: 1;
+  }
+  .reservations-shell .res-history {
+    grid-column: 1;
+  }
+  .reservations-shell .res-calendar {
+    grid-column: 2;
+    grid-row: span 3;
+    position: sticky;
+    top: 20px;
+  }
+  .reservations-shell .res-hours {
+    grid-column: 1 / -1;
   }
 }
 

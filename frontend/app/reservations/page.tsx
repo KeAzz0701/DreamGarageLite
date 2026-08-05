@@ -277,13 +277,13 @@ export default function ReservationsPage() {
   );
 
   return (
-    <>
-      <div className="flex justify-between items-center mb-6">
+    <div className="reservations-shell">
+      <div className="flex justify-between items-center mb-6 res-header">
         <h1 className="disp text-3xl">予約管理</h1>
       </div>
 
       {pending.length > 0 && (
-      <div className="panel mb-4">
+      <div className="panel mb-4 res-pending">
         <h2 className="disp text-xl mb-3">予約待ち（{pending.length}）</h2>
 
         {pending.map((r) => (
@@ -316,12 +316,12 @@ export default function ReservationsPage() {
       </div>
       )}
 
-      <div className="panel mb-4">
+      <div className="panel mb-4 res-calendar">
         <h2 className="disp text-xl mb-3">月間カレンダー（電話予約用）</h2>
         <MonthlyCalendarPanel />
       </div>
 
-      <div className="panel mb-4">
+      <div className="panel mb-4 res-confirmed">
         <h2 className="disp text-xl mb-3">確定済み（{confirmed.length}）</h2>
 
         {confirmed.length === 0 ? (
@@ -360,7 +360,7 @@ export default function ReservationsPage() {
         )}
       </div>
 
-      <div className="panel mb-4">
+      <div className="panel mb-4 res-history">
         <h2 className="disp text-xl mb-3">履歴（{history.length}）</h2>
 
         {history.length === 0 ? (
@@ -383,7 +383,7 @@ export default function ReservationsPage() {
         )}
       </div>
 
-      <div className="panel">
+      <div className="panel res-hours">
         <h2 className="disp text-xl mb-3">営業時間・定休日</h2>
 
         <div className="hours-table mb-4">
@@ -555,7 +555,7 @@ export default function ReservationsPage() {
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
