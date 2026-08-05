@@ -1245,14 +1245,6 @@ button.minirow:hover {
   .customer-list-shell .cname {
     font-size: 16px;
   }
-  .customer-list-shell .cust-address,
-  .customer-list-shell .cust-phone {
-    display: inline;
-  }
-  .customer-list-shell .cust-address::after {
-    content: '　/　';
-    color: var(--line);
-  }
   .customer-list-shell .cust-vehicles {
     border-top: none;
     padding-top: 0;
