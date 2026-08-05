@@ -724,7 +724,7 @@ export default function AdminPage() {
             <div key={k.id} className="veh mb-2">
               {k.assignedCompanyName ? (
                 <>
-                  <div className="flex items-center justify-between">
+                  <div className="apikey-head">
                     <div className="flex items-center gap-2">
                       <span className="mono font-semibold">{k.maskedKey}</span>
                       <span className="expbadge">{k.tier === 'PAID' ? '有料枠' : '無料枠'}</span>
