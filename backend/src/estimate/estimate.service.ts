@@ -1,7 +1,7 @@
 // backend/src/estimate/estimate.service.ts
 
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { VehicleCategory } from '@prisma/client';
+import { EstimateCategory, VehicleCategory } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { LicenseService } from '../license/license.service';
@@ -21,7 +21,7 @@ interface CreateEstimateDto {
   customerNameFreeText?: string;
   vehicleDescription?: string;
   title: string;
-  category?: 'SHAKEN' | 'GENERAL';
+  category?: EstimateCategory;
   staffName?: string;
   items: EstimateItemDto[];
 }

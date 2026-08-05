@@ -5,7 +5,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { PrintItemsTable } from '@/components/estimate/PrintItemsTable';
+import {
+  LegalFeeBox,
+  PrintItemsTable,
+  PrintTotalsBox,
+  WorkItemsTable,
+  calcPrintTotals,
+} from '@/components/estimate/PrintItemsTable';
 
 type Tab = 'sales' | 'invoice' | 'correction';
 
@@ -117,6 +123,64 @@ export default function VehiclePrintPage() {
         }
         .print-table th {
           background: #eae7e0;
+        }
+        .print-worktable-label {
+          font-size: 16px;
+          font-weight: 700;
+          margin-top: 20px;
+          margin-bottom: 4px;
+        }
+        .print-legalfee-box {
+          margin-top: 16px;
+          border: 1px solid #cfcabf;
+          border-radius: 6px;
+          background: #f5f3ee;
+          padding: 10px 14px;
+        }
+        .print-legalfee-title {
+          font-size: 12px;
+          font-weight: 700;
+          margin-bottom: 6px;
+        }
+        .print-legalfee-note {
+          font-weight: 400;
+          color: #7a746a;
+          margin-left: 6px;
+          font-size: 11px;
+        }
+        .print-legalfee-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 13px;
+          padding: 3px 0;
+        }
+        .print-legalfee-total {
+          margin-top: 4px;
+          padding-top: 6px;
+          border-top: 1px solid #cfcabf;
+          font-weight: 700;
+        }
+        .print-grandtotal-box {
+          margin-top: 16px;
+          margin-left: auto;
+          width: 320px;
+          max-width: 100%;
+          border: 2px solid #1e2023;
+          border-radius: 6px;
+          padding: 10px 16px;
+        }
+        .print-grandtotal-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 13px;
+          padding: 3px 0;
+        }
+        .print-grandtotal-final {
+          margin-top: 4px;
+          padding-top: 6px;
+          border-top: 1px solid #cfcabf;
+          font-weight: 700;
+          font-size: 16px;
         }
         @media screen and (max-width: 560px) {
           .print-table-wrap {
@@ -360,6 +424,7 @@ export default function VehiclePrintPage() {
             </div>
 
             <div className="text-right text-sm">
+              <div>伝票番号: INV-{String(selected.id).padStart(6, '0')}</div>
               <div>納品日: {selected.date.slice(0, 10)}</div>
               <div className="mt-3 font-bold">{company.companyName}</div>
               <div>{company.address}</div>
@@ -368,7 +433,25 @@ export default function VehiclePrintPage() {
             </div>
           </div>
 
-          <PrintItemsTable items={selected.items} totalRowLabel="ご請求金額" />
+          {(() => {
+            const { feeItems, workItems, feeSubtotal, workSubtotal, tax, grandTotal } =
+              calcPrintTotals(selected.items);
+            return (
+              <>
+                {feeItems.length > 0 && <LegalFeeBox items={feeItems} />}
+                {workItems.length > 0 && (
+                  <WorkItemsTable items={workItems} label={feeItems.length > 0 ? '整備項目' : undefined} />
+                )}
+                <PrintTotalsBox
+                  feeSubtotal={feeSubtotal}
+                  workSubtotal={workSubtotal}
+                  tax={tax}
+                  grandTotal={grandTotal}
+                  totalRowLabel="ご請求金額"
+                />
+              </>
+            );
+          })()}
 
           {settings.bankName && (
             <div className="mt-6 text-xs">

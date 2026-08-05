@@ -5,12 +5,15 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { PrintItemsTable } from '@/components/estimate/PrintItemsTable';
+import { LegalFeeBox, PrintTotalsBox, WorkItemsTable, calcPrintTotals } from '@/components/estimate/PrintItemsTable';
 import { formatFlexibleDate } from '@/lib/japaneseDate';
 
 const CATEGORY_LABEL: Record<string, string> = {
-  SHAKEN: '車検',
+  SHAKEN: '車検整備',
   GENERAL: '一般整備',
+  INSPECTION_12M: '12ヶ月点検',
+  INSPECTION_6M: '6ヶ月点検',
+  WARRANTY: '保証整備',
 };
 
 export default function EstimatePrintPage() {
@@ -49,7 +52,11 @@ export default function EstimatePrintPage() {
   const vehicleName = vehicle
     ? `${vehicle.carName ?? ''} ${vehicle.commonModelName ?? ''}`.trim() || '車名未登録'
     : estimate.vehicleDescription || '未登録';
-  const total = (estimate.items as any[]).reduce((s, i) => s + i.cost, 0);
+
+  const { feeItems, workItems, feeSubtotal, workSubtotal, tax, grandTotal } = calcPrintTotals(
+    estimate.items,
+  );
+  const estimateNumber = `EST-${String(estimate.id).padStart(6, '0')}`;
 
   return (
     <div className="print-sheet">
@@ -69,35 +76,55 @@ export default function EstimatePrintPage() {
         .print-table {
           width: 100%;
           border-collapse: collapse;
-          margin-top: 16px;
+          margin-top: 8px;
         }
         .print-table th, .print-table td {
           border: 1px solid #cfcabf;
-          padding: 8px 10px;
-          font-size: 13px;
+          padding: 10px 12px;
+          font-size: 14px;
           text-align: left;
         }
         .print-table th {
           background: #eae7e0;
         }
-        .print-vehicle-table {
-          width: 100%;
-          border-collapse: collapse;
+        .print-worktable-label {
+          font-size: 16px;
+          font-weight: 700;
+          margin-top: 20px;
+          margin-bottom: 4px;
+        }
+        .print-two-col {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          align-items: start;
           margin-top: 8px;
         }
-        .print-vehicle-table th, .print-vehicle-table td {
+        .print-vehicle-info {
           border: 1px solid #cfcabf;
-          padding: 6px 8px;
-          font-size: 12px;
+          border-radius: 6px;
+          overflow: hidden;
         }
-        .print-vehicle-table th {
+        .print-vehicle-info-row {
+          display: flex;
+          border-bottom: 1px solid #cfcabf;
+          font-size: 12.5px;
+        }
+        .print-vehicle-info-row:last-child {
+          border-bottom: none;
+        }
+        .print-vehicle-info-row th {
+          width: 96px;
+          flex-shrink: 0;
           background: #eae7e0;
           text-align: left;
-          width: 96px;
-          white-space: nowrap;
+          padding: 6px 8px;
+          font-weight: 600;
         }
-        .print-vehicle-table td {
-          text-align: left;
+        .print-vehicle-info-row td {
+          padding: 6px 8px;
+          flex: 1;
+          min-width: 0;
         }
         .print-total-box {
           border: 2px solid #1e2023;
@@ -107,16 +134,22 @@ export default function EstimatePrintPage() {
           min-width: 200px;
         }
         .print-legalfee-box {
-          margin-top: 16px;
           border: 1px solid #cfcabf;
           border-radius: 6px;
           background: #f5f3ee;
           padding: 10px 14px;
+          height: 100%;
         }
         .print-legalfee-title {
           font-size: 12px;
           font-weight: 700;
           margin-bottom: 6px;
+        }
+        .print-legalfee-note {
+          font-weight: 400;
+          color: #7a746a;
+          margin-left: 6px;
+          font-size: 11px;
         }
         .print-legalfee-row {
           display: flex;
@@ -129,6 +162,28 @@ export default function EstimatePrintPage() {
           padding-top: 6px;
           border-top: 1px solid #cfcabf;
           font-weight: 700;
+        }
+        .print-grandtotal-box {
+          margin-top: 16px;
+          margin-left: auto;
+          width: 320px;
+          max-width: 100%;
+          border: 2px solid #1e2023;
+          border-radius: 6px;
+          padding: 10px 16px;
+        }
+        .print-grandtotal-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 13px;
+          padding: 3px 0;
+        }
+        .print-grandtotal-final {
+          margin-top: 4px;
+          padding-top: 6px;
+          border-top: 1px solid #cfcabf;
+          font-weight: 700;
+          font-size: 16px;
         }
         @media screen and (max-width: 560px) {
           .print-table-wrap {
@@ -144,6 +199,9 @@ export default function EstimatePrintPage() {
           }
           .print-total-box {
             align-self: stretch;
+          }
+          .print-two-col {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
@@ -165,10 +223,11 @@ export default function EstimatePrintPage() {
         </div>
 
         <div className="text-right">
+          <div className="text-xs text-[var(--muted)] mb-1">見積番号: {estimateNumber}</div>
           <div className="text-xs text-[var(--muted)] mb-1">発行日: {estimate.date.slice(0, 10)}</div>
           <div className="print-total-box">
-            <div className="text-xs text-[var(--muted)]">お見積り金額</div>
-            <div className="font-bold text-2xl mono">¥{total.toLocaleString()}</div>
+            <div className="text-xs text-[var(--muted)]">お見積り金額(税込)</div>
+            <div className="font-bold text-2xl mono">¥{grandTotal.toLocaleString()}</div>
           </div>
         </div>
       </div>
@@ -187,32 +246,48 @@ export default function EstimatePrintPage() {
         <div className="text-sm">{customer?.customerAddress}</div>
       </div>
 
-      <div className="print-table-wrap">
-        <table className="print-vehicle-table">
+      <div className={feeItems.length > 0 ? 'print-two-col' : ''}>
+        <table className="print-vehicle-info">
           <tbody>
-            <tr>
+            <tr className="print-vehicle-info-row">
               <th>車名</th>
               <td>{vehicleName}</td>
+            </tr>
+            <tr className="print-vehicle-info-row">
               <th>登録番号</th>
               <td>{vehicle?.registrationNumber || '-'}</td>
             </tr>
-            <tr>
+            <tr className="print-vehicle-info-row">
               <th>型式</th>
               <td>{vehicle?.model || '-'}</td>
+            </tr>
+            <tr className="print-vehicle-info-row">
               <th>車台番号</th>
               <td className="mono">{vehicle?.vin || '-'}</td>
             </tr>
-            <tr>
+            <tr className="print-vehicle-info-row">
               <th>初度登録</th>
               <td>{formatFlexibleDate(vehicle?.firstRegistration) || '-'}</td>
+            </tr>
+            <tr className="print-vehicle-info-row">
               <th>車検満了日</th>
               <td>{formatFlexibleDate(vehicle?.expirationDate) || '-'}</td>
             </tr>
           </tbody>
         </table>
+
+        {feeItems.length > 0 && <LegalFeeBox items={feeItems} />}
       </div>
 
-      <PrintItemsTable items={estimate.items} />
+      {workItems.length > 0 && <WorkItemsTable items={workItems} label="整備項目" />}
+
+      <PrintTotalsBox
+        feeSubtotal={feeSubtotal}
+        workSubtotal={workSubtotal}
+        tax={tax}
+        grandTotal={grandTotal}
+        totalRowLabel="お見積り金額"
+      />
 
       {settings.estimateTerms && (
         <div className="mt-6 text-xs text-[var(--muted)] whitespace-pre-wrap">

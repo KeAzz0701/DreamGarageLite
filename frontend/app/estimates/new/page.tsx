@@ -17,6 +17,16 @@ import {
 
 type Mode = 'vehicle' | 'customer' | 'freeform';
 
+type EstimateCategory = 'GENERAL' | 'SHAKEN' | 'INSPECTION_12M' | 'INSPECTION_6M' | 'WARRANTY';
+
+const CATEGORY_OPTIONS: { value: EstimateCategory; label: string }[] = [
+  { value: 'GENERAL', label: '一般整備' },
+  { value: 'SHAKEN', label: '車検整備' },
+  { value: 'INSPECTION_12M', label: '12ヶ月点検' },
+  { value: 'INSPECTION_6M', label: '6ヶ月点検' },
+  { value: 'WARRANTY', label: '保証整備' },
+];
+
 export default function NewEstimatePage() {
   const router = useRouter();
 
@@ -33,7 +43,7 @@ export default function NewEstimatePage() {
 
   const [title, setTitle] = useState('');
   const [staffName, setStaffName] = useState('');
-  const [category, setCategory] = useState<'GENERAL' | 'SHAKEN'>('GENERAL');
+  const [category, setCategory] = useState<EstimateCategory>('GENERAL');
   const [vehicleCategory, setVehicleCategory] = useState('REGULAR');
   const [items, setItems] = useState<EstimateItemDraft[]>([emptyEstimateItem()]);
   const [suggesting, setSuggesting] = useState(false);
@@ -302,10 +312,13 @@ export default function NewEstimatePage() {
             <select
               className="input"
               value={category}
-              onChange={(e) => setCategory(e.target.value as 'GENERAL' | 'SHAKEN')}
+              onChange={(e) => setCategory(e.target.value as EstimateCategory)}
             >
-              <option value="GENERAL">一般整備</option>
-              <option value="SHAKEN">車検</option>
+              {CATEGORY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </label>
 

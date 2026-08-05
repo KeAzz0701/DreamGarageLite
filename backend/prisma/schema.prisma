@@ -45,6 +45,9 @@ enum PlanChangeStatus {
 enum EstimateCategory {
   SHAKEN
   GENERAL
+  INSPECTION_12M
+  INSPECTION_6M
+  WARRANTY
 }
 
 enum VehicleCategory {

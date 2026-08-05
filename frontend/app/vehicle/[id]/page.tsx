@@ -14,6 +14,20 @@ import {
 } from '@/components/estimate/EstimateItemRow';
 import { inferVehicleCategory } from '@/lib/vehicleCategory';
 
+type EstimateCategory = 'GENERAL' | 'SHAKEN' | 'INSPECTION_12M' | 'INSPECTION_6M' | 'WARRANTY';
+
+const ESTIMATE_CATEGORY_OPTIONS: { value: EstimateCategory; label: string }[] = [
+  { value: 'GENERAL', label: '一般整備' },
+  { value: 'SHAKEN', label: '車検整備' },
+  { value: 'INSPECTION_12M', label: '12ヶ月点検' },
+  { value: 'INSPECTION_6M', label: '6ヶ月点検' },
+  { value: 'WARRANTY', label: '保証整備' },
+];
+
+const ESTIMATE_CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
+  ESTIMATE_CATEGORY_OPTIONS.map((o) => [o.value, o.label]),
+);
+
 const DOCUMENT_TYPES = [
   {
     key: 'continuation',
@@ -198,7 +212,7 @@ export default function VehicleDetailPage() {
   const [estimateItems, setEstimateItems] = useState<EstimateItemDraft[]>([
     emptyEstimateItem(),
   ]);
-  const [estimateCategory, setEstimateCategory] = useState<'GENERAL' | 'SHAKEN'>('GENERAL');
+  const [estimateCategory, setEstimateCategory] = useState<EstimateCategory>('GENERAL');
   const [estimateStaffName, setEstimateStaffName] = useState('');
   const [estimateVehicleCategory, setEstimateVehicleCategory] = useState('REGULAR');
   const [suggesting, setSuggesting] = useState(false);
@@ -1236,11 +1250,14 @@ export default function VehicleDetailPage() {
                   className="input"
                   value={estimateCategory}
                   onChange={(e) =>
-                    setEstimateCategory(e.target.value as 'GENERAL' | 'SHAKEN')
+                    setEstimateCategory(e.target.value as EstimateCategory)
                   }
                 >
-                  <option value="GENERAL">一般整備</option>
-                  <option value="SHAKEN">車検</option>
+                  {ESTIMATE_CATEGORY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </label>
 
@@ -1327,8 +1344,10 @@ export default function VehicleDetailPage() {
                       {es.date.slice(0, 10)}
                     </span>{' '}
                     <span className="font-semibold">{es.title}</span>
-                    {es.category === 'SHAKEN' && (
-                      <span className="expbadge exp-warn ml-2">車検</span>
+                    {es.category && es.category !== 'GENERAL' && (
+                      <span className="expbadge exp-warn ml-2">
+                        {ESTIMATE_CATEGORY_LABEL[es.category] ?? es.category}
+                      </span>
                     )}
                     {es.staffName && (
                       <span className="ml-2 text-xs text-[var(--muted)]">

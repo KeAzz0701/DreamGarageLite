@@ -1,6 +1,6 @@
 // frontend/components/estimate/PrintItemsTable.tsx
 
-interface PrintItem {
+export interface PrintItem {
   id: number;
   name: string;
   quantity: number;
@@ -10,14 +10,33 @@ interface PrintItem {
   isFee: boolean;
 }
 
+const TAX_RATE = 0.1;
+
+/**
+ * 法定費用・手数料(重量税・自賠責保険料・印紙代等)は消費税の課税対象外のため、
+ * 整備項目(部品代・技術料)のみを消費税の計算対象にする
+ */
+export function calcPrintTotals(items: PrintItem[]) {
+  const feeItems = items.filter((i) => i.isFee);
+  const workItems = items.filter((i) => !i.isFee);
+  const feeSubtotal = feeItems.reduce((s, i) => s + i.cost, 0);
+  const workSubtotal = workItems.reduce((s, i) => s + i.cost, 0);
+  const tax = Math.round(workSubtotal * TAX_RATE);
+  const grandTotal = feeSubtotal + workSubtotal + tax;
+
+  return { feeItems, workItems, feeSubtotal, workSubtotal, tax, grandTotal };
+}
+
 /** 法定費用・手数料(重量税・自賠責保険料・印紙代・検査代行手数料等)。金額は定額のため
  *  部品代・技術料の内訳は持たず、ディーラー見積書のような枠付きの簡易リストで見せる */
-function LegalFeeBox({ items, totalRowLabel }: { items: PrintItem[]; totalRowLabel: string }) {
+export function LegalFeeBox({ items }: { items: PrintItem[] }) {
   const subtotal = items.reduce((s, i) => s + i.cost, 0);
 
   return (
     <div className="print-legalfee-box">
-      <div className="print-legalfee-title">法定費用・手数料</div>
+      <div className="print-legalfee-title">
+        法定費用・手数料<span className="print-legalfee-note">(消費税対象外)</span>
+      </div>
       {items.map((item) => (
         <div key={item.id} className="print-legalfee-row">
           <span>{item.name}</span>
@@ -25,27 +44,27 @@ function LegalFeeBox({ items, totalRowLabel }: { items: PrintItem[]; totalRowLab
         </div>
       ))}
       <div className="print-legalfee-row print-legalfee-total">
-        <span>{totalRowLabel}</span>
+        <span>小計</span>
         <span>¥{subtotal.toLocaleString()}</span>
       </div>
     </div>
   );
 }
 
-function ItemTable({
+export function WorkItemsTable({
   items,
   label,
-  totalRowLabel,
+  totalRowLabel = '小計',
 }: {
   items: PrintItem[];
   label?: string;
-  totalRowLabel: string;
+  totalRowLabel?: string;
 }) {
   const subtotal = items.reduce((s, i) => s + i.cost, 0);
 
   return (
     <>
-      {label && <div className="text-xs font-semibold mt-4 mb-1">{label}</div>}
+      {label && <div className="print-worktable-label">{label}</div>}
       <div className="print-table-wrap">
         <table className="print-table">
           <thead>
@@ -86,7 +105,46 @@ function ItemTable({
   );
 }
 
-/** 車検の法定費用・手数料と、それ以外の整備項目を分けて表示する(分ける必要が無ければ1つの表にまとめる) */
+/** 法定費用(非課税)と整備項目(消費税10%)を分けた、税抜小計・消費税・税込合計の内訳ボックス */
+export function PrintTotalsBox({
+  feeSubtotal,
+  workSubtotal,
+  tax,
+  grandTotal,
+  totalRowLabel = '合計',
+}: {
+  feeSubtotal: number;
+  workSubtotal: number;
+  tax: number;
+  grandTotal: number;
+  totalRowLabel?: string;
+}) {
+  return (
+    <div className="print-grandtotal-box">
+      {feeSubtotal > 0 && (
+        <div className="print-grandtotal-row">
+          <span>法定費用・手数料(非課税)</span>
+          <span>¥{feeSubtotal.toLocaleString()}</span>
+        </div>
+      )}
+      <div className="print-grandtotal-row">
+        <span>整備項目 小計(税抜)</span>
+        <span>¥{workSubtotal.toLocaleString()}</span>
+      </div>
+      <div className="print-grandtotal-row">
+        <span>消費税(10%)</span>
+        <span>¥{tax.toLocaleString()}</span>
+      </div>
+      <div className="print-grandtotal-row print-grandtotal-final">
+        <span>{totalRowLabel}</span>
+        <span>¥{grandTotal.toLocaleString()}</span>
+      </div>
+    </div>
+  );
+}
+
+/** 車検の法定費用・手数料と、それ以外の整備項目を分けて表示する(分ける必要が無ければ1つの表にまとめる)
+ *  税区分を問わない単純な内訳が欲しい場面(赤黒伝票など)向けの、後方互換の簡易版 */
 export function PrintItemsTable({
   items,
   totalRowLabel = '合計',
@@ -101,8 +159,8 @@ export function PrintItemsTable({
   if (feeItems.length > 0 && workItems.length > 0) {
     return (
       <>
-        <LegalFeeBox items={feeItems} totalRowLabel="小計" />
-        <ItemTable items={workItems} label="整備項目" totalRowLabel="小計" />
+        <LegalFeeBox items={feeItems} />
+        <WorkItemsTable items={workItems} label="整備項目" />
         <div
           className="flex justify-between mt-3 pt-2"
           style={{ borderTop: '2px solid #1e2023' }}
@@ -115,8 +173,8 @@ export function PrintItemsTable({
   }
 
   if (feeItems.length > 0) {
-    return <LegalFeeBox items={feeItems} totalRowLabel={totalRowLabel} />;
+    return <LegalFeeBox items={feeItems} />;
   }
 
-  return <ItemTable items={items} totalRowLabel={totalRowLabel} />;
+  return <WorkItemsTable items={items} totalRowLabel={totalRowLabel} />;
 }
