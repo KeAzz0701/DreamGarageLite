@@ -1410,6 +1410,22 @@ button.minirow:hover {
   margin: 0 auto;
   padding: 24px 16px 64px;
 }
+@media (max-width: 640px) {
+  /* 会社一覧・担当者アカウント等の各行は、操作ボタンが3〜4個並ぶため、
+     モバイル幅では横1行に収めようとしてボタンが縮み、文字が単語の途中で
+     折り返されてしまっていた。情報とボタンを縦に分け、ボタン列は折り返し可にする */
+  .admin-shell .veh > .flex.justify-between.items-center {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .admin-shell .veh .flex.gap-2 {
+    flex-wrap: wrap;
+  }
+  .admin-shell .veh .btn {
+    white-space: nowrap;
+  }
+}
 
 /* AI chat */
 .chat-shell {
