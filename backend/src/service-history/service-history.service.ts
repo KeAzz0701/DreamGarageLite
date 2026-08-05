@@ -57,10 +57,17 @@ export class ServiceHistoryService {
     private readonly lineService: LineService,
   ) {}
 
+  /** 納品書・請求書の伝票番号は会社(テナントDB)ごとに1から連番。idは削除等で欠番が出るため印字用途には使わない */
+  private async nextDocumentNumber() {
+    const agg = await this.prisma.serviceHistory.aggregate({ _max: { documentNumber: true } });
+    return (agg._max.documentNumber ?? 0) + 1;
+  }
+
   async create(vehicleId: number, data: CreateServiceHistoryDto) {
     const serviceHistory = await this.prisma.serviceHistory.create({
       data: {
         vehicleId,
+        documentNumber: await this.nextDocumentNumber(),
         date: new Date(data.date),
         title: data.title,
         mileage: data.mileage != null ? Number(data.mileage) : undefined,
@@ -159,6 +166,8 @@ export class ServiceHistoryService {
       throw new BadRequestException('訂正後の項目を1件以上入力してください。');
     }
 
+    const documentNumber = await this.nextDocumentNumber();
+
     const [, corrected] = await this.prisma.$transaction([
       this.prisma.serviceHistory.update({
         where: { id },
@@ -167,6 +176,7 @@ export class ServiceHistoryService {
       this.prisma.serviceHistory.create({
         data: {
           vehicleId: original.vehicleId,
+          documentNumber,
           date: original.date,
           title: data.title?.trim() || original.title,
           mileage: data.mileage != null ? Number(data.mileage) : original.mileage,

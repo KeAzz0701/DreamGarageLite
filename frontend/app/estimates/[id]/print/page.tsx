@@ -56,7 +56,7 @@ export default function EstimatePrintPage() {
   const { feeItems, workItems, feeSubtotal, workSubtotal, tax, grandTotal } = calcPrintTotals(
     estimate.items,
   );
-  const estimateNumber = `EST-${String(estimate.id).padStart(6, '0')}`;
+  const estimateNumber = `EST-${String(estimate.estimateNumber ?? estimate.id).padStart(6, '0')}`;
 
   return (
     <div className="print-sheet">

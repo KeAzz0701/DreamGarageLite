@@ -424,7 +424,7 @@ export default function VehiclePrintPage() {
             </div>
 
             <div className="text-right text-sm">
-              <div>伝票番号: INV-{String(selected.id).padStart(6, '0')}</div>
+              <div>伝票番号: INV-{String(selected.documentNumber ?? selected.id).padStart(6, '0')}</div>
               <div>納品日: {selected.date.slice(0, 10)}</div>
               <div className="mt-3 font-bold">{company.companyName}</div>
               <div>{company.address}</div>

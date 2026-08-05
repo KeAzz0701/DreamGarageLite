@@ -386,6 +386,10 @@ model TireMeasurement {
 model ServiceHistory {
   id         Int       @id @default(autoincrement())
 
+  // 納品書・請求書に印字する伝票番号。自社(テナントDB)内で1から連番になるよう、
+  // idとは別に発行時点で採番する(idは他の削除等でも欠番が生まれるため印字用途には使わない)
+  documentNumber Int?
+
   vehicleId  Int
   vehicle    Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
@@ -479,6 +483,10 @@ model ServiceHistoryItem {
 
 model Estimate {
   id         Int       @id @default(autoincrement())
+
+  // 見積書に印字する見積番号。自社(テナントDB)内で1から連番になるよう、
+  // idとは別に発行時点で採番する(idは他の削除等でも欠番が生まれるため印字用途には使わない)
+  estimateNumber Int?
 
   vehicleId  Int?
   vehicle    Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)

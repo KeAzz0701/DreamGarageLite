@@ -70,6 +70,12 @@ export class EstimateService {
     return this.createEstimate(data);
   }
 
+  /** 見積番号は会社(テナントDB)ごとに1から連番。idは削除等で欠番が出るため印字用途には使わない */
+  private async nextEstimateNumber() {
+    const agg = await this.prisma.estimate.aggregate({ _max: { estimateNumber: true } });
+    return (agg._max.estimateNumber ?? 0) + 1;
+  }
+
   private async createEstimate(data: CreateEstimateDto) {
     return this.prisma.estimate.create({
       data: {
@@ -80,6 +86,7 @@ export class EstimateService {
         title: data.title,
         category: data.category ?? 'GENERAL',
         staffName: data.staffName,
+        estimateNumber: await this.nextEstimateNumber(),
         items: {
           create: buildItemsData(data.items),
         },
@@ -173,11 +180,17 @@ export class EstimateService {
       );
     }
 
+    const documentNumberAgg = await this.prisma.serviceHistory.aggregate({
+      _max: { documentNumber: true },
+    });
+    const documentNumber = (documentNumberAgg._max.documentNumber ?? 0) + 1;
+
     // 変換後は見積書側に残さない(整備履歴への昇格として扱う)
     const [serviceHistory] = await this.prisma.$transaction([
       this.prisma.serviceHistory.create({
         data: {
           vehicleId: estimate.vehicleId,
+          documentNumber,
           date: new Date(),
           title: estimate.title,
           items: {
