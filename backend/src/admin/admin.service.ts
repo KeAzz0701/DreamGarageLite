@@ -15,6 +15,7 @@ import { SystemAdminLineService } from '../system-admin-line/system-admin-line.s
 import { getEffectivePlanLimits, getTrialDaysRemaining } from '../common/plans';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const DOCUMENT_PREFIX_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const PASSWORD_CHARS =
   'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
 const LICENSE_KEY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -522,6 +523,7 @@ export class AdminService {
         data: {
           name: displayName.trim(),
           companyName: displayName.trim(),
+          documentPrefix: randomString(DOCUMENT_PREFIX_CHARS, 2),
         },
       });
 

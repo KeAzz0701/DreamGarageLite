@@ -73,6 +73,10 @@ model Company {
   address       String?
   invoiceNumber String?
 
+  // 見積書・納品書/請求書の番号に使う、会社ごとにランダムな英字コード(例: QZM)。
+  // 会社作成時に発行し、同じ会社内では固定(番号の連番自体はEstimate/ServiceHistory側で管理)
+  documentPrefix String?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
