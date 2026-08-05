@@ -57,7 +57,7 @@ export default function CustomerPage() {
   });
 
   return (
-    <>
+    <div className="customer-list-shell">
       <div className="flex justify-between items-center mb-6">
         <h1 className="disp text-3xl">顧客管理</h1>
 
@@ -73,6 +73,8 @@ export default function CustomerPage() {
         onChange={(e) => setKeyword(e.target.value)}
       />
 
+      <div className="customer-count-label">{filtered.length}件</div>
+
       <div>
         {filtered.map((customer) => (
           <div key={customer.id} className="card">
@@ -83,16 +85,16 @@ export default function CustomerPage() {
                     {customer.customerName}
                   </div>
 
-                  <div className="text-sm text-[var(--muted)]">
+                  <div className="text-sm text-[var(--muted)] cust-address">
                     {customer.customerAddress}
                   </div>
 
-                  <div className="text-sm text-[var(--muted)]">
+                  <div className="text-sm text-[var(--muted)] cust-phone">
                     {customer.phone || '-'}
                   </div>
                 </div>
 
-                <div className="flex flex-col items-end gap-2 shrink-0">
+                <div className="flex flex-col items-end gap-2 shrink-0 customer-actions">
                   <span
                     className={customer.lineUserId ? 'badge-ok text-xs' : 'expbadge exp-warn text-xs'}
                   >
@@ -117,13 +119,13 @@ export default function CustomerPage() {
                 </div>
               </div>
 
-              <hr className="my-4 border-[var(--line)]" />
+              <hr className="my-4 border-[var(--line)] veh-divider" />
 
-              <div className="text-xs text-[var(--muted)] mb-2">
+              <div className="text-xs text-[var(--muted)] mb-2 veh-section-label">
                 所有車両
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 veh-list">
                 {customer.vehicles.map((v) => (
                   <div key={v.id} className="veh">
                     <div className="font-semibold">
@@ -152,6 +154,6 @@ export default function CustomerPage() {
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 }

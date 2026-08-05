@@ -851,6 +851,13 @@ button.card:hover {
   color: var(--muted);
   margin-top: 3px;
 }
+/* PC幅(下のmin-width:1024pxブロック)でのみ表示する要素。モバイルの見た目は一切変えない */
+.statcard-desc,
+.dash-greeting,
+.dash-kpi-row,
+.customer-count-label {
+  display: none;
+}
 @media (max-width: 520px) {
   /* 3個を横一列に保ったまま、幅の狭いスマホでも窮屈にならないよう小さめにする */
   .statgrid {
@@ -1077,6 +1084,203 @@ button.minirow:hover {
   }
   .dash-panel.is-open .dash-panel-body {
     display: block;
+  }
+
+  /* ホーム画面: 挨拶ヘッダー */
+  .dash-greeting {
+    display: block;
+    margin-bottom: 18px;
+  }
+  .dash-greeting h1 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0;
+  }
+  .dash-greeting p {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: 2px 0 0;
+  }
+
+  /* ホーム画面: KPIカード行(顧客数・車両台数・未確定の予約・車検リマインド対象) */
+  .dash-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .dash-kpi {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.2s var(--ease), transform 0.2s var(--ease), border-color 0.2s var(--ease);
+  }
+  .dash-kpi:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+    border-color: var(--orange);
+  }
+  .dash-kpi-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    border-radius: 10px;
+    background: var(--paper-dim);
+  }
+  .dash-kpi-figures {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .dash-kpi-value {
+    font-family: var(--font-mono-plex), monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.1;
+  }
+  .dash-kpi-label {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 2px;
+    white-space: nowrap;
+  }
+  .dash-kpi-alert .dash-kpi-icon {
+    background: #fdece5;
+  }
+  .dash-kpi-alert .dash-kpi-value {
+    color: var(--orange-dark);
+  }
+
+  /* クイックアクション(車検証OCR・予約管理・AIチャット)をPCではより見やすいタイル型に */
+  main:has(.dash-shell) .statgrid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  main:has(.dash-shell) .statcard {
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+    border-radius: 12px;
+  }
+  main:has(.dash-shell) .statcard .num {
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    border-radius: 12px;
+    background: linear-gradient(145deg, var(--orange), var(--orange-dark));
+  }
+  main:has(.dash-shell) .statcard .lbl {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-top: 0;
+  }
+  .statcard-desc {
+    display: block;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* 顧客管理: 1人分を横長にして、スクロールせずに多くの件数を見渡せるようにする */
+  main:has(.customer-list-shell) {
+    max-width: 1180px;
+  }
+  .customer-count-label {
+    display: block;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: -10px 0 10px 2px;
+  }
+  .customer-list-shell .card {
+    margin-bottom: 6px;
+  }
+  .customer-list-shell .card-body {
+    padding: 10px 20px;
+  }
+  .customer-list-shell .card-body > .flex.justify-between {
+    align-items: center;
+    gap: 20px;
+  }
+  .customer-list-shell .cname {
+    font-size: 16px;
+  }
+  .customer-list-shell .cust-address,
+  .customer-list-shell .cust-phone {
+    display: inline;
+  }
+  .customer-list-shell .cust-address::after {
+    content: '　/　';
+    color: var(--line);
+  }
+  .customer-list-shell .customer-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  .customer-list-shell .veh-divider {
+    margin: 8px 0;
+  }
+  .customer-list-shell .veh-section-label {
+    display: none;
+  }
+  .customer-list-shell .veh-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+  .customer-list-shell .veh {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    padding: 5px 12px;
+    background: var(--paper-dim);
+    border-radius: 8px;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  .customer-list-shell .veh > div {
+    white-space: nowrap;
+  }
+
+  /* 見積作成画面: 左に対象選択、右に見積内容を並べて横幅を活かす */
+  main:has(.estimate-new-shell) {
+    max-width: 1180px;
+  }
+  .estimate-new-shell {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .estimate-new-shell > .estimate-header {
+    grid-column: 1 / -1;
+  }
+  .estimate-new-shell .max-h-64 {
+    max-height: 460px;
+  }
+  .estimate-new-shell .shitemrow-detail {
+    grid-template-columns: 1.6fr 70px 110px 110px 100px 74px 32px;
+    gap: 10px;
   }
 }
 

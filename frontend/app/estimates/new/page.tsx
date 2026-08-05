@@ -151,8 +151,8 @@ export default function NewEstimatePage() {
   }
 
   return (
-    <>
-      <div className="flex justify-between items-center mb-6">
+    <div className="estimate-new-shell">
+      <div className="flex justify-between items-center mb-6 estimate-header">
         <h1 className="disp text-3xl">見積書作成</h1>
         <Link href="/" className="btn btn-ghost">
           戻る
@@ -375,6 +375,6 @@ export default function NewEstimatePage() {
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 }

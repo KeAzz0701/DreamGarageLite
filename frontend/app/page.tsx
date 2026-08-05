@@ -7,6 +7,21 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { formatFlexibleDate } from '@/lib/japaneseDate';
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
+import { useCompany } from '@/hooks/useCompany';
+
+type HomeSummary = {
+  customers: number;
+  vehicles: number;
+  unreadLineMessages: number;
+  pendingOcrSubmissions: number;
+  pendingReservations: number | null;
+  pendingShakenReminders: number;
+};
+
+function todayLabel() {
+  const d = new Date();
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日(${WEEKDAY_LABELS[d.getDay()]})`;
+}
 
 type Customer = {
   id: number;
@@ -53,10 +68,18 @@ function fmt(iso: string) {
 }
 
 export default function Home() {
+  const { company } = useCompany();
   const [recentCustomers, setRecentCustomers] = useState<Customer[]>([]);
   const [upcomingReservations, setUpcomingReservations] = useState<Reservation[]>([]);
   const [shakenReminders, setShakenReminders] = useState<ShakenReminder[]>([]);
   const [unreadLine, setUnreadLine] = useState<UnreadLineSummary[]>([]);
+  const [summary, setSummary] = useState<HomeSummary | null>(null);
+
+  useEffect(() => {
+    api<{ summary: HomeSummary }>('')
+      .then((data) => setSummary(data.summary))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadUnreadLine();
@@ -125,20 +148,61 @@ export default function Home() {
 
   return (
     <div className="dash-shell">
+      <div className="dash-greeting">
+        <h1>おはようございます、{company?.companyName ?? ''}様</h1>
+        <p>{todayLabel()}</p>
+      </div>
+
+      {summary && (
+        <div className="dash-kpi-row">
+          <Link href="/customers" className="dash-kpi">
+            <span className="dash-kpi-icon">👥</span>
+            <span className="dash-kpi-figures">
+              <span className="dash-kpi-value">{summary.customers}</span>
+              <span className="dash-kpi-label">顧客数</span>
+            </span>
+          </Link>
+          <Link href="/vehicle" className="dash-kpi">
+            <span className="dash-kpi-icon">🚗</span>
+            <span className="dash-kpi-figures">
+              <span className="dash-kpi-value">{summary.vehicles}</span>
+              <span className="dash-kpi-label">登録車両</span>
+            </span>
+          </Link>
+          <Link href="/reservations" className="dash-kpi">
+            <span className="dash-kpi-icon">📅</span>
+            <span className="dash-kpi-figures">
+              <span className="dash-kpi-value">{summary.pendingReservations ?? 0}</span>
+              <span className="dash-kpi-label">未確定の予約</span>
+            </span>
+          </Link>
+          <Link href="/" className="dash-kpi dash-kpi-alert">
+            <span className="dash-kpi-icon">🚨</span>
+            <span className="dash-kpi-figures">
+              <span className="dash-kpi-value">{summary.pendingShakenReminders}</span>
+              <span className="dash-kpi-label">車検リマインド対象</span>
+            </span>
+          </Link>
+        </div>
+      )}
+
       <div className="statgrid">
         <Link href="/ocr" className="statcard block">
           <div className="num">📷</div>
           <div className="lbl">車検証OCR</div>
+          <div className="statcard-desc">車検証を撮影してAIで自動入力</div>
         </Link>
 
         <Link href="/reservations" className="statcard block">
           <div className="num">📅</div>
           <div className="lbl">予約管理</div>
+          <div className="statcard-desc">カレンダーで予約を確認・調整</div>
         </Link>
 
         <Link href="/ai-chat" className="statcard block">
           <div className="num">🤖</div>
           <div className="lbl">AIチャット</div>
+          <div className="statcard-desc">整備のご相談をAIにすぐ質問</div>
         </Link>
       </div>
 
