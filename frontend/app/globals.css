@@ -1259,23 +1259,24 @@ button.minirow:hover {
     display: none;
   }
   .customer-list-shell .veh-list {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 6px 10px;
   }
   .customer-list-shell .veh {
     display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 4px 10px;
-    padding: 5px 12px;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 12px;
     background: var(--paper-dim);
     border-radius: 8px;
     font-size: 12.5px;
-    white-space: nowrap;
+    min-width: 0;
   }
   .customer-list-shell .veh > div {
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* 見積作成画面: 左に対象選択、右に見積内容を並べて横幅を活かす */
