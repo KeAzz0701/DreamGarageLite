@@ -27,6 +27,7 @@ import { ServiceHistoryModule } from './service-history/service-history.module';
 import { EstimateModule } from './estimate/estimate.module';
 import { ExportModule } from './export/export.module';
 import { FeeRateModule } from './fee-rate/fee-rate.module';
+import { MaintenanceReminderTypeModule } from './maintenance-reminder-type/maintenance-reminder-type.module';
 import { ReservationModule } from './reservation/reservation.module';
 import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 import { AnnouncementModule } from './announcement/announcement.module';
@@ -62,6 +63,7 @@ import { MarketingInquiryModule } from './marketing-inquiry/marketing-inquiry.mo
     EstimateModule,
     ExportModule,
     FeeRateModule,
+    MaintenanceReminderTypeModule,
     ReservationModule,
     GoogleCalendarModule,
     AnnouncementModule,

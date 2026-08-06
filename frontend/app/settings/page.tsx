@@ -40,6 +40,13 @@ export default function SettingsPage() {
     Record<string, { name: string; price: string; isLaborItem: boolean }>
   >({});
   const [openFeeCategories, setOpenFeeCategories] = useState<Set<string>>(new Set());
+  const [reminderTypes, setReminderTypes] = useState<any[]>([]);
+  const [openReminderTypes, setOpenReminderTypes] = useState<Set<number>>(new Set());
+  const [newReminderDraft, setNewReminderDraft] = useState({
+    name: '',
+    intervalMonths: '',
+    intervalKm: '',
+  });
   const [staffJoinCode, setStaffJoinCode] = useState('');
   const [staffLinks, setStaffLinks] = useState<
     { id: number; displayName: string | null; joinedAt: string; staffAccessCode: string | null }[]
@@ -71,6 +78,9 @@ export default function SettingsPage() {
 
     const rates = await api<any[]>('/fee-rates');
     setFeeRates(rates);
+
+    const reminders = await api<any[]>('/maintenance-reminder-types');
+    setReminderTypes(reminders);
 
     if (staffSession) return;
 
@@ -319,6 +329,103 @@ export default function SettingsPage() {
       await api('/fee-rates/reorder', {
         method: 'POST',
         body: JSON.stringify({ vehicleCategory: category, orderedIds }),
+      });
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+      load();
+    }
+  }
+
+  function toggleReminderTypeOpen(id: number) {
+    setOpenReminderTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function updateReminderTypeDraft(id: number, patch: Record<string, any>) {
+    setReminderTypes((types) => types.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  }
+
+  async function submitReminderType(id: number) {
+    const type = reminderTypes.find((t) => t.id === id);
+    if (!type) return;
+
+    try {
+      await api(`/maintenance-reminder-types/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: type.name,
+          intervalMonths: type.intervalMonths === '' ? null : Number(type.intervalMonths),
+          intervalKm: type.intervalKm === '' ? null : Number(type.intervalKm),
+        }),
+      });
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+      load();
+    }
+  }
+
+  async function removeReminderType(id: number) {
+    if (!window.confirm('このリマインドを削除しますか？')) return;
+
+    try {
+      await api(`/maintenance-reminder-types/${id}`, { method: 'DELETE' });
+      setReminderTypes((types) => types.filter((t) => t.id !== id));
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function addReminderType() {
+    const name = newReminderDraft.name.trim();
+    if (!name) return;
+
+    try {
+      const created = await api<any>('/maintenance-reminder-types', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          intervalMonths: newReminderDraft.intervalMonths
+            ? Number(newReminderDraft.intervalMonths)
+            : undefined,
+          intervalKm: newReminderDraft.intervalKm ? Number(newReminderDraft.intervalKm) : undefined,
+        }),
+      });
+      setReminderTypes((types) => [...types, created]);
+      setNewReminderDraft({ name: '', intervalMonths: '', intervalKm: '' });
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function moveReminderType(id: number, direction: -1 | 1) {
+    const rows = [...reminderTypes].sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = rows.findIndex((r) => r.id === id);
+    const swapIdx = idx + direction;
+
+    if (idx < 0 || swapIdx < 0 || swapIdx >= rows.length) return;
+
+    const reordered = [...rows];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    const orderedIds = reordered.map((r) => r.id);
+
+    setReminderTypes((types) =>
+      types.map((t) => {
+        const newIndex = orderedIds.indexOf(t.id);
+        return newIndex >= 0 ? { ...t, sortOrder: newIndex } : t;
+      }),
+    );
+
+    try {
+      await api('/maintenance-reminder-types/reorder', {
+        method: 'POST',
+        body: JSON.stringify({ orderedIds }),
       });
     } catch (e: any) {
       alert(extractErrorMessage(e));
@@ -796,84 +903,157 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      <div className="panel space-y-5 mb-4">
-        <h2 className="disp text-xl">整備リマインド設定</h2>
-        <p className="note">
-          整備履歴に「オイル交換」「タイヤ交換」として記録した内容をもとに、次回の目安が近づいたお客様をLINEでご案内します。
-          月数・距離のどちらか片方だけでも、両方でも設定できます(早い方を目安にします)。空欄のままにするとその項目のリマインドは行いません。
+      <div className="panel mb-4">
+        <h2 className="disp text-xl mb-3">整備リマインド設定</h2>
+        <p className="note mb-3">
+          整備履歴に記録した内容(項目名がここでの名前と一致するもの)をもとに、次回の目安が近づいたお客様をLINEでご案内します。
+          月数・距離のどちらか片方だけでも、両方でも設定できます(早い方を目安にします)。項目は自由に追加・削除できます。
         </p>
 
-        <div className="grid2">
-          <label className="field-label">
-            オイル交換の目安(ヶ月)
-            <input
-              className="input"
-              type="number"
-              placeholder="例: 6"
-              value={settings.oilChangeIntervalMonths ?? ''}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  oilChangeIntervalMonths: e.target.value === '' ? null : Number(e.target.value),
-                })
-              }
-            />
-          </label>
+        {[...reminderTypes]
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((type, i, sorted) => {
+            const typeOpen = openReminderTypes.has(type.id);
 
-          <label className="field-label">
-            オイル交換の目安(km)
-            <input
-              className="input"
-              type="number"
-              step="100"
-              placeholder="例: 5000"
-              value={settings.oilChangeIntervalKm ?? ''}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  oilChangeIntervalKm: e.target.value === '' ? null : Number(e.target.value),
-                })
-              }
-            />
-          </label>
+            return (
+              <div key={type.id} className="feerate-category mb-2">
+                <div
+                  className="feerate-category-head"
+                  onClick={() => toggleReminderTypeOpen(type.id)}
+                >
+                  <span className="feerate-category-title">
+                    {type.name}
+                    <span className="feerate-count">
+                      {type.intervalMonths ? `${type.intervalMonths}ヶ月` : '-'}
+                      {type.intervalKm ? ` / ${type.intervalKm}km` : ''}
+                    </span>
+                  </span>
+                  <span className={`feerate-chevron ${typeOpen ? 'is-open' : ''}`} aria-hidden>
+                    ▾
+                  </span>
+                </div>
 
-          <label className="field-label">
-            タイヤ交換の目安(ヶ月)
-            <input
-              className="input"
-              type="number"
-              placeholder="例: 48"
-              value={settings.tireChangeIntervalMonths ?? ''}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  tireChangeIntervalMonths: e.target.value === '' ? null : Number(e.target.value),
-                })
-              }
-            />
-          </label>
+                {typeOpen && (
+                  <div className="feerate-category-body" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1 mb-2">
+                      <span className="flex flex-col">
+                        <button
+                          type="button"
+                          onClick={() => moveReminderType(type.id, -1)}
+                          disabled={i === 0}
+                          className="btn-icon"
+                          style={{ padding: 0, lineHeight: 1, opacity: i === 0 ? 0.3 : 1 }}
+                          title="上に移動"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveReminderType(type.id, 1)}
+                          disabled={i === sorted.length - 1}
+                          className="btn-icon"
+                          style={{ padding: 0, lineHeight: 1, opacity: i === sorted.length - 1 ? 0.3 : 1 }}
+                          title="下に移動"
+                        >
+                          ▼
+                        </button>
+                      </span>
+                      <input
+                        className="input"
+                        value={type.name}
+                        onChange={(e) => updateReminderTypeDraft(type.id, { name: e.target.value })}
+                        onBlur={() => submitReminderType(type.id)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeReminderType(type.id)}
+                        className="btn-icon"
+                        title="この項目を削除"
+                      >
+                        ✕
+                      </button>
+                    </div>
 
-          <label className="field-label">
-            タイヤ交換の目安(km)
-            <input
-              className="input"
-              type="number"
-              step="100"
-              placeholder="例: 30000"
-              value={settings.tireChangeIntervalKm ?? ''}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  tireChangeIntervalKm: e.target.value === '' ? null : Number(e.target.value),
-                })
-              }
-            />
-          </label>
+                    <div className="grid2">
+                      <label className="field-label">
+                        目安(ヶ月)
+                        <input
+                          className="input"
+                          type="number"
+                          placeholder="例: 6"
+                          value={type.intervalMonths ?? ''}
+                          onChange={(e) =>
+                            updateReminderTypeDraft(type.id, {
+                              intervalMonths: e.target.value === '' ? null : Number(e.target.value),
+                            })
+                          }
+                          onBlur={() => submitReminderType(type.id)}
+                        />
+                      </label>
+                      <label className="field-label">
+                        目安(km)
+                        <input
+                          className="input"
+                          type="number"
+                          step="100"
+                          placeholder="例: 5000"
+                          value={type.intervalKm ?? ''}
+                          onChange={(e) =>
+                            updateReminderTypeDraft(type.id, {
+                              intervalKm: e.target.value === '' ? null : Number(e.target.value),
+                            })
+                          }
+                          onBlur={() => submitReminderType(type.id)}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+        <div className="feerate-category">
+          <div className="feerate-category-body">
+            <div className="text-xs text-[var(--muted)] mb-2">新しいリマインドを追加</div>
+            <div className="flex items-center gap-1 mb-2">
+              <input
+                className="input"
+                placeholder="項目名(例: バッテリー交換)"
+                value={newReminderDraft.name}
+                onChange={(e) => setNewReminderDraft((d) => ({ ...d, name: e.target.value }))}
+              />
+            </div>
+            <div className="grid2 mb-2">
+              <label className="field-label">
+                目安(ヶ月)
+                <input
+                  className="input"
+                  type="number"
+                  placeholder="例: 6"
+                  value={newReminderDraft.intervalMonths}
+                  onChange={(e) =>
+                    setNewReminderDraft((d) => ({ ...d, intervalMonths: e.target.value }))
+                  }
+                />
+              </label>
+              <label className="field-label">
+                目安(km)
+                <input
+                  className="input"
+                  type="number"
+                  step="100"
+                  placeholder="例: 5000"
+                  value={newReminderDraft.intervalKm}
+                  onChange={(e) => setNewReminderDraft((d) => ({ ...d, intervalKm: e.target.value }))}
+                />
+              </label>
+            </div>
+            <button type="button" onClick={addReminderType} className="btn btn-ghost btn-sm">
+              ＋追加
+            </button>
+          </div>
         </div>
-
-        <button onClick={save} className="btn btn-primary">
-          保存
-        </button>
       </div>
 
       {planInfo && (

@@ -20,10 +20,18 @@ type MaintenanceCandidate = {
   dueLabel: string;
   recommendElement?: boolean;
 };
+type MaintenanceGroup = {
+  typeName: string;
+  candidates: MaintenanceCandidate[];
+};
 type Recommendations = {
   shaken: ShakenCandidate[];
-  oil: MaintenanceCandidate[];
-  tire: MaintenanceCandidate[];
+  maintenance: MaintenanceGroup[];
+};
+
+const TYPE_ICON: Record<string, string> = {
+  'オイル交換': '🛢',
+  'タイヤ交換': '🛞',
 };
 
 export default function PortalMaintenancePage() {
@@ -35,6 +43,9 @@ export default function PortalMaintenancePage() {
       .then(setData)
       .catch((e) => setError(extractErrorMessage(e) || '読み込みに失敗しました'));
   }, []);
+
+  const hasNothing =
+    data && data.shaken.length === 0 && data.maintenance.every((g) => g.candidates.length === 0);
 
   return (
     <>
@@ -55,7 +66,7 @@ export default function PortalMaintenancePage() {
         <div className="text-center text-[var(--muted)] py-10">読み込み中...</div>
       )}
 
-      {data && data.shaken.length === 0 && data.oil.length === 0 && data.tire.length === 0 && (
+      {hasNothing && (
         <div className="panel">
           <div className="empty">現在、近日中のおすすめはありません。</div>
         </div>
@@ -73,34 +84,25 @@ export default function PortalMaintenancePage() {
         </div>
       )}
 
-      {data && data.oil.length > 0 && (
-        <div className="panel mb-4">
-          <h2 className="disp text-lg mb-3">🛢 オイル交換</h2>
-          {data.oil.map((c) => (
-            <div key={c.vehicleId} className="veh mb-2">
-              <div className="font-semibold">{c.vehicleLabel}</div>
-              <div className="text-sm">{c.dueLabel}</div>
-              {c.recommendElement && (
-                <div className="text-xs text-[var(--muted)] mt-1">
-                  オイルエレメントの交換もおすすめです。
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {data && data.tire.length > 0 && (
-        <div className="panel">
-          <h2 className="disp text-lg mb-3">🛞 タイヤ交換</h2>
-          {data.tire.map((c) => (
-            <div key={c.vehicleId} className="veh mb-2">
-              <div className="font-semibold">{c.vehicleLabel}</div>
-              <div className="text-sm">{c.dueLabel}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      {data &&
+        data.maintenance.map((group) => (
+          <div key={group.typeName} className="panel mb-4">
+            <h2 className="disp text-lg mb-3">
+              {TYPE_ICON[group.typeName] ?? '🔧'} {group.typeName}
+            </h2>
+            {group.candidates.map((c) => (
+              <div key={c.vehicleId} className="veh mb-2">
+                <div className="font-semibold">{c.vehicleLabel}</div>
+                <div className="text-sm">{c.dueLabel}</div>
+                {c.recommendElement && (
+                  <div className="text-xs text-[var(--muted)] mt-1">
+                    オイルエレメントの交換もおすすめです。
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     </>
   );

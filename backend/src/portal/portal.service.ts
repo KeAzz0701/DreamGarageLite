@@ -226,20 +226,23 @@ export class PortalService {
     };
   }
 
-  /** 有料範囲: 次回整備のおすすめ(車検・オイル・タイヤの日付ベースリマインド、現在アクティブな1社分) */
+  /** 有料範囲: 次回整備のおすすめ(車検・会社ごとの整備リマインド全種類の日付ベースリマインド、現在アクティブな1社分) */
   async getMaintenanceRecommendations(customerId: number, lineUserId: string) {
     await this.requirePortalAccess(lineUserId);
 
-    const [shaken, oil, tire] = await Promise.all([
+    const [shaken, maintenanceGroups] = await Promise.all([
       this.lineService.getShakenReminderCandidates(),
-      this.lineService.getMaintenanceReminderCandidates('OIL'),
-      this.lineService.getMaintenanceReminderCandidates('TIRE'),
+      this.lineService.getAllMaintenanceReminderCandidates(),
     ]);
 
     return {
       shaken: shaken.filter((c) => c.customerId === customerId),
-      oil: oil.filter((c) => c.customerId === customerId),
-      tire: tire.filter((c) => c.customerId === customerId),
+      maintenance: maintenanceGroups
+        .map((group) => ({
+          typeName: group.type.name,
+          candidates: group.candidates.filter((c) => c.customerId === customerId),
+        }))
+        .filter((group) => group.candidates.length > 0),
     };
   }
 

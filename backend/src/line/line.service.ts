@@ -85,9 +85,10 @@ const RESERVATION_CATEGORIES = [
 const MAX_QUICK_REPLY_ITEMS = 13;
 const SHAKEN_REMINDER_WINDOW_DAYS = 60;
 const MAINTENANCE_REMINDER_WINDOW_DAYS = 14;
-const MAINTENANCE_CATEGORY_LABEL: Record<'OIL' | 'TIRE', string> = {
-  OIL: 'オイル交換',
-  TIRE: 'タイヤ交換',
+/** 既定のリマインド種類にはなじみやすいアイコンを、会社が自由に追加した種類には汎用アイコンを使う */
+const MAINTENANCE_TYPE_ICON: Record<string, string> = {
+  'オイル交換': '🛢',
+  'タイヤ交換': '🛞',
 };
 
 const mainMenuQuickReply: messagingApi.QuickReply = {
@@ -1288,32 +1289,25 @@ export class LineService {
   }
 
   /**
-   * オイル/タイヤ交換のリマインド候補を組み立てる(現在のテナントコンテキストの会社が対象)。
-   * `getShakenReminderCandidates`と同じ考え方(予約が入っていれば除外、dismiss値が変われば復活)。
+   * 整備リマインド(オイル交換・タイヤ交換など、会社ごとに追加・削除できる)の候補を組み立てる
+   * (現在のテナントコンテキストの会社が対象)。`getShakenReminderCandidates`と同じ考え方
+   * (予約が入っていれば除外、dismiss値が変われば復活)。
    *
    * 走行距離ベースの目安(km)は、現在の実走行距離をリアルタイムに把握する手段が無いため
    * (次回来店時に整備履歴として記録された時点でしか分からない)、自動判定には使わず、
    * 案内文に「目安走行距離」として参考表示するのみに留める。自動判定は月数ベースのみで行う。
    */
-  async getMaintenanceReminderCandidates(
-    kind: 'OIL' | 'TIRE',
-  ): Promise<MaintenanceReminderCandidate[]> {
-    const company = await this.prisma.company.findFirst();
-
-    if (!company) return [];
-
-    const settings = await this.prisma.settings.findUnique({
-      where: { companyId: company.id },
-    });
-
-    const intervalMonths =
-      kind === 'OIL' ? settings?.oilChangeIntervalMonths : settings?.tireChangeIntervalMonths;
-    const intervalKm =
-      kind === 'OIL' ? settings?.oilChangeIntervalKm : settings?.tireChangeIntervalKm;
+  async getMaintenanceReminderCandidates(reminderType: {
+    id: number;
+    name: string;
+    intervalMonths: number | null;
+    intervalKm: number | null;
+  }): Promise<MaintenanceReminderCandidate[]> {
+    const { intervalMonths, intervalKm } = reminderType;
 
     if (!intervalMonths && !intervalKm) return [];
 
-    const categoryLabel = MAINTENANCE_CATEGORY_LABEL[kind];
+    const categoryLabel = reminderType.name;
 
     const vehicles = await this.prisma.vehicle.findMany({
       where: { customerId: { not: null } },
@@ -1329,6 +1323,9 @@ export class LineService {
           where: { category: { has: categoryLabel }, voided: false },
           orderBy: { date: 'desc' },
         },
+        reminderDismissals: {
+          where: { reminderTypeId: reminderType.id },
+        },
       },
     });
 
@@ -1343,8 +1340,7 @@ export class LineService {
       if (!last) continue; // まだ一度も記録が無い車両は目安が計算できないので対象外
 
       const dismissKey = `${last.date.toISOString()}|${last.mileage ?? ''}`;
-      const dismissedFor =
-        kind === 'OIL' ? vehicle.oilReminderDismissedFor : vehicle.tireReminderDismissedFor;
+      const dismissedFor = vehicle.reminderDismissals[0]?.dismissedFor;
 
       if (dismissedFor === dismissKey) continue;
 
@@ -1369,7 +1365,7 @@ export class LineService {
 
       let recommendElement: boolean | undefined;
 
-      if (kind === 'OIL') {
+      if (reminderType.name === 'オイル交換') {
         // 過去のオイル交換回数を数え、次回が2回に1回目(偶数回目)にあたる場合はエレメントも案内する
         // (走行距離の実測値が無いため回数ベースの簡易な目安として実装。今後調整可能)
         const pastOilChanges = await this.prisma.serviceHistory.count({
@@ -1392,6 +1388,26 @@ export class LineService {
     }
 
     return candidates;
+  }
+
+  /** 会社が設定した全リマインド種類分の候補を、種類ごとにまとめて返す */
+  async getAllMaintenanceReminderCandidates(): Promise<
+    { type: { id: number; name: string }; candidates: MaintenanceReminderCandidate[] }[]
+  > {
+    const types = await this.prisma.maintenanceReminderType.findMany({
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    const results: { type: { id: number; name: string }; candidates: MaintenanceReminderCandidate[] }[] = [];
+
+    for (const type of types) {
+      const candidates = await this.getMaintenanceReminderCandidates(type);
+      if (candidates.length > 0) {
+        results.push({ type: { id: type.id, name: type.name }, candidates });
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -1646,13 +1662,10 @@ export class LineService {
     const limits = await this.licenseService.getCurrentPlanLimits();
     const predictiveMaintenanceEnabled = !limits || limits.predictiveMaintenance;
 
-    const [shaken, oil, tire] = await Promise.all([
+    const [shaken, maintenanceGroups] = await Promise.all([
       this.getShakenReminderCandidates(),
       predictiveMaintenanceEnabled
-        ? this.getMaintenanceReminderCandidates('OIL')
-        : Promise.resolve([]),
-      predictiveMaintenanceEnabled
-        ? this.getMaintenanceReminderCandidates('TIRE')
+        ? this.getAllMaintenanceReminderCandidates()
         : Promise.resolve([]),
     ]);
 
@@ -1662,15 +1675,15 @@ export class LineService {
       lines.push(`🚗 車検: ${c.vehicleLabel}（車検満了: ${c.expirationDate}）`);
     }
 
-    for (const c of oil.filter((c) => c.customerId === customerId)) {
-      lines.push(
-        `🛢 オイル交換: ${c.vehicleLabel}（${c.dueLabel}）` +
-          (c.recommendElement ? '\n　オイルエレメントの交換もおすすめです。' : ''),
-      );
-    }
+    for (const group of maintenanceGroups) {
+      const icon = MAINTENANCE_TYPE_ICON[group.type.name] ?? '🔧';
 
-    for (const c of tire.filter((c) => c.customerId === customerId)) {
-      lines.push(`🛞 タイヤ交換: ${c.vehicleLabel}（${c.dueLabel}）`);
+      for (const c of group.candidates.filter((c) => c.customerId === customerId)) {
+        lines.push(
+          `${icon} ${group.type.name}: ${c.vehicleLabel}（${c.dueLabel}）` +
+            (c.recommendElement ? '\n　オイルエレメントの交換もおすすめです。' : ''),
+        );
+      }
     }
 
     return lines;

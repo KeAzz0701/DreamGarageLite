@@ -161,11 +161,6 @@ model Settings {
 
   laborRatePerHour Int?
 
-  oilChangeIntervalMonths  Int?
-  oilChangeIntervalKm      Int?
-  tireChangeIntervalMonths Int?
-  tireChangeIntervalKm     Int?
-
   reservationSlotMinutes     Int @default(60)
   reservationLeadHours       Int @default(24)
   reservationMaxAdvanceDays  Int @default(30)
@@ -303,8 +298,6 @@ model Vehicle {
   expirationDate     String?
   shakenReminderDismissedFor String?
   shakenReminderDismissReason String?
-  oilReminderDismissedFor   String?
-  tireReminderDismissedFor  String?
 
   vehicleWeight      String?
   grossWeight        String?
@@ -334,6 +327,39 @@ model Vehicle {
   reservations       Reservation[]
   tireMeasurements   TireMeasurement[]
   competitorEstimates CompetitorEstimate[]
+  reminderDismissals MaintenanceReminderDismissal[]
+}
+
+/**
+ * 整備リマインドの種類(オイル交換・タイヤ交換など)。会社ごとに自由に追加・削除・編集できる。
+ * nameは整備履歴のcategoryとの照合にも使うため、案内文と一致させる
+ */
+model MaintenanceReminderType {
+  id             Int      @id @default(autoincrement())
+
+  name           String   @unique
+  intervalMonths Int?
+  intervalKm     Int?
+  sortOrder      Int      @default(0)
+
+  createdAt      DateTime @default(now())
+
+  dismissals     MaintenanceReminderDismissal[]
+}
+
+/** 特定の車両×リマインド種類で「今回は送らない」を選んだ記録(次に整備履歴が増えたら自動的に復活する) */
+model MaintenanceReminderDismissal {
+  id             Int      @id @default(autoincrement())
+
+  vehicleId      Int
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  reminderTypeId Int
+  reminderType   MaintenanceReminderType @relation(fields: [reminderTypeId], references: [id], onDelete: Cascade)
+
+  dismissedFor   String
+
+  @@unique([vehicleId, reminderTypeId])
 }
 
 /**
