@@ -8,9 +8,10 @@ import { AdminAuthGuard } from './admin-auth.guard';
 import { LicenseModule } from '../license/license.module';
 import { ErrorReportModule } from '../error-report/error-report.module';
 import { SystemAdminLineModule } from '../system-admin-line/system-admin-line.module';
+import { LineModule } from '../line/line.module';
 
 @Module({
-  imports: [LicenseModule, ErrorReportModule, SystemAdminLineModule],
+  imports: [LicenseModule, ErrorReportModule, SystemAdminLineModule, LineModule],
   controllers: [AdminController],
   providers: [AdminService, AdminSessionService, AdminAuthGuard],
 })

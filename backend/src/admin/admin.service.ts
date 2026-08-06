@@ -12,6 +12,7 @@ import { TenantContextService } from '../tenant/tenant-context.service';
 import { LicenseService } from '../license/license.service';
 import { ErrorReportService } from '../error-report/error-report.service';
 import { SystemAdminLineService } from '../system-admin-line/system-admin-line.service';
+import { LineService } from '../line/line.service';
 import { DEMO_PLAN_CAPACITY, getEffectivePlanLimits, getTrialDaysRemaining } from '../common/plans';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -59,10 +60,34 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly errorReportService: ErrorReportService,
     private readonly systemAdminLineService: SystemAdminLineService,
+    private readonly lineService: LineService,
   ) {}
 
   async listErrorReports(resolved = false) {
     return this.errorReportService.list(resolved);
+  }
+
+  /** monitor-agent等の運営向け自動化から、登録済み運営者LINEへ任意の通知テキストを送る */
+  async notifyAdmins(message: string) {
+    const trimmed = message?.trim();
+
+    if (!trimmed) {
+      throw new BadRequestException('通知内容を入力してください。');
+    }
+
+    const adminLineUserIds = await this.systemAdminLineService.listLineUserIds();
+
+    for (const adminLineUserId of adminLineUserIds) {
+      await this.lineService.pushMessage(
+        adminLineUserId,
+        [{ type: 'text', text: trimmed }],
+        undefined,
+        false,
+        true,
+      );
+    }
+
+    return { ok: true, sentTo: adminLineUserIds.length };
   }
 
   generateSystemAdminLineCode() {

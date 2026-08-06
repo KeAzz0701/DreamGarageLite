@@ -67,6 +67,12 @@ export class AdminController {
   }
 
   @UseGuards(AdminAuthGuard)
+  @Post('notify')
+  async notify(@Body() body: { message: string }) {
+    return this.adminService.notifyAdmins(body.message);
+  }
+
+  @UseGuards(AdminAuthGuard)
   @Get('companies')
   async listCompanies() {
     return this.adminService.listCompanies();
