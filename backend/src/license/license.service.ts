@@ -353,8 +353,8 @@ export class LicenseService {
       where: { currentPlan: 'DEMO' },
     });
 
-    // デモプレイ版のカードは、運営が「デモ用アカウント作成」で発行した会社(またはすでに
-    // デモプレイ版を利用中の会社)にしか見せない。通常契約の会社の目に触れさせない
+    // 先行導入モニターのカードは、運営が「モニター用アカウント作成」で発行した会社(または
+    // すでに利用中の会社)にしか見せない。通常契約の会社の目に触れさせない
     const companyAccountId = this.tenantContext.current()?.company.id;
     const companyAccount = companyAccountId
       ? await this.masterPrisma.companyAccount.findUnique({ where: { id: companyAccountId } })
@@ -403,10 +403,10 @@ export class LicenseService {
         ? await this.masterPrisma.companyAccount.findUnique({ where: { id: companyAccountId } })
         : null;
 
-      // デモプレイ版は運営が「デモ用アカウント作成」で発行した会社限定。通常契約の会社が
+      // 先行導入モニターは運営が「モニター用アカウント作成」で発行した会社限定。通常契約の会社が
       // API直叩き等で切り替えることを防ぐ(画面上の非表示だけに頼らない)
       if (!companyAccount?.demoAccount) {
-        throw new BadRequestException('デモプレイ版はご利用いただけません。');
+        throw new BadRequestException('先行導入モニターはご利用いただけません。');
       }
 
       // this.prisma(テナントDB)は自社の1件しか見えないため、必ずマスターDBの
@@ -418,7 +418,7 @@ export class LicenseService {
 
       if (demoCount >= DEMO_PLAN_CAPACITY) {
         throw new BadRequestException(
-          `デモプレイ版は現在${DEMO_PLAN_CAPACITY}枠すべて利用中のため、切り替えできません。`,
+          `先行導入モニターは現在${DEMO_PLAN_CAPACITY}枠すべて利用中のため、お申込みいただけません。`,
         );
       }
     }

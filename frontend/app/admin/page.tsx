@@ -503,11 +503,11 @@ export default function AdminPage() {
       });
 
       const planNote = result.activateDemoPlan
-        ? 'デモプレイ版を即利用できる状態です。'
-        : 'デモ枠が満枠のため、無料版で作成しました(枠が空き次第、料金プラン画面から切り替えできます)。';
+        ? '先行導入モニターとして即利用できる状態です。'
+        : 'モニター枠が満枠のため、無料版で作成しました(枠が空き次第、料金プラン画面からお申込みできます)。';
 
       alert(
-        `デモ用アカウントを作成しました。この画面を閉じると二度と表示されません。\n\n会社コード: ${result.companyCode}\nパスワード: ${result.password}\nDB: ${result.dbName}\n\n${planNote}`,
+        `先行導入モニター用アカウントを作成しました。この画面を閉じると二度と表示されません。\n\n会社コード: ${result.companyCode}\nパスワード: ${result.password}\nDB: ${result.dbName}\n\n${planNote}`,
       );
 
       setNewDemoName('');
@@ -574,17 +574,17 @@ export default function AdminPage() {
       </div>
 
       <div className="panel mb-4">
-        <h2 className="disp text-xl mb-3">🎁 デモ用アカウントを作成</h2>
+        <h2 className="disp text-xl mb-3">🎁 先行導入モニター用アカウントを作成</h2>
         <p className="note mb-3 text-xs text-[var(--muted)]">
-          このボタンから作った会社だけ、料金プラン画面に「デモプレイ版」が表示され、切り替えできます。
-          通常契約の会社には一切表示されません。先着{DEMO_PLAN_CAPACITY}社限定の枠が空いていれば、作成と同時にデモプレイ版が有効になります。
+          このボタンから作った会社だけ、料金プラン画面に「先行導入モニター」が表示され、お申込みできます。
+          通常契約の会社には一切表示されません。先着{DEMO_PLAN_CAPACITY}社限定の枠が空いていれば、作成と同時にモニターとして有効になります。
         </p>
         <div className="grid2 mb-3">
           <label className="field-label">
             表示名（会社名）
             <input
               className="input"
-              placeholder="例: 展示会デモ用"
+              placeholder="例: 展示会モニター用"
               value={newDemoName}
               onChange={(e) => setNewDemoName(e.target.value)}
             />
@@ -593,7 +593,7 @@ export default function AdminPage() {
             会社コード（未入力なら自動生成）
             <input
               className="input uppercase"
-              placeholder="例: DEMOSHOW01"
+              placeholder="例: MONITOR01"
               value={newDemoCode}
               onChange={(e) => setNewDemoCode(e.target.value)}
               autoCapitalize="characters"
@@ -603,7 +603,7 @@ export default function AdminPage() {
           </label>
         </div>
         <button onClick={createDemoCompany} disabled={creatingDemo} className="btn btn-primary">
-          {creatingDemo ? '作成中...' : '🎁 デモ用アカウントを作成する'}
+          {creatingDemo ? '作成中...' : '🎁 モニター用アカウントを作成する'}
         </button>
       </div>
 
@@ -627,7 +627,7 @@ export default function AdminPage() {
                 {c.trialDaysRemaining != null && (
                   <span className="expbadge exp-warn">お試し残り{c.trialDaysRemaining}日</span>
                 )}
-                {c.demoAccount && <span className="expbadge exp-ok">🎁 デモ用</span>}
+                {c.demoAccount && <span className="expbadge exp-ok">🎁 モニター</span>}
                 {!c.isActive && <span className="expbadge exp-warn">無効</span>}
               </div>
               <div className="flex gap-2 flex-wrap mt-2">
@@ -847,7 +847,7 @@ export default function AdminPage() {
           </button>
         </div>
         <p className="note mb-3">
-          デモプレイ版の会社が画面から送った不具合報告の一覧です。送信時にLINEにもプッシュ通知が届きます。
+          各社が画面から送った不具合報告の一覧です。送信時にLINEにもプッシュ通知が届きます。
         </p>
 
         {errorReports.length === 0 ? (

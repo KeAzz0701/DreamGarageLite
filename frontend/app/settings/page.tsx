@@ -974,9 +974,13 @@ export default function SettingsPage() {
                   <div className="font-bold">
                     🎁 {planInfo.plans.DEMO.label}
                     <span className="ml-2 text-xs text-[var(--muted)]">
-                      （先着{planInfo.demoSlots.capacity}社限定・全機能無料）
+                      （先着{planInfo.demoSlots.capacity}社限定）
                     </span>
                   </div>
+                  <p className="text-xs text-[var(--muted)] mt-1" style={{ lineHeight: 1.6 }}>
+                    全機能を無料でご利用いただけます。モニター終了または条件変更の際は、30日前までにお知らせします。
+                    終了後は自動的に無料プランへ移行し、料金は発生しません。有料プランへの変更は、お客様ご自身のお申込み後にのみ行われます。
+                  </p>
                   <div className="text-xs text-[var(--muted)] mt-1">
                     残り枠：{Math.max(planInfo.demoSlots.capacity - planInfo.demoSlots.used, 0)}
                     /{planInfo.demoSlots.capacity}
@@ -996,7 +1000,7 @@ export default function SettingsPage() {
                 >
                   {planInfo.demoSlots.used >= planInfo.demoSlots.capacity
                     ? '満枠です'
-                    : 'デモプレイ版に切り替える'}
+                    : '先行導入モニターに申し込む'}
                 </button>
               )}
             </div>

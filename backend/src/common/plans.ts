@@ -115,7 +115,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     portalAccess: true,
   },
   DEMO: {
-    label: 'デモプレイ版',
+    label: '先行導入モニター',
     priceYen: 0,
     maxOcrPerMonth: 150,
     maxCustomers: null,
@@ -130,7 +130,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   },
 };
 
-/** デモプレイ版は先着でこの人数分までしか割り当てられない */
+/** 先行導入モニターは先着でこの人数分までしか割り当てられない */
 export const DEMO_PLAN_CAPACITY = 10;
 
 function isWithinFirstMonth(activatedAt: Date): boolean {
