@@ -12,7 +12,7 @@ import { TenantContextService } from '../tenant/tenant-context.service';
 import { LicenseService } from '../license/license.service';
 import { ErrorReportService } from '../error-report/error-report.service';
 import { SystemAdminLineService } from '../system-admin-line/system-admin-line.service';
-import { getEffectivePlanLimits, getTrialDaysRemaining } from '../common/plans';
+import { DEMO_PLAN_CAPACITY, getEffectivePlanLimits, getTrialDaysRemaining } from '../common/plans';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const DOCUMENT_PREFIX_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -255,6 +255,7 @@ export class AdminService {
       dbName: string;
       isActive: boolean;
       currentPlan: string | null;
+      demoAccount: boolean;
       lineConnected: boolean;
       trialDaysRemaining: number | null;
       createdAt: Date;
@@ -279,6 +280,7 @@ export class AdminService {
         dbName: c.dbName,
         isActive: c.isActive,
         currentPlan: c.currentPlan,
+        demoAccount: c.demoAccount,
         lineConnected: Boolean(c.lineChannelAccessToken),
         trialDaysRemaining,
         createdAt: c.createdAt,
@@ -472,9 +474,20 @@ export class AdminService {
     return { ok: true };
   }
 
-  async createCompany(displayName: string, explicitCode?: string) {
+  async createCompany(displayName: string, explicitCode?: string, isDemo = false) {
     if (!displayName?.trim()) {
       throw new BadRequestException('表示名(会社名)を入力してください。');
+    }
+
+    // デモ用アカウントは先着枠を使うため、作成前に空きを確認する。満枠でもアカウント自体は
+    // 作成し(demoAccountフラグだけ立てる)、無料版のまま運営が後で手動切り替えできるようにする
+    let activateDemoPlan = false;
+
+    if (isDemo) {
+      const demoCount = await this.masterPrisma.companyAccount.count({
+        where: { currentPlan: 'DEMO' },
+      });
+      activateDemoPlan = demoCount < DEMO_PLAN_CAPACITY;
     }
 
     const baseUrl = process.env.DATABASE_URL;
@@ -530,14 +543,16 @@ export class AdminService {
       // 管理画面から作った会社はすぐ使える状態にしておく(手動でのライセンスキー入力は不要)
       const licenseKey = `DG-${randomString(LICENSE_KEY_CHARS, 4)}-${randomString(LICENSE_KEY_CHARS, 4)}`;
 
+      const initialPlan = activateDemoPlan ? 'DEMO' : 'FREE';
+
       await tenantPrisma.license.create({
         data: {
           companyId: tenantCompany.id,
           licenseKey,
           status: 'ACTIVE',
           activatedAt: new Date(),
-          plan: 'FREE',
-          maxOcrPerMonth: getEffectivePlanLimits('FREE', new Date()).maxOcrPerMonth,
+          plan: initialPlan,
+          maxOcrPerMonth: getEffectivePlanLimits(initialPlan, new Date()).maxOcrPerMonth,
           usedOcr: 0,
           usedOcrMonth: currentMonthKey(),
         },
@@ -556,6 +571,8 @@ export class AdminService {
         passwordHash,
         displayName: displayName.trim(),
         dbName,
+        demoAccount: isDemo,
+        currentPlan: activateDemoPlan ? 'DEMO' : undefined,
       },
     });
 
@@ -573,6 +590,6 @@ export class AdminService {
       });
     }
 
-    return { companyCode, password, dbName };
+    return { companyCode, password, dbName, isDemo, activateDemoPlan };
   }
 }

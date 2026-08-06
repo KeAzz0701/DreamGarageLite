@@ -12,6 +12,13 @@ const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID;
 
 const PLAN_ORDER = ['FREE', 'LITE', 'STANDARD', 'PRO'];
 
+const PLAN_TAGLINES: Record<string, string> = {
+  FREE: '基本機能を試したい店舗向け',
+  LITE: '顧客管理と再来店フォローを始めたい店舗向け',
+  STANDARD: 'LINE対応まで効率化したい店舗向け',
+  PRO: '予約受付までまとめて管理したい店舗向け',
+};
+
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: '現金',
   BANK_TRANSFER: '振込',
@@ -907,6 +914,9 @@ export default function SettingsPage() {
                         ¥{plan.priceYen.toLocaleString()}
                         <span className="text-xs text-[var(--muted)]">/月</span>
                       </div>
+                      {PLAN_TAGLINES[key] && (
+                        <div className="text-xs text-[var(--muted)] mt-1">{PLAN_TAGLINES[key]}</div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -915,7 +925,7 @@ export default function SettingsPage() {
                         <button
                           onClick={() =>
                             alert(
-                              `無料お試し期間中です。あと${planInfo.current.trialDaysRemaining}日で、一部の機能(タイヤ/オイル予測通知・LINE AIチャット・Web予約など)が使えなくなります。`,
+                              `無料お試し期間中です。あと${planInfo.current.trialDaysRemaining}日で、一部の機能(交換時期の通知・LINE自動応答・Web予約受付など)が使えなくなります。`,
                             )
                           }
                           className="expbadge exp-warn"
@@ -930,19 +940,26 @@ export default function SettingsPage() {
                     <div>OCR 月{plan.maxOcrPerMonth}件</div>
                     <div>顧客登録 {plan.maxCustomers ? `${plan.maxCustomers}件まで` : '無制限'}</div>
                     <div>利用者 {plan.maxUsers}名まで</div>
-                    <div>{plan.predictiveMaintenance ? '✓' : '✕'} タイヤ/オイル予測通知</div>
-                    <div>{plan.aiChat ? '✓' : '✕'} LINE AIチャット</div>
+                    <div>{plan.predictiveMaintenance ? '✓' : '✕'} 交換時期の通知</div>
+                    <div>{plan.aiChat ? '✓' : '✕'} LINE自動応答</div>
                     <div>{plan.lineHistoryView ? '✓' : '✕'} LINEメッセージ履歴</div>
                     <div>{plan.portalAccess ? '✓' : '✕'} 顧客ポータル</div>
-                    <div>{plan.webReservation ? '✓' : '✕'} Web予約</div>
+                    <div>{plan.webReservation ? '✓' : '✕'} Web予約受付</div>
                   </div>
 
-                  {!isCurrent && (
+                  {isCurrent ? (
+                    <div
+                      className="btn btn-ghost btn-sm mt-3 w-full justify-center"
+                      style={{ pointerEvents: 'none', opacity: 0.7 }}
+                    >
+                      現在のプラン
+                    </div>
+                  ) : (
                     <button
                       onClick={() => goToPaymentScreen(key)}
                       className="btn btn-blue btn-sm mt-3 w-full justify-center"
                     >
-                      このプランに切り替える
+                      このプランに変更
                     </button>
                   )}
                 </div>

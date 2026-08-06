@@ -353,8 +353,18 @@ export class LicenseService {
       where: { currentPlan: 'DEMO' },
     });
 
+    // デモプレイ版のカードは、運営が「デモ用アカウント作成」で発行した会社(またはすでに
+    // デモプレイ版を利用中の会社)にしか見せない。通常契約の会社の目に触れさせない
+    const companyAccountId = this.tenantContext.current()?.company.id;
+    const companyAccount = companyAccountId
+      ? await this.masterPrisma.companyAccount.findUnique({ where: { id: companyAccountId } })
+      : null;
+    const demoEligible = Boolean(companyAccount?.demoAccount) || company?.license?.plan === 'DEMO';
+
+    const { DEMO: _demoPlan, ...plansWithoutDemo } = PLAN_LIMITS;
+
     return {
-      plans: PLAN_LIMITS,
+      plans: demoEligible ? PLAN_LIMITS : plansWithoutDemo,
       demoSlots: {
         used: demoUsed,
         capacity: DEMO_PLAN_CAPACITY,
@@ -388,6 +398,17 @@ export class LicenseService {
     }
 
     if (plan === 'DEMO' && company.license.plan !== 'DEMO') {
+      const companyAccountId = this.tenantContext.current()?.company.id;
+      const companyAccount = companyAccountId
+        ? await this.masterPrisma.companyAccount.findUnique({ where: { id: companyAccountId } })
+        : null;
+
+      // デモプレイ版は運営が「デモ用アカウント作成」で発行した会社限定。通常契約の会社が
+      // API直叩き等で切り替えることを防ぐ(画面上の非表示だけに頼らない)
+      if (!companyAccount?.demoAccount) {
+        throw new BadRequestException('デモプレイ版はご利用いただけません。');
+      }
+
       // this.prisma(テナントDB)は自社の1件しか見えないため、必ずマスターDBの
       // currentPlanミラー列を使って全社を横断カウントする(修正前は自社1件しか
       // 数えられず、実質10社制限が機能していなかった)

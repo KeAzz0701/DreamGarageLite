@@ -13,6 +13,7 @@ interface CompanyRow {
   dbName: string;
   isActive: boolean;
   currentPlan: string | null;
+  demoAccount: boolean;
   lineConnected: boolean;
   trialDaysRemaining: number | null;
   createdAt: string;
@@ -26,6 +27,9 @@ interface PlanChangeRequestRow {
   paymentMethod: string;
   requestedAt: string;
 }
+
+// backend/src/common/plans.ts の DEMO_PLAN_CAPACITY と同じ値(表示用の案内文にのみ使用)
+const DEMO_PLAN_CAPACITY = 10;
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: '現金',
@@ -87,6 +91,10 @@ export default function AdminPage() {
   const [newCode, setNewCode] = useState('');
   const [creating, setCreating] = useState(false);
   const [deletingCompanyId, setDeletingCompanyId] = useState<number | null>(null);
+
+  const [newDemoName, setNewDemoName] = useState('');
+  const [newDemoCode, setNewDemoCode] = useState('');
+  const [creatingDemo, setCreatingDemo] = useState(false);
 
   const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([]);
   const [newAdminUsername, setNewAdminUsername] = useState('');
@@ -474,6 +482,44 @@ export default function AdminPage() {
     }
   }
 
+  async function createDemoCompany() {
+    if (!newDemoName.trim()) return;
+
+    setCreatingDemo(true);
+
+    try {
+      const result = await api<{
+        companyCode: string;
+        password: string;
+        dbName: string;
+        activateDemoPlan: boolean;
+      }>('/admin/companies', {
+        method: 'POST',
+        body: JSON.stringify({
+          displayName: newDemoName,
+          companyCode: newDemoCode.trim() ? newDemoCode.trim().toUpperCase() : undefined,
+          isDemo: true,
+        }),
+      });
+
+      const planNote = result.activateDemoPlan
+        ? 'デモプレイ版を即利用できる状態です。'
+        : 'デモ枠が満枠のため、無料版で作成しました(枠が空き次第、料金プラン画面から切り替えできます)。';
+
+      alert(
+        `デモ用アカウントを作成しました。この画面を閉じると二度と表示されません。\n\n会社コード: ${result.companyCode}\nパスワード: ${result.password}\nDB: ${result.dbName}\n\n${planNote}`,
+      );
+
+      setNewDemoName('');
+      setNewDemoCode('');
+      await load();
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    } finally {
+      setCreatingDemo(false);
+    }
+  }
+
   async function logout() {
     await api('/admin/logout', { method: 'POST' });
     router.replace('/admin/login');
@@ -527,6 +573,40 @@ export default function AdminPage() {
         </p>
       </div>
 
+      <div className="panel mb-4">
+        <h2 className="disp text-xl mb-3">🎁 デモ用アカウントを作成</h2>
+        <p className="note mb-3 text-xs text-[var(--muted)]">
+          このボタンから作った会社だけ、料金プラン画面に「デモプレイ版」が表示され、切り替えできます。
+          通常契約の会社には一切表示されません。先着{DEMO_PLAN_CAPACITY}社限定の枠が空いていれば、作成と同時にデモプレイ版が有効になります。
+        </p>
+        <div className="grid2 mb-3">
+          <label className="field-label">
+            表示名（会社名）
+            <input
+              className="input"
+              placeholder="例: 展示会デモ用"
+              value={newDemoName}
+              onChange={(e) => setNewDemoName(e.target.value)}
+            />
+          </label>
+          <label className="field-label">
+            会社コード（未入力なら自動生成）
+            <input
+              className="input uppercase"
+              placeholder="例: DEMOSHOW01"
+              value={newDemoCode}
+              onChange={(e) => setNewDemoCode(e.target.value)}
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+          </label>
+        </div>
+        <button onClick={createDemoCompany} disabled={creatingDemo} className="btn btn-primary">
+          {creatingDemo ? '作成中...' : '🎁 デモ用アカウントを作成する'}
+        </button>
+      </div>
+
       <div className="panel">
         <h2 className="disp text-xl mb-3">会社一覧（{companies.length}）</h2>
 
@@ -547,6 +627,7 @@ export default function AdminPage() {
                 {c.trialDaysRemaining != null && (
                   <span className="expbadge exp-warn">お試し残り{c.trialDaysRemaining}日</span>
                 )}
+                {c.demoAccount && <span className="expbadge exp-ok">🎁 デモ用</span>}
                 {!c.isActive && <span className="expbadge exp-warn">無効</span>}
               </div>
               <div className="flex gap-2 flex-wrap mt-2">

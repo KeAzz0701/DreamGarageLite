@@ -74,8 +74,10 @@ export class AdminController {
 
   @UseGuards(AdminAuthGuard)
   @Post('companies')
-  async createCompany(@Body() body: { displayName: string; companyCode?: string }) {
-    return this.adminService.createCompany(body.displayName, body.companyCode);
+  async createCompany(
+    @Body() body: { displayName: string; companyCode?: string; isDemo?: boolean },
+  ) {
+    return this.adminService.createCompany(body.displayName, body.companyCode, body.isDemo);
   }
 
   @UseGuards(AdminAuthGuard)

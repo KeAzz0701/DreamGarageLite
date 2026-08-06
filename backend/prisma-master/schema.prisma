@@ -50,6 +50,10 @@ model CompanyAccount {
 
   currentPlan  String?
 
+  // 運営が「デモ用アカウント作成」から作った会社だけtrue。会社側の料金プラン画面で
+  // デモプレイ版への切り替え案内を表示するかどうかの判定に使う(通常契約の会社には出さない)
+  demoAccount  Boolean  @default(false)
+
   isActive     Boolean  @default(true)
 
   createdAt    DateTime @default(now())
