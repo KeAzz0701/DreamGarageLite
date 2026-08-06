@@ -1340,6 +1340,21 @@ button.minirow:hover {
   .vehicle-detail-shell .vehicle-fields-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  /* 設定画面: 各設定パネルを2列のマゾンリー状に詰めて、縦スクロールを減らす。
+     パネルごとに高さがバラバラなので、行の高さが揃うgridではなくcolumnsで
+     隙間なく詰める(break-insideでパネル自体が分断されないようにする) */
+  main:has(.settings-grid) {
+    max-width: 1200px;
+  }
+  .settings-grid {
+    column-count: 2;
+    column-gap: 20px;
+  }
+  .settings-grid > .panel {
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+  }
 }
 
 /* license screen */

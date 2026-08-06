@@ -333,6 +333,8 @@ export default function SettingsPage() {
         </Link>
       </div>
 
+      <div className="settings-grid">
+
       <div className="panel mb-4">
         <h2 className="disp text-xl mb-3">データ出力</h2>
         <p className="note mb-3">
@@ -898,6 +900,9 @@ export default function SettingsPage() {
                       >
                         {plan.label}
                       </div>
+                      {key === 'STANDARD' && (
+                        <span className="expbadge exp-ok text-xs">おすすめ</span>
+                      )}
                       <div className="mono text-lg">
                         ¥{plan.priceYen.toLocaleString()}
                         <span className="text-xs text-[var(--muted)]">/月</span>
@@ -924,8 +929,11 @@ export default function SettingsPage() {
                   <div className="mt-2 text-xs text-[var(--muted)] space-y-1">
                     <div>OCR 月{plan.maxOcrPerMonth}件</div>
                     <div>顧客登録 {plan.maxCustomers ? `${plan.maxCustomers}件まで` : '無制限'}</div>
+                    <div>利用者 {plan.maxUsers}名まで</div>
                     <div>{plan.predictiveMaintenance ? '✓' : '✕'} タイヤ/オイル予測通知</div>
                     <div>{plan.aiChat ? '✓' : '✕'} LINE AIチャット</div>
+                    <div>{plan.lineHistoryView ? '✓' : '✕'} LINEメッセージ履歴</div>
+                    <div>{plan.portalAccess ? '✓' : '✕'} 顧客ポータル</div>
                     <div>{plan.webReservation ? '✓' : '✕'} Web予約</div>
                   </div>
 
@@ -997,6 +1005,8 @@ export default function SettingsPage() {
             ))}
         </div>
       )}
+
+      </div>
 
       <div className="flex justify-end mt-4 mb-8">
         <button onClick={logout} className="btn btn-blue">
