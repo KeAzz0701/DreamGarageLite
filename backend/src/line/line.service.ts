@@ -157,7 +157,7 @@ function buildPortalQuickReplyItem(): messagingApi.QuickReplyItem {
     type: 'action',
     action: {
       type: 'uri',
-      label: '🌐 マイページを開く',
+      label: '🌐 ガレージカルテポータル',
       uri: `${appUrl}/portal`,
     },
   };
@@ -1791,7 +1791,6 @@ export class LineService {
   private buildRecommendMenuQuickReply(): messagingApi.QuickReply {
     return {
       items: [
-        ...(mainMenuQuickReply.items ?? []),
         {
           type: 'action',
           action: {
