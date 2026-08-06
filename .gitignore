@@ -1,3 +1,6 @@
 # 外部ツール(バイナリ)。各自ダウンロードして配置する想定
 /tools/
 .claude/settings.local.json
+
+# monitor-agentの自動デプロイ回数制限用ログ(本番VPSにのみ存在)
+/auto-deploy-log.txt
