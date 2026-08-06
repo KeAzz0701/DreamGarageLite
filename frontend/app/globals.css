@@ -1332,6 +1332,14 @@ button.minirow:hover {
   .reservations-shell .res-hours {
     grid-column: 1 / -1;
   }
+
+  /* 車両詳細: 横幅を活かして基本情報の入力欄を3列にし、縦スクロールを減らす */
+  main:has(.vehicle-detail-shell) {
+    max-width: 1100px;
+  }
+  .vehicle-detail-shell .vehicle-fields-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 /* license screen */

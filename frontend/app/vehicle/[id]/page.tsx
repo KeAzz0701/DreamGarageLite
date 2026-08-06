@@ -595,7 +595,7 @@ export default function VehicleDetailPage() {
   }
 
   return (
-    <>
+    <div className="vehicle-detail-shell">
       <div className="flex justify-between items-center mb-6">
         <h1 className="disp text-3xl">車両詳細</h1>
 
@@ -635,7 +635,7 @@ export default function VehicleDetailPage() {
               {group.title}
             </div>
 
-            <div className="grid2">
+            <div className="grid2 vehicle-fields-grid">
               {group.fields.map(([key, label]) => (
                 <label key={key} className="field-label">
                   {label}
@@ -1398,6 +1398,6 @@ export default function VehicleDetailPage() {
           })
         )}
       </div>
-    </>
+    </div>
   );
 }
