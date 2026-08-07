@@ -58,7 +58,7 @@ export default function AiChatPage() {
   }
 
   return (
-    <>
+    <div className="ai-chat-shell">
       <div className="sectionhead">
         <h3>🤖 AIチャット</h3>
       </div>
@@ -111,6 +111,6 @@ export default function AiChatPage() {
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 }

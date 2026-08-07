@@ -1355,6 +1355,37 @@ button.minirow:hover {
     break-inside: avoid;
     -webkit-column-break-inside: avoid;
   }
+
+  /* 他店比較: 車種区分ごとのパネルを2列に並べて横幅を活かす */
+  main:has(.competitor-estimates-shell) {
+    max-width: 1180px;
+  }
+
+  /* 車検証OCR: 左に撮影・アップロード、右にOCR結果確認を並べて横幅を活かす */
+  main:has(.ocr-shell) {
+    max-width: 1180px;
+  }
+  .ocr-shell {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .ocr-shell > .ocr-header {
+    grid-column: 1 / -1;
+  }
+  .ocr-shell img {
+    max-height: 360px;
+  }
+
+  /* AIチャット: 横幅いっぱいに吹き出しが伸びないよう中央寄せで幅を絞る
+     (customers/[id]/lineのLINE風履歴とは.chat-shellを共有しているため、
+     ここでは.ai-chat-shell配下に限定して見た目を変える) */
+  .ai-chat-shell .chat-shell {
+    max-width: 760px;
+    margin: 0 auto;
+    height: calc(100dvh - 260px);
+  }
 }
 
 /* license screen */

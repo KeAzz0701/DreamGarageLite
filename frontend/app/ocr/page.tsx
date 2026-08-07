@@ -58,8 +58,8 @@ export default function OcrPage() {
   }
 
   return (
-    <>
-      <div className="flex justify-between items-center mb-6">
+    <div className="ocr-shell">
+      <div className="ocr-header flex justify-between items-center mb-6">
         <h1 className="disp text-3xl">車検証OCR</h1>
 
         <div className="flex gap-2">
@@ -178,6 +178,6 @@ export default function OcrPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

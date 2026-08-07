@@ -57,7 +57,7 @@ export default function CompetitorEstimatesComparisonPage() {
   })).filter((g) => g.rows.length > 0);
 
   return (
-    <div>
+    <div className="competitor-estimates-shell">
       <h1 className="disp text-xl mb-1">他店比較</h1>
       <p className="note mb-4">
         車両ページで登録した「他店舗見積(比較用)」を、車種区分×項目カテゴリごとに集計した相場一覧です。
@@ -78,6 +78,7 @@ export default function CompetitorEstimatesComparisonPage() {
         </div>
       )}
 
+      <div className="grid2">
       {grouped.map((g) => (
         <div key={g.category} className="panel mb-4">
           <h2 className="disp text-lg mb-3">
@@ -138,6 +139,7 @@ export default function CompetitorEstimatesComparisonPage() {
           </div>
         </div>
       ))}
+      </div>
     </div>
   );
 }
