@@ -4,6 +4,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { VehicleCategory } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeminiService } from '../gemini/gemini.service';
+import { inferVehicleCategory } from '../common/vehicle-category';
 
 const VEHICLE_CATEGORY_LABEL: Record<VehicleCategory, string> = {
   KEI: '軽自動車',
@@ -11,6 +12,17 @@ const VEHICLE_CATEGORY_LABEL: Record<VehicleCategory, string> = {
   LARGE: '大型・特殊',
   CARGO: '貨物自動車',
 };
+
+/** ナンバー表記の空白・全角/半角差を吸収して比較するための正規化 */
+function normalizeRegistrationNumber(value: string | null | undefined): string | null {
+  if (!value) return null;
+
+  const trimmed = value.replace(/\s+/g, '').replace(/[０-９]/g, (d) =>
+    String.fromCharCode(d.charCodeAt(0) - 0xfee0),
+  );
+
+  return trimmed || null;
+}
 
 @Injectable()
 export class CompetitorEstimateService {
@@ -31,17 +43,107 @@ export class CompetitorEstimateService {
     sharedWithShop: boolean,
     apiKey?: string,
   ) {
-    const base64 = file.buffer.toString('base64');
+    const extracted = await this.analyze(file, apiKey);
 
-    let extracted: { shopName?: string; estimateDate?: string; items?: unknown; totalAmount?: number } = {};
+    return this.persist(vehicleId, customerId, vehicleCategory, file, extracted, createdBy, sharedWithShop);
+  }
+
+  /** 写真をAIで解析するだけ(保存はしない)。まだ対象車両が定まっていない入り口(車検証OCRの下の
+   * 「見積書OCR」)から使う。ナンバーが読み取れれば既存車両を検索して候補として一緒に返す */
+  async analyzeOnly(file: { buffer: Buffer; mimetype: string }, apiKey?: string) {
+    const extracted = await this.analyze(file, apiKey);
+
+    const normalized = normalizeRegistrationNumber(extracted.registrationNumber);
+    let matches: {
+      vehicleId: number;
+      customerId: number;
+      customerName: string;
+      vehicleLabel: string;
+      registrationNumber: string | null;
+    }[] = [];
+
+    if (normalized) {
+      const candidates = await this.prisma.vehicle.findMany({
+        where: { registrationNumber: { not: null }, customerId: { not: null } },
+        select: {
+          id: true,
+          customerId: true,
+          carName: true,
+          commonModelName: true,
+          registrationNumber: true,
+          customer: { select: { customerName: true } },
+        },
+      });
+
+      matches = candidates
+        .filter((v) => normalizeRegistrationNumber(v.registrationNumber) === normalized)
+        .map((v) => ({
+          vehicleId: v.id,
+          customerId: v.customerId!,
+          customerName: v.customer?.customerName ?? '(顧客名不明)',
+          vehicleLabel: [v.carName, v.commonModelName].filter(Boolean).join(' ') || '車両',
+          registrationNumber: v.registrationNumber,
+        }));
+    }
+
+    return { extracted, matches };
+  }
+
+  /** analyzeOnlyで抽出済みのデータを使って、選ばれた車両に紐づけて保存する(AI解析はやり直さない) */
+  async createFromExtracted(
+    vehicleId: number,
+    extracted: { shopName?: string; estimateDate?: string; items?: unknown; totalAmount?: number },
+    file: { buffer: Buffer; mimetype: string },
+    createdBy: 'STAFF' | 'CUSTOMER',
+    sharedWithShop: boolean,
+  ) {
+    const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+
+    if (!vehicle?.customerId) {
+      throw new BadRequestException('顧客が紐づいていない車両には登録できません。');
+    }
+
+    return this.persist(
+      vehicleId,
+      vehicle.customerId,
+      inferVehicleCategory(vehicle),
+      file,
+      extracted,
+      createdBy,
+      sharedWithShop,
+    );
+  }
+
+  private async analyze(
+    file: { buffer: Buffer; mimetype: string },
+    apiKey?: string,
+  ): Promise<{
+    shopName?: string;
+    estimateDate?: string;
+    registrationNumber?: string;
+    items?: unknown;
+    totalAmount?: number;
+  }> {
+    const base64 = file.buffer.toString('base64');
 
     try {
       const text = await this.geminiService.analyzeCompetitorEstimate(base64, file.mimetype, apiKey);
-      extracted = JSON.parse(text);
+      return JSON.parse(text);
     } catch (err) {
       this.logger.warn(`他店舗見積のAI解析に失敗しました。画像のみ保存します: ${err}`);
+      return {};
     }
+  }
 
+  private persist(
+    vehicleId: number,
+    customerId: number,
+    vehicleCategory: VehicleCategory,
+    file: { buffer: Buffer; mimetype: string },
+    extracted: { shopName?: string; estimateDate?: string; items?: unknown; totalAmount?: number },
+    createdBy: 'STAFF' | 'CUSTOMER',
+    sharedWithShop: boolean,
+  ) {
     return this.prisma.competitorEstimate.create({
       data: {
         vehicleId,

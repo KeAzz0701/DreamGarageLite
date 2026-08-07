@@ -59,6 +59,42 @@ export class CompetitorEstimateController {
     return this.competitorEstimateService.getByVehicle(vehicleId);
   }
 
+  /** 車検証OCRの下にある「見積書OCR」の入口。対象車両が定まっていない状態で解析だけ行い、
+   * ナンバーが一致する既存車両があれば候補として返す(保存はまだしない) */
+  @Post('ocr/competitor-estimate-lookup')
+  @UseInterceptors(FileInterceptor('file'))
+  async lookup(@UploadedFile() file: Express.Multer.File) {
+    const companyAccountId = this.tenantContext.current()!.company.id;
+    const apiKey = await this.licenseService.getApiKey(companyAccountId);
+
+    return this.competitorEstimateService.analyzeOnly(file, apiKey ?? undefined);
+  }
+
+  /** lookupで確認した内容を、選ばれた車両に紐づけて保存する(AI解析はやり直さない) */
+  @Post('ocr/competitor-estimate-save')
+  @UseInterceptors(FileInterceptor('file'))
+  async save(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('vehicleId', ParseIntPipe) vehicleId: number,
+    @Body('extracted') extractedJson: string,
+  ) {
+    let extracted: any = {};
+
+    try {
+      extracted = JSON.parse(extractedJson);
+    } catch {
+      throw new BadRequestException('解析結果の形式が不正です。');
+    }
+
+    return this.competitorEstimateService.createFromExtracted(
+      vehicleId,
+      extracted,
+      file,
+      'STAFF',
+      true,
+    );
+  }
+
   /** 車種区分×項目カテゴリごとの他店舗見積の比較表(件数/平均/最小/最大) */
   @Get('competitor-estimates/comparison-table')
   async getComparisonTable() {

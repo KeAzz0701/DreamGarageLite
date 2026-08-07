@@ -171,10 +171,13 @@ firstRegistration と expirationDate は、車検証に和暦（令和/平成な
 必ずJSONのみ返してください。不明な項目は null にしてください。
 items の各項目には、内容に最も近い category を次の中から1つ選んで付けてください:
 "オイル交換", "タイヤ交換", "車検", "点検", "一般整備", "その他"
+registrationNumber(車両ナンバープレートの表記、例:「帯広500あ1234」)が見積書に記載されていれば
+空白を除いて読み取ってください。記載が無ければnullにしてください。
 
 {
   "shopName": null,
   "estimateDate": null,
+  "registrationNumber": null,
   "items": [{"name": "", "cost": 0, "category": "その他"}],
   "totalAmount": null
 }
