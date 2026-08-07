@@ -42,6 +42,8 @@ export default function SettingsPage() {
   const [openFeeCategories, setOpenFeeCategories] = useState<Set<string>>(new Set());
   const [reminderTypes, setReminderTypes] = useState<any[]>([]);
   const [openReminderTypes, setOpenReminderTypes] = useState<Set<number>>(new Set());
+  const [openPlanCards, setOpenPlanCards] = useState<Set<string>>(new Set());
+  const [planCardsInitialized, setPlanCardsInitialized] = useState(false);
   const [newReminderDraft, setNewReminderDraft] = useState({
     name: '',
     intervalMonths: '',
@@ -97,6 +99,11 @@ export default function SettingsPage() {
     );
 
     setPlanInfo(planJson);
+
+    if (!planCardsInitialized) {
+      setOpenPlanCards(new Set([planJson.current?.plan ?? PLAN_ORDER[0]]));
+      setPlanCardsInitialized(true);
+    }
 
     const requests = await api<any[]>(
       `/license/company/${companyJson.id}/plan-change-requests`,
@@ -343,6 +350,18 @@ export default function SettingsPage() {
         next.delete(id);
       } else {
         next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function togglePlanCard(key: string) {
+    setOpenPlanCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
       }
       return next;
     });
@@ -1072,35 +1091,50 @@ export default function SettingsPage() {
             {PLAN_ORDER.map((key) => {
               const plan = planInfo.plans[key];
               const isCurrent = planInfo.current?.plan === key;
+              const planOpen = openPlanCards.has(key);
 
               return (
-                <div key={key} className="veh">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div
-                        className="font-bold"
-                        style={{
-                          letterSpacing: '0.08em',
-                          fontFamily: 'var(--font-mono, monospace)',
-                          color: 'var(--blue)',
-                        }}
-                      >
-                        {plan.label}
-                      </div>
-                      {key === 'STANDARD' && (
-                        <span className="expbadge exp-ok text-xs">おすすめ</span>
-                      )}
-                      <div className="mono text-lg">
+                <div key={key} className="feerate-category mb-2">
+                  <div className="feerate-category-head" onClick={() => togglePlanCard(key)}>
+                    <span
+                      className="feerate-category-title"
+                      style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span
+                          style={{
+                            letterSpacing: '0.08em',
+                            fontFamily: 'var(--font-mono, monospace)',
+                            color: 'var(--blue)',
+                          }}
+                        >
+                          {plan.label}
+                        </span>
+                        {key === 'STANDARD' && (
+                          <span className="expbadge exp-ok text-xs">おすすめ</span>
+                        )}
+                        {isCurrent && <span className="expbadge exp-ok">利用中</span>}
+                      </span>
+                      <span className="mono text-lg font-normal">
                         ¥{plan.priceYen.toLocaleString()}
                         <span className="text-xs text-[var(--muted)]">/月</span>
-                      </div>
+                      </span>
                       {PLAN_TAGLINES[key] && (
-                        <div className="text-xs text-[var(--muted)] mt-1">{PLAN_TAGLINES[key]}</div>
+                        <span
+                          className="text-xs text-[var(--muted)] font-normal"
+                          style={{ whiteSpace: 'normal' }}
+                        >
+                          {PLAN_TAGLINES[key]}
+                        </span>
                       )}
-                    </div>
+                    </span>
+                    <span className={`feerate-chevron ${planOpen ? 'is-open' : ''}`} aria-hidden>
+                      ▾
+                    </span>
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      {isCurrent && <span className="expbadge exp-ok">利用中</span>}
+                  {planOpen && (
+                    <div className="feerate-category-body" onClick={(e) => e.stopPropagation()}>
                       {isCurrent && planInfo.current?.trialDaysRemaining != null && (
                         <button
                           onClick={() =>
@@ -1108,39 +1142,39 @@ export default function SettingsPage() {
                               `無料お試し期間中です。あと${planInfo.current.trialDaysRemaining}日で、一部の機能(交換時期の通知・LINE自動応答・Web予約受付など)が使えなくなります。`,
                             )
                           }
-                          className="expbadge exp-warn"
+                          className="expbadge exp-warn mb-2"
                         >
                           ⚠️ まもなく使えなくなります
                         </button>
                       )}
-                    </div>
-                  </div>
 
-                  <div className="mt-2 text-xs text-[var(--muted)] space-y-1">
-                    <div>OCR 月{plan.maxOcrPerMonth}件</div>
-                    <div>顧客登録 {plan.maxCustomers ? `${plan.maxCustomers}件まで` : '無制限'}</div>
-                    <div>利用者 {plan.maxUsers}名まで</div>
-                    <div>{plan.predictiveMaintenance ? '✓' : '✕'} 交換時期の通知</div>
-                    <div>{plan.aiChat ? '✓' : '✕'} LINE自動応答</div>
-                    <div>{plan.lineHistoryView ? '✓' : '✕'} LINEメッセージ履歴</div>
-                    <div>{plan.portalAccess ? '✓' : '✕'} 顧客ポータル</div>
-                    <div>{plan.webReservation ? '✓' : '✕'} Web予約受付</div>
-                  </div>
+                      <div className="text-xs text-[var(--muted)] space-y-1">
+                        <div>OCR 月{plan.maxOcrPerMonth}件</div>
+                        <div>顧客登録 {plan.maxCustomers ? `${plan.maxCustomers}件まで` : '無制限'}</div>
+                        <div>利用者 {plan.maxUsers}名まで</div>
+                        <div>{plan.predictiveMaintenance ? '✓' : '✕'} 交換時期の通知</div>
+                        <div>{plan.aiChat ? '✓' : '✕'} LINE自動応答</div>
+                        <div>{plan.lineHistoryView ? '✓' : '✕'} LINEメッセージ履歴</div>
+                        <div>{plan.portalAccess ? '✓' : '✕'} 顧客ポータル</div>
+                        <div>{plan.webReservation ? '✓' : '✕'} Web予約受付</div>
+                      </div>
 
-                  {isCurrent ? (
-                    <div
-                      className="btn btn-ghost btn-sm mt-3 w-full justify-center"
-                      style={{ pointerEvents: 'none', opacity: 0.7 }}
-                    >
-                      現在のプラン
+                      {isCurrent ? (
+                        <div
+                          className="btn btn-ghost btn-sm mt-3 w-full justify-center"
+                          style={{ pointerEvents: 'none', opacity: 0.7 }}
+                        >
+                          現在のプラン
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => goToPaymentScreen(key)}
+                          className="btn btn-blue btn-sm mt-3 w-full justify-center"
+                        >
+                          このプランに変更
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => goToPaymentScreen(key)}
-                      className="btn btn-blue btn-sm mt-3 w-full justify-center"
-                    >
-                      このプランに変更
-                    </button>
                   )}
                 </div>
               );
