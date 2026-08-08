@@ -58,6 +58,9 @@ export function SiteFooter() {
             <Link href="/terms" className="transition-colors hover:text-primary">
               利用規約
             </Link>
+            <Link href="/tokushoho" className="transition-colors hover:text-primary">
+              特定商取引法に基づく表記
+            </Link>
           </div>
         </div>
       </div>
