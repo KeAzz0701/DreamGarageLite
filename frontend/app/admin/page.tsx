@@ -19,6 +19,23 @@ interface CompanyRow {
   createdAt: string;
 }
 
+interface PlanHistoryRow {
+  id: number;
+  fromPlan: string | null;
+  toPlan: string;
+  changedBy: string;
+  note: string | null;
+  changedAt: string;
+}
+
+const PLAN_CHANGED_BY_LABEL: Record<string, string> = {
+  SELF: '会社側の操作',
+  ADMIN: '運営による強制変更',
+  REQUEST_APPROVED: '入金確認・承認',
+};
+
+const PLAN_OPTIONS = ['FREE', 'LITE', 'STANDARD', 'PRO', 'ENTERPRISE', 'DEMO'];
+
 interface PlanChangeRequestRow {
   companyAccountId: number;
   companyName: string;
@@ -108,6 +125,12 @@ export default function AdminPage() {
 
   const [planRequests, setPlanRequests] = useState<PlanChangeRequestRow[]>([]);
   const [processingPlanRequest, setProcessingPlanRequest] = useState<number | null>(null);
+
+  const [openHistoryFor, setOpenHistoryFor] = useState<number | null>(null);
+  const [planHistory, setPlanHistory] = useState<Record<number, PlanHistoryRow[]>>({});
+  const [loadingHistoryFor, setLoadingHistoryFor] = useState<number | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<Record<number, string>>({});
+  const [settingPlanFor, setSettingPlanFor] = useState<number | null>(null);
 
   const [errorReports, setErrorReports] = useState<ErrorReportRow[]>([]);
   const [zoomedScreenshot, setZoomedScreenshot] = useState<string | null>(null);
@@ -372,6 +395,60 @@ export default function AdminPage() {
       alert(extractErrorMessage(e));
     } finally {
       setProcessingPlanRequest(null);
+    }
+  }
+
+  async function toggleHistory(company: CompanyRow) {
+    if (openHistoryFor === company.id) {
+      setOpenHistoryFor(null);
+      return;
+    }
+
+    setOpenHistoryFor(company.id);
+
+    if (!planHistory[company.id]) {
+      setLoadingHistoryFor(company.id);
+
+      try {
+        const json = await api<PlanHistoryRow[]>(`/admin/companies/${company.id}/plan-history`);
+        setPlanHistory((prev) => ({ ...prev, [company.id]: json }));
+      } catch (e: any) {
+        alert(extractErrorMessage(e));
+      } finally {
+        setLoadingHistoryFor(null);
+      }
+    }
+  }
+
+  async function setCompanyPlan(company: CompanyRow) {
+    const plan = selectedPlan[company.id];
+    if (!plan) return;
+
+    if (
+      !window.confirm(
+        `「${company.displayName}」のプランを強制的に「${plan}」に変更します。\n資格・上限チェックは行われません。よろしいですか？`,
+      )
+    ) {
+      return;
+    }
+
+    setSettingPlanFor(company.id);
+
+    try {
+      await api(`/admin/companies/${company.id}/set-plan`, {
+        method: 'POST',
+        body: JSON.stringify({ plan, note: '運営管理画面からの手動変更' }),
+      });
+      await load();
+      // 履歴を開いていれば最新化する
+      if (openHistoryFor === company.id) {
+        const json = await api<PlanHistoryRow[]>(`/admin/companies/${company.id}/plan-history`);
+        setPlanHistory((prev) => ({ ...prev, [company.id]: json }));
+      }
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    } finally {
+      setSettingPlanFor(null);
     }
   }
 
@@ -653,7 +730,62 @@ export default function AdminPage() {
                     {deletingCompanyId === c.id ? '削除中...' : '🗑 完全に削除'}
                   </button>
                 )}
+                <button onClick={() => toggleHistory(c)} className="btn btn-ghost btn-sm">
+                  📜 プラン履歴
+                </button>
               </div>
+
+              <div className="flex gap-2 items-center mt-2">
+                <select
+                  className="input"
+                  style={{ width: 'auto' }}
+                  value={selectedPlan[c.id] ?? ''}
+                  onChange={(e) =>
+                    setSelectedPlan((prev) => ({ ...prev, [c.id]: e.target.value }))
+                  }
+                >
+                  <option value="">プランを強制変更...</option>
+                  {PLAN_OPTIONS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setCompanyPlan(c)}
+                  disabled={!selectedPlan[c.id] || settingPlanFor === c.id}
+                  className="btn btn-blue btn-sm"
+                >
+                  {settingPlanFor === c.id ? '変更中...' : '変更'}
+                </button>
+              </div>
+
+              {openHistoryFor === c.id && (
+                <div className="mt-2 p-2" style={{ background: 'var(--paper-dim)', borderRadius: 6 }}>
+                  {loadingHistoryFor === c.id ? (
+                    <div className="empty text-xs">読み込み中...</div>
+                  ) : (planHistory[c.id]?.length ?? 0) === 0 ? (
+                    <div className="empty text-xs">変更履歴はありません。</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {planHistory[c.id].map((h) => (
+                        <div key={h.id} className="text-xs flex justify-between gap-2">
+                          <span>
+                            {h.fromPlan ?? '(なし)'} → <b>{h.toPlan}</b>
+                            <span className="ml-2 text-[var(--muted)]">
+                              {PLAN_CHANGED_BY_LABEL[h.changedBy] ?? h.changedBy}
+                            </span>
+                          </span>
+                          <span className="text-[var(--muted)] mono shrink-0">
+                            {new Date(h.changedAt).toLocaleString('ja-JP')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="mt-1 text-xs text-[var(--muted)]">DB: {c.dbName}</div>
             </div>
           ))

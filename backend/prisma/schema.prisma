@@ -86,6 +86,26 @@ model Company {
   googleCalendarCredential GoogleCalendarCredential?
 
   planChangeRequests PlanChangeRequest[]
+  planHistory        PlanHistory[]
+}
+
+// プラン変更のたびに記録する履歴。誤操作からの復旧や問い合わせ対応で
+// 「いつ・何から何に・誰の操作で」変わったかを追えるようにする
+model PlanHistory {
+  id        Int      @id @default(autoincrement())
+
+  companyId Int
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  fromPlan  Plan?
+  toPlan    Plan
+
+  // 'SELF'=会社側の画面操作、'ADMIN'=運営が管理画面から強制変更、'REQUEST_APPROVED'=入金確認後の承認
+  changedBy String
+
+  note      String?
+
+  changedAt DateTime @default(now())
 }
 
 model PlanChangeRequest {

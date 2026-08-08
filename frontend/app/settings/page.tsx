@@ -130,7 +130,16 @@ export default function SettingsPage() {
   }
 
   async function switchToFree() {
-    if (!window.confirm('無料プランに切り替えますか？')) return;
+    const currentLabel = planInfo?.current?.limits?.label;
+    const warning =
+      currentLabel && currentLabel !== '無料版'
+        ? `現在の「${currentLabel}」から無料プランに切り替えます。\n` +
+          '切替は即時に反映され、LINE自動応答・顧客ポータル・Web予約受付などの機能がすぐに使えなくなります。\n' +
+          '元のプランに戻す場合は、あらためてお申込み(有料プランは入金確認後の承認)が必要です。\n\n' +
+          '本当に無料プランに切り替えますか？'
+        : '無料プランに切り替えますか？';
+
+    if (!window.confirm(warning)) return;
 
     try {
       await api(`/license/company/${company.id}/plans`, {

@@ -183,6 +183,22 @@ export class AdminController {
     return this.adminService.rejectPlanChangeRequest(companyAccountId, requestId);
   }
 
+  /** 誤操作からの復旧など、運営が管理画面から強制的にプランを変更する */
+  @UseGuards(AdminAuthGuard)
+  @Post('companies/:id/set-plan')
+  async setCompanyPlan(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { plan: string; note?: string },
+  ) {
+    return this.adminService.setCompanyPlan(id, body.plan, body.note);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Get('companies/:id/plan-history')
+  async getCompanyPlanHistory(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.getCompanyPlanHistory(id);
+  }
+
   @UseGuards(AdminAuthGuard)
   @Get('error-reports')
   async listErrorReports(@Query('resolved') resolved?: string) {

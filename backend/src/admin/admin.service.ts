@@ -384,6 +384,44 @@ export class AdminService {
     );
   }
 
+  /** 誤操作からの復旧など、運営が管理画面から強制的にプランを変更する */
+  async setCompanyPlan(companyAccountId: number, plan: string, note?: string) {
+    const company = await this.masterPrisma.companyAccount.findUnique({
+      where: { id: companyAccountId },
+    });
+
+    if (!company) {
+      throw new BadRequestException('会社が見つかりません。');
+    }
+
+    return this.tenantContext.run(company, async () => {
+      const tenantCompany = await this.prisma.company.findFirst();
+      if (!tenantCompany) {
+        throw new BadRequestException('会社情報が見つかりません。');
+      }
+
+      return this.licenseService.adminSetPlan(tenantCompany.id, plan as any, note);
+    });
+  }
+
+  /** 会社のプラン変更履歴を新しい順に返す */
+  async getCompanyPlanHistory(companyAccountId: number) {
+    const company = await this.masterPrisma.companyAccount.findUnique({
+      where: { id: companyAccountId },
+    });
+
+    if (!company) {
+      throw new BadRequestException('会社が見つかりません。');
+    }
+
+    return this.tenantContext.run(company, async () => {
+      const tenantCompany = await this.prisma.company.findFirst();
+      if (!tenantCompany) return [];
+
+      return this.licenseService.getPlanHistory(tenantCompany.id);
+    });
+  }
+
   async resetPassword(id: number) {
     const password = randomString(PASSWORD_CHARS, 12);
     const passwordHash = await bcrypt.hash(password, 10);

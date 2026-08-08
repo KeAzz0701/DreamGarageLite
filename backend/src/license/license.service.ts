@@ -385,7 +385,7 @@ export class LicenseService {
 
   }
 
-  /** 管理者操作でプランを切り替える */
+  /** 会社側の画面からプランを切り替える(資格・上限チェックあり) */
   async changePlan(companyId: number, plan: Plan) {
 
     const company = await this.prisma.company.findUnique({
@@ -423,6 +423,40 @@ export class LicenseService {
       }
     }
 
+    return this.applyPlanChange(companyId, plan, 'SELF');
+  }
+
+  /** 運営が管理画面から強制的にプランを変更する。誤操作からの復旧などで使うため、
+   * 資格・上限チェックはあえてスキップする(運営が状況を見て判断した結果のため) */
+  async adminSetPlan(companyId: number, plan: Plan, note?: string) {
+    return this.applyPlanChange(companyId, plan, 'ADMIN', note);
+  }
+
+  /** 会社の過去のプラン変更履歴を新しい順に返す */
+  async getPlanHistory(companyId: number) {
+    return this.prisma.planHistory.findMany({
+      where: { companyId },
+      orderBy: { changedAt: 'desc' },
+    });
+  }
+
+  private async applyPlanChange(
+    companyId: number,
+    plan: Plan,
+    changedBy: 'SELF' | 'ADMIN' | 'REQUEST_APPROVED',
+    note?: string,
+  ) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      include: { license: true },
+    });
+
+    if (!company?.license) {
+      throw new BadRequestException('License not found');
+    }
+
+    const previousPlan = company.license.plan;
+
     // 一度でも有料プランに切り替えたら、以後FREEに戻っても初月お試し特典は与えない
     const isPaidPlan = plan !== 'FREE' && plan !== 'DEMO';
     const hasUsedPaidPlan = company.license.hasUsedPaidPlan || isPaidPlan;
@@ -454,8 +488,13 @@ export class LicenseService {
       });
     }
 
-    return updated;
+    if (previousPlan !== plan) {
+      await this.prisma.planHistory.create({
+        data: { companyId, fromPlan: previousPlan, toPlan: plan, changedBy, note },
+      });
+    }
 
+    return updated;
   }
 
   /** プラン変更を申請する。現金・振込は承認待ちで登録、オンライン決済は現時点では未対応 */
@@ -499,7 +538,7 @@ export class LicenseService {
       throw new BadRequestException('Request not found or already processed');
     }
 
-    await this.changePlan(request.companyId, request.targetPlan);
+    await this.applyPlanChange(request.companyId, request.targetPlan, 'REQUEST_APPROVED');
 
     return this.prisma.planChangeRequest.update({
       where: { id: requestId },
