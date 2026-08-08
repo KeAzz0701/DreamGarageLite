@@ -1836,7 +1836,7 @@ export class LineService {
       await this.reply(replyToken, [
         {
           type: 'text',
-          text: '現在おすすめのご案内はありません。',
+          text: '🔧 ご予約やお車のご相談は、下のメニューからどうぞ。',
           quickReply: this.buildRecommendMenuQuickReply(),
         },
       ]);
