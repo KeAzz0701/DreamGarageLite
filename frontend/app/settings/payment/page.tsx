@@ -21,6 +21,7 @@ export default function PaymentMethodPage() {
 
   const [companyId, setCompanyId] = useState<number | null>(null);
   const [settings, setSettings] = useState<any>(null);
+  const [planInfo, setPlanInfo] = useState<any>(null);
   const [selected, setSelected] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -29,8 +30,11 @@ export default function PaymentMethodPage() {
     api<any>('/company').then((c) => {
       setCompanyId(c.id);
       api<any>(`/settings/${c.id}`).then(setSettings);
+      api<any>(`/license/company/${c.id}/plans`).then(setPlanInfo);
     });
   }, []);
+
+  const targetPlanInfo = planInfo?.plans?.[targetPlan];
 
   async function submit() {
     if (!companyId || !selected) return;
@@ -102,6 +106,35 @@ export default function PaymentMethodPage() {
         <Link href="/settings" className="btn btn-ghost">
           戻る
         </Link>
+      </div>
+
+      <div className="panel mb-4">
+        <h2 className="disp text-lg mb-3">ご契約内容の確認</h2>
+        <div className="text-sm space-y-1.5">
+          <div>
+            <span className="text-[var(--muted)]">プラン: </span>
+            <b>{targetPlanInfo?.label ?? targetPlan}</b>
+          </div>
+          <div>
+            <span className="text-[var(--muted)]">料金: </span>
+            <b>
+              {targetPlanInfo ? `¥${targetPlanInfo.priceYen.toLocaleString()}/月(税込)` : '読み込み中...'}
+            </b>
+            　月額課金・期間の定めなく自動更新されます(都度の再契約は不要です)。
+          </div>
+          <div>
+            <span className="text-[var(--muted)]">お支払い時期: </span>
+            選択したお支払い方法での入金確認後に反映されます。
+          </div>
+          <div>
+            <span className="text-[var(--muted)]">サービス提供時期: </span>
+            入金確認・運営承認後、直ちにプランが切り替わり利用可能になります。
+          </div>
+          <div>
+            <span className="text-[var(--muted)]">解約について: </span>
+            いつでも解約を申し出ることができます。解約した月の料金は日割り・月割りいずれの返金も行いません。解約は翌月以降の請求から反映されます。
+          </div>
+        </div>
       </div>
 
       <div className="panel">
