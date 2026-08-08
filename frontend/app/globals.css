@@ -965,6 +965,21 @@ button.minirow:hover {
   min-width: 40px;
   margin-top: 0;
 }
+/* 料金表の項目行は▲▼・項目名・部品代/技術料・金額・削除ボタンと要素が多く、
+   狭い画面では項目名がほぼ見えなくなるため、.l/.rを2段に分けて項目名に幅を確保する */
+@media (max-width: 480px) {
+  .feerate-category-body .minirow {
+    flex-wrap: wrap;
+  }
+  .feerate-category-body .minirow .l {
+    flex: 1 1 100%;
+    overflow: visible;
+  }
+  .feerate-category-body .minirow .r {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+}
 
 /* ホーム画面: お客様からのLINE未読通知。画像添付があるものはより目立たせる */
 .line-notify-list {
