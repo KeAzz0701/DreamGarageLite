@@ -956,6 +956,15 @@ button.minirow:hover {
   color: var(--muted);
   flex-shrink: 0;
 }
+/* 料金表の項目名入力など、.l内にinput.inputを直接置く場合。
+   .inputのwidth:100%は幅が未確定な祖先(フレックスの.l)の中では解決できず、
+   特にiOS Safariで入力欄が潰れて見えなくなるため、flexの伸縮に任せる */
+.minirow .l input.input {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 40px;
+  margin-top: 0;
+}
 
 /* ホーム画面: お客様からのLINE未読通知。画像添付があるものはより目立たせる */
 .line-notify-list {
