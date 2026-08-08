@@ -127,6 +127,22 @@ export default function AdminPage() {
   const [planRequests, setPlanRequests] = useState<PlanChangeRequestRow[]>([]);
   const [processingPlanRequest, setProcessingPlanRequest] = useState<number | null>(null);
 
+  const [openPanels, setOpenPanels] = useState<Set<string>>(
+    new Set(['planRequests', 'errorReports', 'companies']),
+  );
+
+  function togglePanel(key: string) {
+    setOpenPanels((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
   const [openHistoryFor, setOpenHistoryFor] = useState<number | null>(null);
   const [planHistory, setPlanHistory] = useState<Record<number, PlanHistoryRow[]>>({});
   const [loadingHistoryFor, setLoadingHistoryFor] = useState<number | null>(null);
@@ -647,75 +663,229 @@ export default function AdminPage() {
       </div>
 
       <div className="panel mb-4">
-        <h2 className="disp text-xl mb-3">新しい会社を作成</h2>
-        <div className="grid2 mb-3">
-          <label className="field-label">
-            表示名（会社名）
-            <input
-              className="input"
-              placeholder="例: 山田自動車整備"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-            />
-          </label>
-          <label className="field-label">
-            会社コード（未入力なら自動生成）
-            <input
-              className="input uppercase"
-              placeholder="例: YAMADA01"
-              value={newCode}
-              onChange={(e) => setNewCode(e.target.value)}
-              autoCapitalize="characters"
-              autoCorrect="off"
-              spellCheck={false}
-            />
-          </label>
+        <div className="panel-head" onClick={() => togglePanel('planRequests')}>
+          <h2 className="disp text-xl">
+            💰 プラン変更申請（{planRequests.length}）
+          </h2>
+          <span className={`feerate-chevron ${openPanels.has('planRequests') ? 'is-open' : ''}`} aria-hidden>
+            ▾
+          </span>
         </div>
-        <button onClick={createCompany} disabled={creating} className="btn btn-blue">
-          {creating ? '作成中...' : '➕ 会社を作成する'}
-        </button>
-        <p className="note mt-2 text-xs text-[var(--muted)]">
-          LINE公式アカウントとの連携は、作成後にLINE Developersコンソールで発行した情報をこちらで別途設定してください。
-        </p>
+        {openPanels.has('planRequests') && (
+          <div className="mt-3">
+            <p className="note mb-3">
+              有料プランへの変更は、入金確認後にここで承認して初めて実際に切り替わります(会社側の画面からは承認できません)。
+            </p>
+
+            {planRequests.length === 0 ? (
+              <div className="empty">承認待ちの申請はありません。</div>
+            ) : (
+              planRequests.map((r) => (
+                <div key={`${r.companyAccountId}-${r.requestId}`} className="veh mb-2">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="font-semibold">{r.companyName}</span>
+                      <span className="ml-2 text-xs text-[var(--muted)]">
+                        {r.targetPlan}プランへ変更（{PAYMENT_METHOD_LABELS[r.paymentMethod] ?? r.paymentMethod}）
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => approvePlanRequest(r)}
+                        disabled={processingPlanRequest === r.requestId}
+                        className="btn btn-primary btn-sm"
+                      >
+                        入金確認・承認
+                      </button>
+                      <button
+                        onClick={() => rejectPlanRequest(r)}
+                        disabled={processingPlanRequest === r.requestId}
+                        className="btn btn-ghost btn-sm"
+                      >
+                        却下
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       <div className="panel mb-4">
-        <h2 className="disp text-xl mb-3">🎁 先行導入モニター用アカウントを作成</h2>
-        <p className="note mb-3 text-xs text-[var(--muted)]">
-          このボタンから作った会社だけ、料金プラン画面に「先行導入モニター」が表示され、お申込みできます。
-          通常契約の会社には一切表示されません。先着{DEMO_PLAN_CAPACITY}社限定の枠が空いていれば、作成と同時にモニターとして有効になります。
-        </p>
-        <div className="grid2 mb-3">
-          <label className="field-label">
-            表示名（会社名）
-            <input
-              className="input"
-              placeholder="例: 展示会モニター用"
-              value={newDemoName}
-              onChange={(e) => setNewDemoName(e.target.value)}
-            />
-          </label>
-          <label className="field-label">
-            会社コード（未入力なら自動生成）
-            <input
-              className="input uppercase"
-              placeholder="例: MONITOR01"
-              value={newDemoCode}
-              onChange={(e) => setNewDemoCode(e.target.value)}
-              autoCapitalize="characters"
-              autoCorrect="off"
-              spellCheck={false}
-            />
-          </label>
+        <div className="panel-head" onClick={() => togglePanel('errorReports')}>
+          <h2 className="disp text-xl">
+            🚨 エラー報告（{errorReports.length}）{showResolvedReports ? '・訂正済み' : '・未対応'}
+          </h2>
+          <span className={`feerate-chevron ${openPanels.has('errorReports') ? 'is-open' : ''}`} aria-hidden>
+            ▾
+          </span>
         </div>
-        <button onClick={createDemoCompany} disabled={creatingDemo} className="btn btn-primary">
-          {creatingDemo ? '作成中...' : '🎁 モニター用アカウントを作成する'}
-        </button>
+        {openPanels.has('errorReports') && (
+          <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <p className="note" style={{ margin: 0 }}>
+                各社が画面から送った不具合報告の一覧です。送信時にLINEにもプッシュ通知が届きます。
+              </p>
+              <button
+                onClick={() => {
+                  const next = !showResolvedReports;
+                  setShowResolvedReports(next);
+                  loadErrorReports(next);
+                }}
+                className="btn btn-ghost btn-sm"
+                style={{ flexShrink: 0, marginLeft: 12 }}
+              >
+                {showResolvedReports ? '未対応を見る' : '訂正済みを見る'}
+              </button>
+            </div>
+
+            {errorReports.length === 0 ? (
+              <div className="empty">
+                {showResolvedReports ? '訂正済みの報告はありません。' : '未対応の報告はありません。'}
+              </div>
+            ) : (
+              errorReports.map((r) => (
+                <div key={r.id} className="veh mb-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-semibold">{r.companyName}</span>
+                      <span className="ml-2 mono text-xs text-[var(--muted)]">
+                        {new Date(r.createdAt).toLocaleString('ja-JP')}
+                      </span>
+                      <div className="text-xs text-[var(--muted)] mt-1">
+                        画面: {r.pageLabel || '(タイトルなし)'}
+                      </div>
+                      <div className="text-xs text-[var(--muted)] mono mt-1 break-all">
+                        URL: {r.pageUrl}
+                      </div>
+                      {r.message && <div className="text-sm mt-1">{r.message}</div>}
+                      {r.userAgent && (
+                        <div className="text-xs text-[var(--muted)] mt-1">環境: {r.userAgent}</div>
+                      )}
+                      {r.diagnosisNote && (
+                        <div
+                          className="mt-2 p-2"
+                          style={{ background: 'var(--paper-dim)', borderRadius: 6, fontSize: 12.5 }}
+                        >
+                          <div className="text-xs text-[var(--muted)] mb-1">
+                            🔍 自動診断結果
+                            {r.diagnosedAt && `(${new Date(r.diagnosedAt).toLocaleString('ja-JP')})`}
+                          </div>
+                          <div>
+                            <b>原因: </b>
+                            {r.diagnosisNote}
+                          </div>
+                          {r.diagnosisSuggestedFix && (
+                            <div className="mt-1">
+                              <b>修正方針: </b>
+                              {r.diagnosisSuggestedFix}
+                            </div>
+                          )}
+
+                          {r.diagnosisVerdict === 'APPROVED' ? (
+                            <div className="mt-2 flex items-center gap-2">
+                              <span className="badge-ok">
+                                ✅ 採用
+                                {r.diagnosisVerdictAt &&
+                                  `(${new Date(r.diagnosisVerdictAt).toLocaleString('ja-JP')})`}
+                              </span>
+                              <button
+                                onClick={() => setDiagnosisVerdict(r, null)}
+                                className="btn btn-ghost btn-sm"
+                              >
+                                判定を取り消す
+                              </button>
+                            </div>
+                          ) : r.diagnosisVerdict === 'REJECTED' ? (
+                            <div className="mt-2 flex items-center gap-2">
+                              <span className="badge-danger">
+                                ❌ 却下
+                                {r.diagnosisVerdictAt &&
+                                  `(${new Date(r.diagnosisVerdictAt).toLocaleString('ja-JP')})`}
+                              </span>
+                              <button
+                                onClick={() => setDiagnosisVerdict(r, null)}
+                                className="btn btn-ghost btn-sm"
+                              >
+                                判定を取り消す
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                onClick={() => setDiagnosisVerdict(r, 'APPROVED')}
+                                className="btn btn-blue btn-sm"
+                              >
+                                ✅ 採用する
+                              </button>
+                              <button
+                                onClick={() => setDiagnosisVerdict(r, 'REJECTED')}
+                                className="btn btn-ghost btn-sm"
+                              >
+                                ❌ 却下する
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {r.resolved && (
+                        <div className="mt-2">
+                          <span className="badge-ok">
+                            ✅ 訂正済み{r.resolvedAt && `(${new Date(r.resolvedAt).toLocaleString('ja-JP')})`}
+                          </span>
+                          {r.resolvedNote && (
+                            <div className="text-xs text-[var(--muted)] mt-1">メモ: {r.resolvedNote}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <button
+                        onClick={() => (r.resolved ? reopenErrorReport(r) : resolveErrorReport(r))}
+                        className="btn btn-ghost btn-sm"
+                      >
+                        {r.resolved ? '未対応に戻す' : '✅ 訂正済みにする'}
+                      </button>
+                      {r.screenshotBase64 && (
+                        <button
+                          type="button"
+                          onClick={() => setZoomedScreenshot(r.screenshotBase64)}
+                          style={{ display: 'block', padding: 0, border: 0, background: 'none', cursor: 'zoom-in' }}
+                        >
+                          <img
+                            src={r.screenshotBase64}
+                            alt="報告時のスクリーンショット"
+                            style={{
+                              maxWidth: 140,
+                              maxHeight: 100,
+                              objectFit: 'cover',
+                              objectPosition: 'top',
+                              borderRadius: 6,
+                              border: '1px solid var(--line)',
+                            }}
+                          />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="panel">
-        <h2 className="disp text-xl mb-3">会社一覧（{companies.length}）</h2>
-
+      <div className="panel mb-4">
+        <div className="panel-head" onClick={() => togglePanel('companies')}>
+          <h2 className="disp text-xl">会社一覧（{companies.length}）</h2>
+          <span className={`feerate-chevron ${openPanels.has('companies') ? 'is-open' : ''}`} aria-hidden>
+            ▾
+          </span>
+        </div>
+        {openPanels.has('companies') && (
+        <div className="mt-3">
         {companies.length === 0 ? (
           <div className="empty">会社がまだありません。</div>
         ) : (
@@ -834,50 +1004,104 @@ export default function AdminPage() {
             </div>
           ))
         )}
-      </div>
-
-      <div className="panel mt-4">
-        <h2 className="disp text-xl mb-3">プラン変更申請</h2>
-        <p className="note mb-3">
-          有料プランへの変更は、入金確認後にここで承認して初めて実際に切り替わります(会社側の画面からは承認できません)。
-        </p>
-
-        {planRequests.length === 0 ? (
-          <div className="empty">承認待ちの申請はありません。</div>
-        ) : (
-          planRequests.map((r) => (
-            <div key={`${r.companyAccountId}-${r.requestId}`} className="veh mb-2">
-              <div className="flex justify-between items-center">
-                <div>
-                  <span className="font-semibold">{r.companyName}</span>
-                  <span className="ml-2 text-xs text-[var(--muted)]">
-                    {r.targetPlan}プランへ変更（{PAYMENT_METHOD_LABELS[r.paymentMethod] ?? r.paymentMethod}）
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => approvePlanRequest(r)}
-                    disabled={processingPlanRequest === r.requestId}
-                    className="btn btn-primary btn-sm"
-                  >
-                    入金確認・承認
-                  </button>
-                  <button
-                    onClick={() => rejectPlanRequest(r)}
-                    disabled={processingPlanRequest === r.requestId}
-                    className="btn btn-ghost btn-sm"
-                  >
-                    却下
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
+        </div>
         )}
       </div>
 
-      <div className="panel mt-4">
-        <h2 className="disp text-xl mb-3">担当者アカウント</h2>
+      <div className="panel mb-4">
+        <div className="panel-head" onClick={() => togglePanel('createCompany')}>
+          <h2 className="disp text-xl">新しい会社を作成</h2>
+          <span className={`feerate-chevron ${openPanels.has('createCompany') ? 'is-open' : ''}`} aria-hidden>
+            ▾
+          </span>
+        </div>
+        {openPanels.has('createCompany') && (
+          <div className="mt-3">
+            <div className="grid2 mb-3">
+              <label className="field-label">
+                表示名（会社名）
+                <input
+                  className="input"
+                  placeholder="例: 山田自動車整備"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                />
+              </label>
+              <label className="field-label">
+                会社コード（未入力なら自動生成）
+                <input
+                  className="input uppercase"
+                  placeholder="例: YAMADA01"
+                  value={newCode}
+                  onChange={(e) => setNewCode(e.target.value)}
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              </label>
+            </div>
+            <button onClick={createCompany} disabled={creating} className="btn btn-blue">
+              {creating ? '作成中...' : '➕ 会社を作成する'}
+            </button>
+            <p className="note mt-2 text-xs text-[var(--muted)]">
+              LINE公式アカウントとの連携は、作成後にLINE Developersコンソールで発行した情報をこちらで別途設定してください。
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="panel mb-4">
+        <div className="panel-head" onClick={() => togglePanel('createDemo')}>
+          <h2 className="disp text-xl">🎁 先行導入モニター用アカウントを作成</h2>
+          <span className={`feerate-chevron ${openPanels.has('createDemo') ? 'is-open' : ''}`} aria-hidden>
+            ▾
+          </span>
+        </div>
+        {openPanels.has('createDemo') && (
+          <div className="mt-3">
+            <p className="note mb-3 text-xs text-[var(--muted)]">
+              このボタンから作った会社だけ、料金プラン画面に「先行導入モニター」が表示され、お申込みできます。
+              通常契約の会社には一切表示されません。先着{DEMO_PLAN_CAPACITY}社限定の枠が空いていれば、作成と同時にモニターとして有効になります。
+            </p>
+            <div className="grid2 mb-3">
+              <label className="field-label">
+                表示名（会社名）
+                <input
+                  className="input"
+                  placeholder="例: 展示会モニター用"
+                  value={newDemoName}
+                  onChange={(e) => setNewDemoName(e.target.value)}
+                />
+              </label>
+              <label className="field-label">
+                会社コード（未入力なら自動生成）
+                <input
+                  className="input uppercase"
+                  placeholder="例: MONITOR01"
+                  value={newDemoCode}
+                  onChange={(e) => setNewDemoCode(e.target.value)}
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              </label>
+            </div>
+            <button onClick={createDemoCompany} disabled={creatingDemo} className="btn btn-primary">
+              {creatingDemo ? '作成中...' : '🎁 モニター用アカウントを作成する'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="panel mb-4">
+        <div className="panel-head" onClick={() => togglePanel('adminUsers')}>
+          <h2 className="disp text-xl">担当者アカウント</h2>
+          <span className={`feerate-chevron ${openPanels.has('adminUsers') ? 'is-open' : ''}`} aria-hidden>
+            ▾
+          </span>
+        </div>
+        {openPanels.has('adminUsers') && (
+        <div className="mt-3">
         <p className="note mb-3">
           運営管理画面にログインできる担当者を個別に発行できます。共有パスワードでのログインより安全です。
         </p>
@@ -940,10 +1164,19 @@ export default function AdminPage() {
             </div>
           ))
         )}
+        </div>
+        )}
       </div>
 
-      <div className="panel mt-4">
-        <h2 className="disp text-xl mb-3">APIキープール（Gemini）</h2>
+      <div className="panel mb-4">
+        <div className="panel-head" onClick={() => togglePanel('apiKeys')}>
+          <h2 className="disp text-xl">APIキープール（Gemini）</h2>
+          <span className={`feerate-chevron ${openPanels.has('apiKeys') ? 'is-open' : ''}`} aria-hidden>
+            ▾
+          </span>
+        </div>
+        {openPanels.has('apiKeys') && (
+        <div className="mt-3">
         <p className="note mb-3">
           全社共有のGemini APIキープールです。会社が新規作成される際、ここから未割り当てのキーが自動で割り当てられます。
         </p>
@@ -1004,164 +1237,19 @@ export default function AdminPage() {
             </div>
           ))
         )}
-      </div>
-
-      <div className="panel mt-4">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="disp text-xl">
-            エラー報告（{errorReports.length}）{showResolvedReports ? '・訂正済み' : '・未対応'}
-          </h2>
-          <button
-            onClick={() => {
-              const next = !showResolvedReports;
-              setShowResolvedReports(next);
-              loadErrorReports(next);
-            }}
-            className="btn btn-ghost btn-sm"
-          >
-            {showResolvedReports ? '未対応を見る' : '訂正済みを見る'}
-          </button>
         </div>
-        <p className="note mb-3">
-          各社が画面から送った不具合報告の一覧です。送信時にLINEにもプッシュ通知が届きます。
-        </p>
-
-        {errorReports.length === 0 ? (
-          <div className="empty">
-            {showResolvedReports ? '訂正済みの報告はありません。' : '未対応の報告はありません。'}
-          </div>
-        ) : (
-          errorReports.map((r) => (
-            <div key={r.id} className="veh mb-2">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className="font-semibold">{r.companyName}</span>
-                  <span className="ml-2 mono text-xs text-[var(--muted)]">
-                    {new Date(r.createdAt).toLocaleString('ja-JP')}
-                  </span>
-                  <div className="text-xs text-[var(--muted)] mt-1">
-                    画面: {r.pageLabel || '(タイトルなし)'}
-                  </div>
-                  <div className="text-xs text-[var(--muted)] mono mt-1 break-all">
-                    URL: {r.pageUrl}
-                  </div>
-                  {r.message && <div className="text-sm mt-1">{r.message}</div>}
-                  {r.userAgent && (
-                    <div className="text-xs text-[var(--muted)] mt-1">環境: {r.userAgent}</div>
-                  )}
-                  {r.diagnosisNote && (
-                    <div
-                      className="mt-2 p-2"
-                      style={{ background: 'var(--paper-dim)', borderRadius: 6, fontSize: 12.5 }}
-                    >
-                      <div className="text-xs text-[var(--muted)] mb-1">
-                        🔍 自動診断結果
-                        {r.diagnosedAt && `(${new Date(r.diagnosedAt).toLocaleString('ja-JP')})`}
-                      </div>
-                      <div>
-                        <b>原因: </b>
-                        {r.diagnosisNote}
-                      </div>
-                      {r.diagnosisSuggestedFix && (
-                        <div className="mt-1">
-                          <b>修正方針: </b>
-                          {r.diagnosisSuggestedFix}
-                        </div>
-                      )}
-
-                      {r.diagnosisVerdict === 'APPROVED' ? (
-                        <div className="mt-2 flex items-center gap-2">
-                          <span className="badge-ok">
-                            ✅ 採用
-                            {r.diagnosisVerdictAt &&
-                              `(${new Date(r.diagnosisVerdictAt).toLocaleString('ja-JP')})`}
-                          </span>
-                          <button
-                            onClick={() => setDiagnosisVerdict(r, null)}
-                            className="btn btn-ghost btn-sm"
-                          >
-                            判定を取り消す
-                          </button>
-                        </div>
-                      ) : r.diagnosisVerdict === 'REJECTED' ? (
-                        <div className="mt-2 flex items-center gap-2">
-                          <span className="badge-danger">
-                            ❌ 却下
-                            {r.diagnosisVerdictAt &&
-                              `(${new Date(r.diagnosisVerdictAt).toLocaleString('ja-JP')})`}
-                          </span>
-                          <button
-                            onClick={() => setDiagnosisVerdict(r, null)}
-                            className="btn btn-ghost btn-sm"
-                          >
-                            判定を取り消す
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="mt-2 flex gap-2">
-                          <button
-                            onClick={() => setDiagnosisVerdict(r, 'APPROVED')}
-                            className="btn btn-blue btn-sm"
-                          >
-                            ✅ 採用する
-                          </button>
-                          <button
-                            onClick={() => setDiagnosisVerdict(r, 'REJECTED')}
-                            className="btn btn-ghost btn-sm"
-                          >
-                            ❌ 却下する
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {r.resolved && (
-                    <div className="mt-2">
-                      <span className="badge-ok">
-                        ✅ 訂正済み{r.resolvedAt && `(${new Date(r.resolvedAt).toLocaleString('ja-JP')})`}
-                      </span>
-                      {r.resolvedNote && (
-                        <div className="text-xs text-[var(--muted)] mt-1">メモ: {r.resolvedNote}</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  <button
-                    onClick={() => (r.resolved ? reopenErrorReport(r) : resolveErrorReport(r))}
-                    className="btn btn-ghost btn-sm"
-                  >
-                    {r.resolved ? '未対応に戻す' : '✅ 訂正済みにする'}
-                  </button>
-                  {r.screenshotBase64 && (
-                    <button
-                      type="button"
-                      onClick={() => setZoomedScreenshot(r.screenshotBase64)}
-                      style={{ display: 'block', padding: 0, border: 0, background: 'none', cursor: 'zoom-in' }}
-                    >
-                      <img
-                        src={r.screenshotBase64}
-                        alt="報告時のスクリーンショット"
-                        style={{
-                          maxWidth: 140,
-                          maxHeight: 100,
-                          objectFit: 'cover',
-                          objectPosition: 'top',
-                          borderRadius: 6,
-                          border: '1px solid var(--line)',
-                        }}
-                      />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))
         )}
       </div>
 
-      <div className="panel mt-4">
-        <h2 className="disp text-xl mb-3">運営者LINE通知の登録</h2>
+      <div className="panel mb-4">
+        <div className="panel-head" onClick={() => togglePanel('systemAdminLine')}>
+          <h2 className="disp text-xl">運営者LINE通知の登録</h2>
+          <span className={`feerate-chevron ${openPanels.has('systemAdminLine') ? 'is-open' : ''}`} aria-hidden>
+            ▾
+          </span>
+        </div>
+        {openPanels.has('systemAdminLine') && (
+        <div className="mt-3">
         <p className="note mb-3">
           ここに登録したLINEアカウントにだけ、エラー報告などの運営者向け通知が届きます。
           「登録コードを発行」を押して表示されたコードを、ガレージ・カルテの公式LINEに送信すると登録されます(10分間有効)。
@@ -1196,6 +1284,8 @@ export default function AdminPage() {
               </button>
             </div>
           ))
+        )}
+        </div>
         )}
       </div>
 

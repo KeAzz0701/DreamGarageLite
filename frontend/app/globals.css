@@ -542,6 +542,14 @@ button.card:hover {
 .feerate-chevron.is-open {
   transform: rotate(180deg);
 }
+/* 運営管理画面: .panel自体をブラインド式(アコーディオン)にするための見出し行 */
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
 .feerate-category-body {
   padding: 10px 12px;
 }
