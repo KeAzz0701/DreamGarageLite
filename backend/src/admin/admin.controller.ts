@@ -199,6 +199,19 @@ export class AdminController {
     return this.adminService.getCompanyPlanHistory(id);
   }
 
+  /** モニター終了予告(30日後に自動でFREEへ移行) */
+  @UseGuards(AdminAuthGuard)
+  @Post('companies/:id/schedule-monitor-end')
+  async scheduleMonitorEnd(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.scheduleMonitorEnd(id);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post('companies/:id/cancel-monitor-end')
+  async cancelMonitorEnd(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.cancelMonitorEnd(id);
+  }
+
   @UseGuards(AdminAuthGuard)
   @Get('error-reports')
   async listErrorReports(@Query('resolved') resolved?: string) {

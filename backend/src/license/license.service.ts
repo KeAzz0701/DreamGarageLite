@@ -369,6 +369,7 @@ export class LicenseService {
         used: demoUsed,
         capacity: DEMO_PLAN_CAPACITY,
       },
+      monitorEndsAt: companyAccount?.monitorEndsAt ?? null,
       current: current
         ? {
             plan: company!.license!.plan,

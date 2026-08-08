@@ -1,6 +1,7 @@
 // backend/src/admin/admin.service.ts
 
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { execSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { Client } from 'pg';
@@ -53,6 +54,8 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly masterPrisma: MasterPrismaService,
     private readonly tenantContext: TenantContextService,
@@ -283,6 +286,7 @@ export class AdminService {
       demoAccount: boolean;
       lineConnected: boolean;
       trialDaysRemaining: number | null;
+      monitorEndsAt: Date | null;
       createdAt: Date;
       updatedAt: Date;
     }[] = [];
@@ -308,6 +312,7 @@ export class AdminService {
         demoAccount: c.demoAccount,
         lineConnected: Boolean(c.lineChannelAccessToken),
         trialDaysRemaining,
+        monitorEndsAt: c.monitorEndsAt,
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
       });
@@ -402,6 +407,62 @@ export class AdminService {
 
       return this.licenseService.adminSetPlan(tenantCompany.id, plan as any, note);
     });
+  }
+
+  /** モニター終了予告を出す(30日後に自動でFREEへ移行する)。会社側の画面に終了予告が表示される */
+  async scheduleMonitorEnd(companyAccountId: number) {
+    const monitorEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    const company = await this.masterPrisma.companyAccount.update({
+      where: { id: companyAccountId },
+      data: { monitorEndsAt },
+    });
+
+    return { monitorEndsAt: company.monitorEndsAt };
+  }
+
+  /** 終了予告を取り消す */
+  async cancelMonitorEnd(companyAccountId: number) {
+    await this.masterPrisma.companyAccount.update({
+      where: { id: companyAccountId },
+      data: { monitorEndsAt: null },
+    });
+
+    return { ok: true };
+  }
+
+  /** 終了予告日を過ぎたモニター会社を、毎朝自動でFREEプランへ移行する */
+  @Cron(CronExpression.EVERY_DAY_AT_8AM)
+  async processMonitorEndings() {
+    const due = await this.masterPrisma.companyAccount.findMany({
+      where: { monitorEndsAt: { lte: new Date() } },
+    });
+
+    for (const company of due) {
+      try {
+        await this.tenantContext.run(company, async () => {
+          const tenantCompany = await this.prisma.company.findFirst();
+          if (!tenantCompany) return;
+
+          await this.licenseService.adminSetPlan(
+            tenantCompany.id,
+            'FREE' as any,
+            'モニター終了予告(30日経過)による自動移行',
+          );
+        });
+
+        await this.masterPrisma.companyAccount.update({
+          where: { id: company.id },
+          data: { monitorEndsAt: null },
+        });
+
+        await this.notifyAdmins(
+          `🔔「${company.displayName}」の先行導入モニター期間が終了し、自動的に無料プランへ移行しました。`,
+        );
+      } catch (err) {
+        this.logger.warn(`モニター終了処理に失敗しました(会社ID ${company.id}): ${err}`);
+      }
+    }
   }
 
   /** 会社のプラン変更履歴を新しい順に返す */

@@ -16,6 +16,7 @@ interface CompanyRow {
   demoAccount: boolean;
   lineConnected: boolean;
   trialDaysRemaining: number | null;
+  monitorEndsAt: string | null;
   createdAt: string;
 }
 
@@ -452,6 +453,34 @@ export default function AdminPage() {
     }
   }
 
+  async function scheduleMonitorEnd(company: CompanyRow) {
+    if (
+      !window.confirm(
+        `「${company.displayName}」に30日後のモニター終了予告を出します。\n設定画面に終了予定日が表示され、30日後に自動で無料プランへ移行します。よろしいですか？`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await api(`/admin/companies/${company.id}/schedule-monitor-end`, { method: 'POST' });
+      await load();
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
+  async function cancelMonitorEnd(company: CompanyRow) {
+    if (!window.confirm(`「${company.displayName}」の終了予告を取り消しますか？`)) return;
+
+    try {
+      await api(`/admin/companies/${company.id}/cancel-monitor-end`, { method: 'POST' });
+      await load();
+    } catch (e: any) {
+      alert(extractErrorMessage(e));
+    }
+  }
+
   async function resetPassword(company: CompanyRow) {
     if (!window.confirm(`「${company.displayName}」のパスワードを再発行しますか？\n現在のパスワードは使えなくなります。`)) {
       return;
@@ -705,12 +734,27 @@ export default function AdminPage() {
                   <span className="expbadge exp-warn">お試し残り{c.trialDaysRemaining}日</span>
                 )}
                 {c.demoAccount && <span className="expbadge exp-ok">🎁 モニター</span>}
+                {c.monitorEndsAt && (
+                  <span className="expbadge exp-warn">
+                    ⏳ {new Date(c.monitorEndsAt).toLocaleDateString('ja-JP')}に終了予定
+                  </span>
+                )}
                 {!c.isActive && <span className="expbadge exp-warn">無効</span>}
               </div>
               <div className="flex gap-2 flex-wrap mt-2">
                 <button onClick={() => resetPassword(c)} className="btn btn-blue btn-sm">
                   🔑 パスワード再発行
                 </button>
+                {c.currentPlan === 'DEMO' &&
+                  (c.monitorEndsAt ? (
+                    <button onClick={() => cancelMonitorEnd(c)} className="btn btn-ghost btn-sm">
+                      終了予告を取消
+                    </button>
+                  ) : (
+                    <button onClick={() => scheduleMonitorEnd(c)} className="btn btn-ghost btn-sm">
+                      🔔 モニター終了予告(30日後)
+                    </button>
+                  ))}
                 <button onClick={() => toggleActive(c)} className="btn btn-ghost btn-sm">
                   {c.isActive ? '無効化' : '有効化'}
                 </button>

@@ -1226,6 +1226,14 @@ export default function SettingsPage() {
                     : '先行導入モニターに申し込む'}
                 </button>
               )}
+
+              {planInfo.monitorEndsAt && (
+                <div className="expbadge exp-warn mt-3" style={{ display: 'block' }}>
+                  ⚠️ 先行導入モニターは
+                  {new Date(planInfo.monitorEndsAt).toLocaleDateString('ja-JP')}
+                  に終了予定です。終了後は自動的に無料プランへ移行します。
+                </div>
+              )}
             </div>
           )}
         </div>

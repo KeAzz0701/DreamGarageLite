@@ -54,6 +54,10 @@ model CompanyAccount {
   // デモプレイ版への切り替え案内を表示するかどうかの判定に使う(通常契約の会社には出さない)
   demoAccount  Boolean  @default(false)
 
+  // 運営が「モニター終了予告」を押すとこの日時が入る。到来すると自動でFREEプランへ移行する。
+  // それまでの間、会社側の画面に終了予告を表示する
+  monitorEndsAt DateTime?
+
   isActive     Boolean  @default(true)
 
   createdAt    DateTime @default(now())
