@@ -49,6 +49,19 @@ export async function api<T>(
   return response.json();
 }
 
+/** PDF等バイナリのGETをBlobで取得する(認証Cookieを付けて) */
+export async function apiBlob(path: string): Promise<Blob> {
+  const response = await fetch(`${API_URL}${path}`, {
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.blob();
+}
+
 export function extractErrorMessage(e: any) {
   try {
     return JSON.parse(e.message)?.message ?? e.message;

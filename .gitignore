@@ -4,3 +4,8 @@
 
 # monitor-agentの自動デプロイ回数制限用ログ(本番VPSにのみ存在)
 /auto-deploy-log.txt
+
+# 公的書類の元データ(官公庁PDF様式・日本語フォント)。コードではなくデータなので
+# gitでは追跡せず、本番サーバーへは直接配置する(README_ASSETS.md参照)
+/backend/assets/official-forms/
+/backend/assets/fonts/

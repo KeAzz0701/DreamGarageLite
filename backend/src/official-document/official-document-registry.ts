@@ -87,14 +87,109 @@ const weightTaxFields: OverlayField[] = [
   },
 ];
 
+/** 手数料納付書。回転なし・A4横向き様式 */
+const feeFields: OverlayField[] = [
+  {
+    visualX: 100,
+    visualY: 150,
+    size: 9,
+    text: (v) => v.registrationNumber || v.vin || '',
+  },
+  {
+    visualX: 380,
+    visualY: 150,
+    size: 9,
+    text: (v) => v.userName || v.ownerName || '',
+  },
+];
+
+/** OCR第1号様式(新規・移転登録)。回転90度・A4横向き様式。申請人・使用者の氏名住所欄のみ自動入力対応 */
+const ocr1Fields: OverlayField[] = [
+  {
+    visualX: 90,
+    visualY: 513,
+    size: 9,
+    text: (v) => v.userName || v.ownerName || '',
+  },
+  {
+    visualX: 90,
+    visualY: 532,
+    size: 8,
+    text: (v) => v.userAddress || v.ownerAddress || '',
+  },
+  {
+    visualX: 90,
+    visualY: 557,
+    size: 9,
+    text: (v) => v.userName || v.ownerName || '',
+  },
+  {
+    visualX: 90,
+    visualY: 576,
+    size: 8,
+    text: (v) => v.userAddress || v.ownerAddress || '',
+  },
+];
+
+/** 委任状。回転なし・A4横向き様式。委任者(左側)の氏名住所と登録番号のみ自動入力対応 */
+const powerOfAttorneyFields: OverlayField[] = [
+  {
+    visualX: 340,
+    visualY: 435,
+    size: 9,
+    text: (v) => v.userName || v.ownerName || '',
+  },
+  {
+    visualX: 340,
+    visualY: 480,
+    size: 8,
+    text: (v) => v.userAddress || v.ownerAddress || '',
+  },
+  {
+    visualX: 720,
+    visualY: 295,
+    size: 9,
+    text: (v) => v.registrationNumber || v.vin || '',
+  },
+];
+
+/** 譲渡証明書。回転なし・A4横向き様式。車両情報(車名・型式・車台番号・原動機の型式)のみ自動入力対応 */
+const transferCertificateFields: OverlayField[] = [
+  {
+    visualX: 175,
+    visualY: 515,
+    size: 9,
+    text: (v) => v.carName || v.commonModelName || '',
+  },
+  {
+    visualX: 325,
+    visualY: 515,
+    size: 9,
+    text: (v) => v.model || '',
+  },
+  {
+    visualX: 490,
+    visualY: 515,
+    size: 9,
+    text: (v) => v.vin || '',
+  },
+  {
+    visualX: 765,
+    visualY: 515,
+    size: 8,
+    text: (v) => v.engineModel || '',
+  },
+];
+
 export const OFFICIAL_DOCUMENTS: OfficialDocument[] = [
   // 01_普通車_継続検査・登録
   D(
     'ordinary-ocr1-new-transfer',
     '01_普通車_継続検査・登録',
     'OCR第1号様式(新規・移転登録)',
-    '新規登録・移転登録等に使用します',
+    '新規登録・移転登録等に使用します。申請人(使用者)の氏名・住所を自動入力できます',
     '01_普通車_継続検査・登録/普通車_OCR第1号様式_新規・移転登録.pdf',
+    ocr1Fields,
   ),
   D(
     'ordinary-ocr3-continuation',
@@ -137,22 +232,25 @@ export const OFFICIAL_DOCUMENTS: OfficialDocument[] = [
     'ordinary-fee',
     '01_普通車_継続検査・登録',
     '手数料納付書',
-    '登録・検査等の手数料の納付に使用します',
+    '登録・検査等の手数料の納付に使用します。登録番号・所有者(使用者)氏名を自動入力できます',
     '01_普通車_継続検査・登録/普通車_手数料納付書.pdf',
+    feeFields,
   ),
   D(
     'ordinary-power-of-attorney',
     '01_普通車_継続検査・登録',
     '委任状',
-    '登録・検査申請を代理で行う場合に使用します',
+    '登録・検査申請を代理で行う場合に使用します。委任者の氏名・住所・登録番号を自動入力できます',
     '01_普通車_継続検査・登録/普通車_委任状.pdf',
+    powerOfAttorneyFields,
   ),
   D(
     'ordinary-transfer-certificate',
     '01_普通車_継続検査・登録',
     '譲渡証明書',
-    '普通車の移転登録(名義変更)に使用します',
+    '普通車の移転登録(名義変更)に使用します。車名・型式・車台番号・原動機の型式を自動入力できます',
     '01_普通車_継続検査・登録/普通車_譲渡証明書.pdf',
+    transferCertificateFields,
   ),
 
   // 02_軽自動車_検査・名義変更

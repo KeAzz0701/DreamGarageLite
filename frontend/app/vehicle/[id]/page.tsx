@@ -261,15 +261,22 @@ export default function VehicleDetailPage() {
     });
   }
 
-  function openOfficialDocument(documentId: string, hasAutofill: boolean) {
-    const url = hasAutofill
-      ? `${apiBaseUrl()}/vehicle/${params.id}/official-documents/${documentId}`
-      : `${apiBaseUrl()}/official-documents/${documentId}/blank`;
-    window.open(url, '_blank');
+  function openOfficialDocument(documentId: string, hasAutofill: boolean, label: string) {
+    if (!hasAutofill) {
+      // 自動入力対応の無い書類は、確認するまでもない白紙PDFなのでそのままダウンロードさせる
+      window.open(`${apiBaseUrl()}/official-documents/${documentId}/blank`, '_blank');
+      return;
+    }
+
+    router.push(
+      `/vehicle/${params.id}/official-documents/${documentId}?autofill=1&label=${encodeURIComponent(label)}`,
+    );
   }
 
-  function openOfficialDocumentBundle(bundleId: string) {
-    window.open(`${apiBaseUrl()}/vehicle/${params.id}/official-documents/bundles/${bundleId}`, '_blank');
+  function openOfficialDocumentBundle(bundleId: string, label: string) {
+    router.push(
+      `/vehicle/${params.id}/official-documents/bundle/${bundleId}?label=${encodeURIComponent(label)}`,
+    );
   }
 
   async function loadLaborRate() {
@@ -1266,7 +1273,7 @@ export default function VehicleDetailPage() {
                   <button
                     key={b.id}
                     type="button"
-                    onClick={() => openOfficialDocumentBundle(b.id)}
+                    onClick={() => openOfficialDocumentBundle(b.id, b.label)}
                     className="veh text-left"
                     style={{ cursor: 'pointer' }}
                   >
@@ -1312,7 +1319,7 @@ export default function VehicleDetailPage() {
                         <span className="r">
                           <button
                             type="button"
-                            onClick={() => openOfficialDocument(d.id, d.hasAutofill)}
+                            onClick={() => openOfficialDocument(d.id, d.hasAutofill, d.label)}
                             className="btn btn-ghost btn-sm"
                           >
                             {d.hasAutofill ? '🖨 この車両の情報で印刷' : '📄 白紙をダウンロード'}
