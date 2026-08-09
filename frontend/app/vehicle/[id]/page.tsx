@@ -28,48 +28,6 @@ const ESTIMATE_CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
   ESTIMATE_CATEGORY_OPTIONS.map((o) => [o.value, o.label]),
 );
 
-const DOCUMENT_TYPES = [
-  {
-    key: 'continuation',
-    label: '継続検査申請書(車検)',
-    icon: '🔧',
-    fields: ['registrationNumber', 'vin', 'carName', 'commonModelName', 'ownerName', 'ownerAddress', 'expirationDate'],
-  },
-  {
-    key: 'transfer',
-    label: '名義変更(移転登録)',
-    icon: '📝',
-    fields: ['registrationNumber', 'vin', 'ownerName', 'ownerAddress', 'userName', 'userAddress'],
-  },
-  {
-    key: 'used-new',
-    label: '中古新規登録',
-    icon: '🚗',
-    fields: ['vin', 'carName', 'commonModelName', 'model', 'engineModel', 'ownerName', 'ownerAddress', 'usageBase'],
-  },
-  {
-    key: 'deregistration',
-    label: '抹消登録',
-    icon: '🗑',
-    fields: ['registrationNumber', 'vin', 'ownerName', 'ownerAddress'],
-  },
-] as const;
-
-const FIELD_LABELS: Record<string, string> = {
-  registrationNumber: '登録番号',
-  vin: '車台番号',
-  carName: '車名',
-  commonModelName: '車種名',
-  model: '型式',
-  engineModel: '原動機の型式',
-  ownerName: '所有者',
-  ownerAddress: '所有者住所',
-  userName: '使用者',
-  userAddress: '使用者住所',
-  usageBase: '使用の本拠の位置',
-  expirationDate: '車検有効期限',
-};
-
 const FIELD_GROUPS = [
   {
     title: '基本情報',
@@ -222,8 +180,6 @@ export default function VehicleDetailPage() {
   const [openOfficialDocCategories, setOfficialDocCategoriesOpen] = useState<Set<string>>(new Set());
   const [selectedProcedureKey, setSelectedProcedureKey] = useState<string | null>(null);
   const [selectedVehicleCategory, setSelectedVehicleCategory] = useState<'ordinary' | 'kei' | null>(null);
-
-  const [selectedDocType, setSelectedDocType] = useState<(typeof DOCUMENT_TYPES)[number]['key'] | null>(null);
 
   const [showEstimateForm, setShowEstimateForm] = useState(false);
   const [estimateTitle, setEstimateTitle] = useState('');
@@ -756,44 +712,6 @@ export default function VehicleDetailPage() {
             </button>
           )}
         </div>
-      </div>
-
-      <div className="panel mt-4">
-        <h2 className="disp text-xl mb-1">📋 公的書類作成</h2>
-        <p className="note mb-3 text-xs text-[var(--muted)]">
-          プレビュー版です。実際の様式(国交省・地域の運輸支局等の最新テンプレート)はまだ組み込んでおらず、
-          どの車両データを転記する想定かを確認いただくための画面です。
-        </p>
-
-        <div className="flex flex-wrap gap-2 mb-3">
-          {DOCUMENT_TYPES.map((doc) => (
-            <button
-              key={doc.key}
-              onClick={() => setSelectedDocType(doc.key === selectedDocType ? null : doc.key)}
-              className={`btn btn-sm ${selectedDocType === doc.key ? 'btn-blue' : 'btn-ghost'}`}
-            >
-              {doc.icon} {doc.label}
-            </button>
-          ))}
-        </div>
-
-        {selectedDocType && (() => {
-          const doc = DOCUMENT_TYPES.find((d) => d.key === selectedDocType)!;
-
-          return (
-            <div className="veh">
-              <div className="font-semibold mb-2">{doc.icon} {doc.label} に転記予定のデータ</div>
-              <div className="text-sm space-y-1">
-                {doc.fields.map((field) => (
-                  <div key={field} className="flex justify-between">
-                    <span className="text-[var(--muted)]">{FIELD_LABELS[field] ?? field}</span>
-                    <span className="mono">{vehicle[field] || '(未入力)'}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
       </div>
 
       <div className="panel mt-4">
