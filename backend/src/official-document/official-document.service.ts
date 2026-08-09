@@ -15,7 +15,13 @@ import {
 } from './official-document-registry';
 
 const ASSETS_ROOT = path.join(process.cwd(), 'assets', 'official-forms');
-const FONT_PATH = path.join(process.cwd(), 'assets', 'fonts', 'NotoSansCJKjp-Regular.otf');
+// 日本語フォント。以前はNotoSansCJKjp-Regular.otf(16.4MB、汎CJK版)を使っていたが、
+// subset化するとPDF内で一部文字が欠落する不具合があり subset:false 埋め込み必須のため、
+// 生成PDFが1書類あたり約14MBに膨れプレビューが実質的に固まる不具合があった。
+// Google Fonts「Noto Sans JP」(OFLライセンス, 日本語専用・軽量版)の可変フォントから
+// fonttools varLib.instancerでRegular(wght=400)静的インスタンスを抽出したものに差し替え、
+// 同じくsubset:falseのまま埋め込みサイズを約1/3(約14MB→約3.5MB)に削減した。
+const FONT_PATH = path.join(process.cwd(), 'assets', 'fonts', 'NotoSansJP-Regular.ttf');
 
 @Injectable()
 export class OfficialDocumentService {
