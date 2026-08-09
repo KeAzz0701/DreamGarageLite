@@ -91,13 +91,13 @@ const weightTaxFields: OverlayField[] = [
 const feeFields: OverlayField[] = [
   {
     visualX: 100,
-    visualY: 150,
+    visualY: 195,
     size: 9,
     text: (v) => v.registrationNumber || v.vin || '',
   },
   {
     visualX: 380,
-    visualY: 150,
+    visualY: 195,
     size: 9,
     text: (v) => v.userName || v.ownerName || '',
   },
@@ -146,8 +146,8 @@ const powerOfAttorneyFields: OverlayField[] = [
     text: (v) => v.userAddress || v.ownerAddress || '',
   },
   {
-    visualX: 720,
-    visualY: 295,
+    visualX: 250,
+    visualY: 290,
     size: 9,
     text: (v) => v.registrationNumber || v.vin || '',
   },
@@ -156,26 +156,26 @@ const powerOfAttorneyFields: OverlayField[] = [
 /** 譲渡証明書。回転なし・A4横向き様式。車両情報(車名・型式・車台番号・原動機の型式)のみ自動入力対応 */
 const transferCertificateFields: OverlayField[] = [
   {
-    visualX: 175,
-    visualY: 515,
+    visualX: 65,
+    visualY: 218,
     size: 9,
     text: (v) => v.carName || v.commonModelName || '',
   },
   {
-    visualX: 325,
-    visualY: 515,
+    visualX: 135,
+    visualY: 218,
     size: 9,
     text: (v) => v.model || '',
   },
   {
-    visualX: 490,
-    visualY: 515,
+    visualX: 195,
+    visualY: 218,
     size: 9,
     text: (v) => v.vin || '',
   },
   {
-    visualX: 765,
-    visualY: 515,
+    visualX: 305,
+    visualY: 218,
     size: 8,
     text: (v) => v.engineModel || '',
   },
