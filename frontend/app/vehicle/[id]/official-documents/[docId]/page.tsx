@@ -44,14 +44,9 @@ export default function OfficialDocumentPreviewPage() {
     <>
       <div className="flex justify-between items-center mb-6">
         <h1 className="disp text-2xl">{label}</h1>
-        <div className="flex gap-2">
-          <button onClick={() => router.back()} className="btn btn-ghost">
-            戻る
-          </button>
-          <button onClick={handlePrint} disabled={!pdfUrl} className="btn btn-primary">
-            🖨 印刷する
-          </button>
-        </div>
+        <button onClick={() => router.back()} className="btn btn-ghost">
+          戻る
+        </button>
       </div>
 
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
@@ -68,6 +63,16 @@ export default function OfficialDocumentPreviewPage() {
           />
         )}
       </div>
+
+      {pdfUrl && (
+        <button
+          onClick={handlePrint}
+          className="btn btn-primary"
+          style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 1000, boxShadow: 'var(--shadow-lg)' }}
+        >
+          🖨 印刷する
+        </button>
+      )}
     </>
   );
 }
