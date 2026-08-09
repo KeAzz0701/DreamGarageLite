@@ -172,8 +172,10 @@ export class CompetitorEstimateService {
   }
 
   /**
-   * 共有された他店舗見積を、車種区分×項目カテゴリごとに件数/平均/最小/最大へ集計する。
-   * itemsはAIが自由に付けたcategory文字列を含むJSONのため、SQLでの集計ではなくここでまとめる
+   * 共有された他店舗見積を、車種区分×項目カテゴリ(オイル交換のみ油種も)ごとに集計する。
+   * itemsはAIが自由に付けたcategory文字列を含むJSONのため、SQLでの集計ではなくここでまとめる。
+   * オイル交換は店舗ごとに使うオイルの量・質・工賃が異なり合計金額だけでは比較にならないため、
+   * 油種(oilGrade)ごとに分け、読み取れた場合はオイル単価(円/L)・工賃も別途集計する
    */
   async getComparisonTable() {
     const rows = await this.prisma.competitorEstimate.findMany({
@@ -186,16 +188,31 @@ export class CompetitorEstimateService {
       cost: number;
       shopName: string | null;
       estimateDate: string | null;
+      quantity: number | null;
+      unitPrice: number | null;
+      laborCost: number | null;
     };
+
+    type Stat = { count: number; total: number; min: number; max: number };
 
     type Bucket = {
       vehicleCategory: VehicleCategory;
       itemCategory: string;
-      count: number;
-      total: number;
-      min: number;
-      max: number;
+      oilGrade: string | null;
+      cost: Stat;
+      unitPrice: Stat | null;
+      laborCost: Stat | null;
       entries: Entry[];
+    };
+
+    const addStat = (stat: Stat | null, value: number): Stat => {
+      if (!stat) return { count: 1, total: value, min: value, max: value };
+      return {
+        count: stat.count + 1,
+        total: stat.total + value,
+        min: Math.min(stat.min, value),
+        max: Math.max(stat.max, value),
+      };
     };
 
     const buckets = new Map<string, Bucket>();
@@ -209,49 +226,71 @@ export class CompetitorEstimateService {
 
         const itemCategory =
           typeof item?.category === 'string' && item.category ? item.category : 'その他';
-        const key = `${row.vehicleCategory}|${itemCategory}`;
+        const isOil = itemCategory === 'オイル交換';
+
+        const quantity = isOil && Number.isFinite(Number(item?.quantity)) ? Number(item.quantity) : null;
+        let unitPrice = isOil && Number.isFinite(Number(item?.unitPrice)) ? Number(item.unitPrice) : null;
+        const laborCost = isOil && Number.isFinite(Number(item?.laborCost)) ? Number(item.laborCost) : null;
+        // 単価が明記されていなくても、量が分かればオイル代総額(工賃を除く)から逆算する
+        if (isOil && unitPrice == null && quantity && quantity > 0) {
+          const oilOnlyCost = laborCost != null ? cost - laborCost : cost;
+          if (oilOnlyCost > 0) unitPrice = Math.round(oilOnlyCost / quantity);
+        }
+        const oilGrade = isOil && typeof item?.oilGrade === 'string' && item.oilGrade ? item.oilGrade : isOil ? '不明' : null;
+
+        const key = `${row.vehicleCategory}|${itemCategory}|${oilGrade ?? ''}`;
         const entry: Entry = {
           name: typeof item?.name === 'string' && item.name ? item.name : itemCategory,
           cost,
           shopName: row.shopName ?? null,
           estimateDate: row.estimateDate ?? null,
+          quantity,
+          unitPrice,
+          laborCost,
         };
+
         const existing = buckets.get(key);
 
         if (existing) {
-          existing.count += 1;
-          existing.total += cost;
-          existing.min = Math.min(existing.min, cost);
-          existing.max = Math.max(existing.max, cost);
+          existing.cost = addStat(existing.cost, cost);
+          if (unitPrice != null) existing.unitPrice = addStat(existing.unitPrice, unitPrice);
+          if (laborCost != null) existing.laborCost = addStat(existing.laborCost, laborCost);
           existing.entries.push(entry);
         } else {
           buckets.set(key, {
             vehicleCategory: row.vehicleCategory,
             itemCategory,
-            count: 1,
-            total: cost,
-            min: cost,
-            max: cost,
+            oilGrade,
+            cost: addStat(null, cost),
+            unitPrice: unitPrice != null ? addStat(null, unitPrice) : null,
+            laborCost: laborCost != null ? addStat(null, laborCost) : null,
             entries: [entry],
           });
         }
       }
     }
 
+    const summarize = (s: Stat) => ({ count: s.count, avg: Math.round(s.total / s.count), min: s.min, max: s.max });
+
     return Array.from(buckets.values())
       .map((b) => ({
         vehicleCategory: b.vehicleCategory,
         vehicleCategoryLabel: VEHICLE_CATEGORY_LABEL[b.vehicleCategory],
         itemCategory: b.itemCategory,
-        count: b.count,
-        avgCost: Math.round(b.total / b.count),
-        minCost: b.min,
-        maxCost: b.max,
+        oilGrade: b.oilGrade,
+        count: b.cost.count,
+        avgCost: summarize(b.cost).avg,
+        minCost: b.cost.min,
+        maxCost: b.cost.max,
+        unitPriceStats: b.unitPrice ? summarize(b.unitPrice) : null,
+        laborCostStats: b.laborCost ? summarize(b.laborCost) : null,
         entries: b.entries.sort((a, c) => a.cost - c.cost),
       }))
       .sort(
         (a, b) =>
-          a.vehicleCategory.localeCompare(b.vehicleCategory) || b.count - a.count,
+          a.vehicleCategory.localeCompare(b.vehicleCategory) ||
+          a.itemCategory.localeCompare(b.itemCategory) ||
+          b.count - a.count,
       );
   }
 

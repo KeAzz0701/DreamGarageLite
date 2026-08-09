@@ -13,16 +13,24 @@ type ComparisonEntry = {
   cost: number;
   shopName: string | null;
   estimateDate: string | null;
+  quantity: number | null;
+  unitPrice: number | null;
+  laborCost: number | null;
 };
+
+type StatSummary = { count: number; avg: number; min: number; max: number };
 
 type ComparisonRow = {
   vehicleCategory: 'KEI' | 'REGULAR' | 'LARGE' | 'CARGO';
   vehicleCategoryLabel: string;
   itemCategory: string;
+  oilGrade: string | null;
   count: number;
   avgCost: number;
   minCost: number;
   maxCost: number;
+  unitPriceStats: StatSummary | null;
+  laborCostStats: StatSummary | null;
   entries: ComparisonEntry[];
 };
 
@@ -87,8 +95,9 @@ export default function CompetitorEstimatesComparisonPage() {
 
           <div className="space-y-2">
             {g.rows.map((r) => {
-              const key = `${r.vehicleCategory}|${r.itemCategory}`;
+              const key = `${r.vehicleCategory}|${r.itemCategory}|${r.oilGrade ?? ''}`;
               const isOpen = openKey === key;
+              const label = r.oilGrade ? `${r.itemCategory}(${r.oilGrade})` : r.itemCategory;
 
               return (
                 <div key={key} className="border-b border-[var(--line)] pb-2">
@@ -98,7 +107,7 @@ export default function CompetitorEstimatesComparisonPage() {
                     className="flex items-center justify-between w-full text-left"
                   >
                     <div>
-                      <span className="font-semibold">{r.itemCategory}</span>
+                      <span className="font-semibold">{label}</span>
                       <span className="ml-2 text-xs text-[var(--muted)]">{r.count}件</span>
                     </div>
                     <div className="flex items-center gap-4 mono text-sm">
@@ -112,6 +121,23 @@ export default function CompetitorEstimatesComparisonPage() {
                     </div>
                   </button>
 
+                  {(r.unitPriceStats || r.laborCostStats) && (
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-[var(--muted)]">
+                      {r.unitPriceStats && (
+                        <span>
+                          オイル単価(円/L): 平均¥{r.unitPriceStats.avg.toLocaleString()}
+                          (¥{r.unitPriceStats.min.toLocaleString()}〜¥{r.unitPriceStats.max.toLocaleString()}、{r.unitPriceStats.count}件)
+                        </span>
+                      )}
+                      {r.laborCostStats && (
+                        <span>
+                          工賃: 平均¥{r.laborCostStats.avg.toLocaleString()}
+                          (¥{r.laborCostStats.min.toLocaleString()}〜¥{r.laborCostStats.max.toLocaleString()}、{r.laborCostStats.count}件)
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {isOpen && (
                     <div className="mt-2 space-y-1">
                       {r.entries.map((e, i) => (
@@ -121,6 +147,15 @@ export default function CompetitorEstimatesComparisonPage() {
                         >
                           <span>
                             {e.name}
+                            {e.quantity != null && (
+                              <span className="ml-2 text-[var(--muted)]">{e.quantity}L</span>
+                            )}
+                            {e.unitPrice != null && (
+                              <span className="ml-2 text-[var(--muted)]">単価¥{e.unitPrice.toLocaleString()}/L</span>
+                            )}
+                            {e.laborCost != null && (
+                              <span className="ml-2 text-[var(--muted)]">工賃¥{e.laborCost.toLocaleString()}</span>
+                            )}
                             {e.shopName && (
                               <span className="ml-2 text-[var(--muted)]">{e.shopName}</span>
                             )}

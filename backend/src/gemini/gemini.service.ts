@@ -174,11 +174,19 @@ items の各項目には、内容に最も近い category を次の中から1つ
 registrationNumber(車両ナンバープレートの表記、例:「帯広500あ1234」)が見積書に記載されていれば
 空白を除いて読み取ってください。記載が無ければnullにしてください。
 
+category が "オイル交換" の項目については、店舗ごとに使うオイルの量・質・工賃が異なり
+合計金額だけでは比較にならないため、読み取れる範囲で以下も抽出してください(読み取れなければnull):
+- quantity: オイルの量(リットル数の数値のみ、例: 4.5)
+- unitPrice: オイル1リットルあたりの単価(円、明細に無ければ「オイル代総額 ÷ quantity」で計算してよい)
+- laborCost: 工賃・技術料部分の金額(円)。オイル代と分かれて記載されていない場合はnull
+- oilGrade: 油種。次の中から見積書の記載に最も近いものを1つ選ぶ。判断できなければnull:
+  "鉱物油", "部分合成油(化学合成油混合)", "化学合成油(フルシンセティック)", "不明"
+
 {
   "shopName": null,
   "estimateDate": null,
   "registrationNumber": null,
-  "items": [{"name": "", "cost": 0, "category": "その他"}],
+  "items": [{"name": "", "cost": 0, "category": "その他", "quantity": null, "unitPrice": null, "laborCost": null, "oilGrade": null}],
   "totalAmount": null
 }
           `,
