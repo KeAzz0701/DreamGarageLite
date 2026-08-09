@@ -181,6 +181,46 @@ const transferCertificateFields: OverlayField[] = [
   },
 ];
 
+/** 自動車保管場所証明申請書(北海道)。回転なし・A4横向き様式。車両情報・使用の本拠の位置・申請者の住所氏名を自動入力対応 */
+const garageCertificateFields: OverlayField[] = [
+  {
+    visualX: 70,
+    visualY: 115,
+    size: 9,
+    text: (v) => v.carName || v.commonModelName || '',
+  },
+  {
+    visualX: 220,
+    visualY: 115,
+    size: 9,
+    text: (v) => v.model || '',
+  },
+  {
+    visualX: 410,
+    visualY: 115,
+    size: 9,
+    text: (v) => v.vin || '',
+  },
+  {
+    visualX: 316,
+    visualY: 162,
+    size: 9,
+    text: (v) => v.userAddress || v.ownerAddress || '',
+  },
+  {
+    visualX: 467,
+    visualY: 337,
+    size: 9,
+    text: (v) => v.userAddress || v.ownerAddress || '',
+  },
+  {
+    visualX: 467,
+    visualY: 364,
+    size: 9,
+    text: (v) => v.userName || v.ownerName || '',
+  },
+];
+
 export const OFFICIAL_DOCUMENTS: OfficialDocument[] = [
   // 01_普通車_継続検査・登録
   D(
@@ -295,8 +335,9 @@ export const OFFICIAL_DOCUMENTS: OfficialDocument[] = [
     'garage-certificate-application',
     '03_北海道_車庫証明',
     '自動車保管場所証明申請書',
-    '普通車の車庫証明申請に使用します(北海道警察様式)',
+    '普通車の車庫証明申請に使用します(北海道警察様式)。車名・型式・車台番号・使用の本拠の位置・申請者の住所氏名を自動入力できます',
     '03_北海道_車庫証明/北海道_自動車保管場所証明申請書.pdf',
+    garageCertificateFields,
   ),
   D(
     'garage-notification',
