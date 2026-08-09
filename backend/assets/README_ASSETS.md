@@ -21,3 +21,14 @@ gitでは追跡していません(`.gitignore`参照)。リポジトリを新し
 `/opt/garage-karte/backend/assets/` にコピーしてください。中身自体は
 コードのデプロイ(`git pull`)とは独立して更新されるため、様式が改版された
 場合もこのフォルダだけ差し替えれば反映されます。
+
+## 注意: 軽自動車PDF(軽第1号様式・軽第3号様式)はpdf-lib用に再生成済み
+
+`02_軽自動車_検査・名義変更/軽自動車_軽第1号様式.pdf` と `軽自動車_軽第3号様式.pdf` は、
+配布元の元PDFの内部構造(xref/ページツリー)が壊れており、pdf-lib(`PDFDocument.load`)が
+`Expected instance of PDFDict, but got instance of undefined` で例外を投げて自動入力が
+500エラーになる不具合があった。PyMuPDF(fitz)は寛容にパースできるため、
+`doc.save(out, garbage=4, deflate=True, clean=True)` で構造を再構築した版に
+差し替え済み(見た目・座標は元PDFと同一)。**この2ファイルを元の配布元PDFで
+上書きすると自動入力が再び500エラーになるので注意。** 他の様式PDFを追加・更新する際、
+同様のエラーが出た場合はこの手順(PyMuPDFで開いて`clean=True`で再保存)を踏むこと。
