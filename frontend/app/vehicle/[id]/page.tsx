@@ -5,7 +5,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api, extractErrorMessage, upload } from '@/lib/api';
+import { api, apiBaseUrl, extractErrorMessage, upload } from '@/lib/api';
 import {
   EstimateItemRow,
   emptyEstimateItem,
@@ -205,6 +205,14 @@ export default function VehicleDetailPage() {
   const [competitorEstimates, setCompetitorEstimates] = useState<any[]>([]);
   const [uploadingCompetitor, setUploadingCompetitor] = useState(false);
 
+  const [officialDocCategories, setOfficialDocCategories] = useState<
+    { category: string; documents: { id: string; label: string; description: string; hasAutofill: boolean }[] }[]
+  >([]);
+  const [officialDocBundles, setOfficialDocBundles] = useState<
+    { id: string; label: string; description: string; documents: { id: string; label: string; hasAutofill: boolean }[] }[]
+  >([]);
+  const [openOfficialDocCategories, setOfficialDocCategoriesOpen] = useState<Set<string>>(new Set());
+
   const [selectedDocType, setSelectedDocType] = useState<(typeof DOCUMENT_TYPES)[number]['key'] | null>(null);
 
   const [showEstimateForm, setShowEstimateForm] = useState(false);
@@ -224,7 +232,45 @@ export default function VehicleDetailPage() {
     loadLaborRate();
     loadTireData();
     loadCompetitorEstimates();
+    loadOfficialDocuments();
   }, []);
+
+  async function loadOfficialDocuments() {
+    try {
+      const [categories, bundles] = await Promise.all([
+        api<typeof officialDocCategories>('/official-documents'),
+        api<typeof officialDocBundles>('/official-documents/bundles'),
+      ]);
+      setOfficialDocCategories(categories);
+      setOfficialDocBundles(bundles);
+    } catch (e: any) {
+      // 公的書類は補助機能のため、失敗しても他の画面利用を妨げない
+      console.warn('公的書類一覧の取得に失敗しました', e);
+    }
+  }
+
+  function toggleOfficialDocCategory(category: string) {
+    setOfficialDocCategoriesOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  }
+
+  function openOfficialDocument(documentId: string, hasAutofill: boolean) {
+    const url = hasAutofill
+      ? `${apiBaseUrl()}/vehicle/${params.id}/official-documents/${documentId}`
+      : `${apiBaseUrl()}/official-documents/${documentId}/blank`;
+    window.open(url, '_blank');
+  }
+
+  function openOfficialDocumentBundle(bundleId: string) {
+    window.open(`${apiBaseUrl()}/vehicle/${params.id}/official-documents/bundles/${bundleId}`, '_blank');
+  }
 
   async function loadLaborRate() {
     try {
@@ -1204,6 +1250,83 @@ export default function VehicleDetailPage() {
           ))
         )}
       </div>
+
+      {officialDocCategories.length > 0 && (
+        <div className="panel mt-4">
+          <h2 className="disp text-xl mb-1">公的書類</h2>
+          <p className="note mb-3">
+            車検・登録・車庫証明などの公的様式です。対応している書類は氏名・住所等をこの車両の情報で自動入力して印刷できます。
+          </p>
+
+          {officialDocBundles.length > 0 && (
+            <div className="mb-4">
+              <div className="field-label mb-2">手続き別に必要な書類を一括印刷</div>
+              <div className="grid2">
+                {officialDocBundles.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => openOfficialDocumentBundle(b.id)}
+                    className="veh text-left"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="font-semibold">🖨 {b.label}</div>
+                    <div className="text-xs text-[var(--muted)] mt-1">{b.description}</div>
+                    <div className="text-xs text-[var(--muted)] mt-1">
+                      {b.documents.map((d) => d.label).join('・')}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="field-label mb-2">書類ごとに個別に印刷</div>
+          {officialDocCategories.map((cat) => {
+            const isOpen = openOfficialDocCategories.has(cat.category);
+
+            return (
+              <div key={cat.category} className="feerate-category mb-2">
+                <div
+                  className="feerate-category-head"
+                  onClick={() => toggleOfficialDocCategory(cat.category)}
+                >
+                  <span className="feerate-category-title">
+                    {cat.category.replace(/^\d+_/, '')}
+                    <span className="feerate-count">{cat.documents.length}</span>
+                  </span>
+                  <span className={`feerate-chevron ${isOpen ? 'is-open' : ''}`} aria-hidden>
+                    ▾
+                  </span>
+                </div>
+
+                {isOpen && (
+                  <div className="feerate-category-body">
+                    {cat.documents.map((d) => (
+                      <div key={d.id} className="minirow">
+                        <span className="l">
+                          {d.label}
+                          {d.hasAutofill && <span className="expbadge exp-ok ml-2">自動入力対応</span>}
+                          <div className="text-xs text-[var(--muted)]">{d.description}</div>
+                        </span>
+                        <span className="r">
+                          <button
+                            type="button"
+                            onClick={() => openOfficialDocument(d.id, d.hasAutofill)}
+                            className="btn btn-ghost btn-sm"
+                          >
+                            {d.hasAutofill ? '🖨 この車両の情報で印刷' : '📄 白紙をダウンロード'}
+                          </button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="panel mt-4">
         <div className="flex justify-between items-center mb-3">

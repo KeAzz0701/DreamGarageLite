@@ -37,6 +37,7 @@ import { PortalModule } from './portal/portal.module';
 import { PortalMiddleware } from './portal/portal.middleware';
 import { CompetitorEstimateModule } from './competitor-estimate/competitor-estimate.module';
 import { MarketingInquiryModule } from './marketing-inquiry/marketing-inquiry.module';
+import { OfficialDocumentModule } from './official-document/official-document.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { MarketingInquiryModule } from './marketing-inquiry/marketing-inquiry.mo
     PortalModule,
     CompetitorEstimateModule,
     MarketingInquiryModule,
+    OfficialDocumentModule,
   ],
   controllers: [AppController],
 })
