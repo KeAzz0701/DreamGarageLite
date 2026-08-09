@@ -1305,7 +1305,11 @@ export default function VehicleDetailPage() {
           )}
 
           <div className="field-label mb-2">書類ごとに個別に印刷</div>
-          {officialDocCategories.map((cat) => {
+          {/* 白紙(自動入力未対応)の書類は一時的に非表示にしている */}
+          {officialDocCategories
+            .map((cat) => ({ ...cat, documents: cat.documents.filter((d) => d.hasAutofill) }))
+            .filter((cat) => cat.documents.length > 0)
+            .map((cat) => {
             const isOpen = openOfficialDocCategories.has(cat.category);
 
             return (
