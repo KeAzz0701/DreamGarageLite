@@ -1,13 +1,14 @@
 // backend/src/official-document/official-document-registry.ts
 
-import type { Vehicle } from '@prisma/client';
+import type { Company, Vehicle } from '@prisma/client';
 
 /** 官公庁様式に上書き印刷するテキスト1件分。座標は「見た目の(左上原点・下向きがy+)」ポイント指定 */
 export type OverlayField = {
   visualX: number;
   visualY: number;
   size: number;
-  text: (vehicle: Vehicle) => string;
+  /** company は「受検者」欄など、車両ではなく整備工場側の情報を転記する場合のみ使う */
+  text: (vehicle: Vehicle, company?: Company | null) => string;
 };
 
 export type OfficialDocument = {
@@ -46,7 +47,8 @@ const D = (
   fields?: OverlayField[],
 ): OfficialDocument => ({ id, category, label, description, filePath, fields });
 
-/** 継続検査申請書(専用第3号様式)。回転90度・A4横向き様式。氏名・住所欄のみ自動入力対応 */
+/** 継続検査申請書(専用第3号様式)。回転90度・A4横向き様式。氏名・住所欄のみ自動入力対応。
+ *  「受検者」欄は車検を持ち込む整備工場自身を指すため、車両所有者ではなく自社の会社名・住所を転記する */
 const continuationInspectionFields: OverlayField[] = [
   {
     visualX: 90,
@@ -64,13 +66,13 @@ const continuationInspectionFields: OverlayField[] = [
     visualX: 90,
     visualY: 386,
     size: 9,
-    text: (v) => v.userName || v.ownerName || '',
+    text: (_v, c) => c?.companyName || c?.name || '',
   },
   {
     visualX: 55,
     visualY: 409,
     size: 8,
-    text: (v) => v.userAddress || v.ownerAddress || '',
+    text: (_v, c) => c?.address || '',
   },
 ];
 
@@ -112,7 +114,8 @@ const feeFields: OverlayField[] = [
   },
 ];
 
-/** OCR第1号様式(新規・移転登録)。回転90度・A4横向き様式。申請人・使用者の氏名住所欄のみ自動入力対応 */
+/** OCR第1号様式(新規・移転登録)。回転90度・A4横向き様式。申請人・使用者の氏名住所欄と、
+ *  受検者(車検を持ち込む整備工場自身)欄に自社の会社名・住所を自動入力対応 */
 const ocr1Fields: OverlayField[] = [
   {
     visualX: 90,
@@ -131,6 +134,18 @@ const ocr1Fields: OverlayField[] = [
     visualY: 557,
     size: 9,
     text: (v) => v.userName || v.ownerName || '',
+  },
+  {
+    visualX: 360,
+    visualY: 563,
+    size: 9,
+    text: (_v, c) => c?.companyName || c?.name || '',
+  },
+  {
+    visualX: 330,
+    visualY: 577,
+    size: 8,
+    text: (_v, c) => c?.address || '',
   },
   {
     visualX: 90,
@@ -252,7 +267,8 @@ const garageCertificateFields: OverlayField[] = [
   },
 ];
 
-/** 軽第1号様式(新規検査・名義変更等)。回転なし・A4横向き様式。上部はOCRマークシート欄のため未対応。使用者・所有者の氏名住所のみ自動入力対応 */
+/** 軽第1号様式(新規検査・名義変更等)。回転なし・A4横向き様式。上部はOCRマークシート欄のため未対応。
+ *  使用者・所有者の氏名住所と、受検者(車検を持ち込む整備工場自身)の氏名住所を自動入力対応 */
 const kei1Fields: OverlayField[] = [
   {
     visualX: 85,
@@ -278,9 +294,22 @@ const kei1Fields: OverlayField[] = [
     size: 8,
     text: (v) => v.ownerAddress || v.userAddress || '',
   },
+  {
+    visualX: 565,
+    visualY: 568,
+    size: 9,
+    text: (_v, c) => c?.companyName || c?.name || '',
+  },
+  {
+    visualX: 565,
+    visualY: 580,
+    size: 8,
+    text: (_v, c) => c?.address || '',
+  },
 ];
 
-/** 軽第3号様式(継続検査等)。回転なし・A4横向き様式。上部はOCRマークシート欄のため未対応。申請者・請求者の氏名住所のみ自動入力対応 */
+/** 軽第3号様式(継続検査等)。回転なし・A4横向き様式。上部はOCRマークシート欄のため未対応。
+ *  申請者・請求者の氏名住所と、受検者(車検を持ち込む整備工場自身)の氏名住所を自動入力対応 */
 const kei3Fields: OverlayField[] = [
   {
     visualX: 65,
@@ -306,6 +335,18 @@ const kei3Fields: OverlayField[] = [
     size: 8,
     text: (v) => v.ownerAddress || v.userAddress || '',
   },
+  {
+    visualX: 65,
+    visualY: 510,
+    size: 9,
+    text: (_v, c) => c?.companyName || c?.name || '',
+  },
+  {
+    visualX: 65,
+    visualY: 533,
+    size: 8,
+    text: (_v, c) => c?.address || '',
+  },
 ];
 
 export const OFFICIAL_DOCUMENTS: OfficialDocument[] = [
@@ -314,7 +355,7 @@ export const OFFICIAL_DOCUMENTS: OfficialDocument[] = [
     'ordinary-ocr1-new-transfer',
     '01_普通車_継続検査・登録',
     'OCR第1号様式(新規・移転登録)',
-    '新規登録・移転登録等に使用します。申請人(使用者)の氏名・住所を自動入力できます',
+    '新規登録・移転登録等に使用します。申請人(使用者)と受検者(整備工場)の氏名・住所を自動入力できます',
     '01_普通車_継続検査・登録/普通車_OCR第1号様式_新規・移転登録.pdf',
     ocr1Fields,
   ),
@@ -343,7 +384,7 @@ export const OFFICIAL_DOCUMENTS: OfficialDocument[] = [
     'ordinary-dedicated3-continuation',
     '01_普通車_継続検査・登録',
     '専用第3号様式(継続検査申請書)',
-    '継続検査(車検)の申請書です。使用者の氏名・住所を自動入力できます',
+    '継続検査(車検)の申請書です。使用者と受検者(整備工場)の氏名・住所を自動入力できます',
     '01_普通車_継続検査・登録/普通車_専用第3号様式_継続検査.pdf',
     continuationInspectionFields,
   ),
@@ -385,7 +426,7 @@ export const OFFICIAL_DOCUMENTS: OfficialDocument[] = [
     'kei-1',
     '02_軽自動車_検査・名義変更',
     '軽第1号様式',
-    '新規検査・名義変更等に使用します。使用者・所有者の氏名住所を自動入力できます(車両番号等のマークシート欄は手書きが必要です)',
+    '新規検査・名義変更等に使用します。使用者・所有者と受検者(整備工場)の氏名住所を自動入力できます(車両番号等のマークシート欄は手書きが必要です)',
     '02_軽自動車_検査・名義変更/軽自動車_軽第1号様式.pdf',
     kei1Fields,
   ),
@@ -393,7 +434,7 @@ export const OFFICIAL_DOCUMENTS: OfficialDocument[] = [
     'kei-3',
     '02_軽自動車_検査・名義変更',
     '軽第3号様式',
-    '継続検査等に使用します。申請者・請求者の氏名住所を自動入力できます(車両番号等のマークシート欄は手書きが必要です)',
+    '継続検査等に使用します。申請者・請求者と受検者(整備工場)の氏名住所を自動入力できます(車両番号等のマークシート欄は手書きが必要です)',
     '02_軽自動車_検査・名義変更/軽自動車_軽第3号様式.pdf',
     kei3Fields,
   ),

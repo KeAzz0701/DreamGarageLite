@@ -93,15 +93,15 @@ export class OfficialDocumentService {
     return { bytes, label: doc.label };
   }
 
-  /** 指定したページに、車両情報を上書き印字する(自動入力未対応の書類は何もしない) */
-  async renderDocument(page: PDFPage, doc: OfficialDocument, vehicle: any, font: PDFFont) {
+  /** 指定したページに、車両情報(・整備工場情報)を上書き印字する(自動入力未対応の書類は何もしない) */
+  async renderDocument(page: PDFPage, doc: OfficialDocument, vehicle: any, company: any, font: PDFFont) {
     if (!doc.fields || doc.fields.length === 0) return;
 
     const rotation = page.getRotation().angle;
     const H = page.getHeight();
 
     for (const field of doc.fields) {
-      const text = field.text(vehicle);
+      const text = field.text(vehicle, company);
       if (!text) continue;
 
       let x: number;
@@ -145,10 +145,11 @@ export class OfficialDocumentService {
     const pdfDoc = await PDFDocument.load(blankBytes, { ignoreEncryption: true });
 
     if (doc.fields && doc.fields.length > 0) {
+      const company = await this.prisma.company.findFirst();
       pdfDoc.registerFontkit(fontkit);
       const fontBytes = await this.loadFont();
       const font = await pdfDoc.embedFont(fontBytes, { subset: false });
-      await this.renderDocument(pdfDoc.getPage(0), doc, vehicle, font);
+      await this.renderDocument(pdfDoc.getPage(0), doc, vehicle, company, font);
     }
 
     const bytes = await pdfDoc.save();
@@ -164,6 +165,7 @@ export class OfficialDocumentService {
     }
 
     const vehicle = await this.getVehicle(vehicleId);
+    const company = await this.prisma.company.findFirst();
     const merged = await PDFDocument.create();
 
     // フォントは結合後のmergedに1回だけ埋め込む(書類ごとに埋め込むと、結合書類数に
@@ -183,7 +185,7 @@ export class OfficialDocumentService {
         merged.addPage(copiedPage);
 
         if (doc.fields && doc.fields.length > 0) {
-          await this.renderDocument(copiedPage, doc, vehicle, sharedFont);
+          await this.renderDocument(copiedPage, doc, vehicle, company, sharedFont);
         }
       } catch (err) {
         this.logger.warn(`書類の結合に失敗しました(${doc.id}): ${err}`);
