@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   OFFICIAL_DOCUMENTS,
   PROCEDURE_BUNDLES,
+  PROCEDURES,
   getDocumentById,
   OfficialDocument,
 } from './official-document-registry';
@@ -46,6 +47,8 @@ export class OfficialDocumentService {
   listBundles() {
     return PROCEDURE_BUNDLES.map((b) => ({
       id: b.id,
+      procedureKey: b.procedureKey,
+      vehicleCategory: b.vehicleCategory,
       label: b.label,
       description: b.description,
       documents: b.documentIds.map((id) => {
@@ -53,6 +56,11 @@ export class OfficialDocumentService {
         return { id, label: doc?.label ?? id, hasAutofill: Boolean(doc?.fields) };
       }),
     }));
+  }
+
+  /** ウィザードのStep1(手続きの種類)で使う選択肢一覧 */
+  listProcedures() {
+    return PROCEDURES;
   }
 
   private async loadFont(): Promise<Buffer> {

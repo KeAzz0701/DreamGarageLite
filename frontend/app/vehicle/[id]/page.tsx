@@ -209,9 +209,19 @@ export default function VehicleDetailPage() {
     { category: string; documents: { id: string; label: string; description: string; hasAutofill: boolean }[] }[]
   >([]);
   const [officialDocBundles, setOfficialDocBundles] = useState<
-    { id: string; label: string; description: string; documents: { id: string; label: string; hasAutofill: boolean }[] }[]
+    {
+      id: string;
+      procedureKey: string;
+      vehicleCategory: 'ordinary' | 'kei';
+      label: string;
+      description: string;
+      documents: { id: string; label: string; hasAutofill: boolean }[];
+    }[]
   >([]);
+  const [officialDocProcedures, setOfficialDocProcedures] = useState<{ key: string; label: string }[]>([]);
   const [openOfficialDocCategories, setOfficialDocCategoriesOpen] = useState<Set<string>>(new Set());
+  const [selectedProcedureKey, setSelectedProcedureKey] = useState<string | null>(null);
+  const [selectedVehicleCategory, setSelectedVehicleCategory] = useState<'ordinary' | 'kei' | null>(null);
 
   const [selectedDocType, setSelectedDocType] = useState<(typeof DOCUMENT_TYPES)[number]['key'] | null>(null);
 
@@ -237,12 +247,14 @@ export default function VehicleDetailPage() {
 
   async function loadOfficialDocuments() {
     try {
-      const [categories, bundles] = await Promise.all([
+      const [categories, bundles, procedures] = await Promise.all([
         api<typeof officialDocCategories>('/official-documents'),
         api<typeof officialDocBundles>('/official-documents/bundles'),
+        api<typeof officialDocProcedures>('/official-documents/procedures'),
       ]);
       setOfficialDocCategories(categories);
       setOfficialDocBundles(bundles);
+      setOfficialDocProcedures(procedures);
     } catch (e: any) {
       // 公的書類は補助機能のため、失敗しても他の画面利用を妨げない
       console.warn('公的書類一覧の取得に失敗しました', e);
@@ -1265,26 +1277,92 @@ export default function VehicleDetailPage() {
             車検・登録・車庫証明などの公的様式です。対応している書類は氏名・住所等をこの車両の情報で自動入力して印刷できます。
           </p>
 
-          {officialDocBundles.length > 0 && (
+          {officialDocProcedures.length > 0 && (
             <div className="mb-4">
-              <div className="field-label mb-2">手続き別に必要な書類を一括印刷</div>
-              <div className="grid2">
-                {officialDocBundles.map((b) => (
+              <div className="flex justify-between items-center mb-2">
+                <div className="field-label">手続き別に必要な書類を一括印刷</div>
+                {(selectedProcedureKey || selectedVehicleCategory) && (
                   <button
-                    key={b.id}
                     type="button"
-                    onClick={() => openOfficialDocumentBundle(b.id, b.label)}
-                    className="veh text-left"
-                    style={{ cursor: 'pointer' }}
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      setSelectedProcedureKey(null);
+                      setSelectedVehicleCategory(null);
+                    }}
                   >
-                    <div className="font-semibold">🖨 {b.label}</div>
-                    <div className="text-xs text-[var(--muted)] mt-1">{b.description}</div>
-                    <div className="text-xs text-[var(--muted)] mt-1">
-                      {b.documents.map((d) => d.label).join('・')}
-                    </div>
+                    ↺ 選び直す
+                  </button>
+                )}
+              </div>
+
+              <div className="text-sm text-[var(--muted)] mb-2">① どの手続きですか？</div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {officialDocProcedures.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedProcedureKey(p.key);
+                      setSelectedVehicleCategory(null);
+                    }}
+                    className={`btn btn-sm ${selectedProcedureKey === p.key ? 'btn-blue' : 'btn-ghost'}`}
+                  >
+                    {p.label}
                   </button>
                 ))}
               </div>
+
+              {selectedProcedureKey && (
+                <>
+                  <div className="text-sm text-[var(--muted)] mb-2">② 車両区分は？</div>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {([
+                      ['ordinary', '🚗 普通車'],
+                      ['kei', '🚙 軽自動車'],
+                    ] as const).map(([cat, label]) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setSelectedVehicleCategory(cat)}
+                        className={`btn btn-sm ${selectedVehicleCategory === cat ? 'btn-blue' : 'btn-ghost'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {selectedProcedureKey && selectedVehicleCategory && (() => {
+                const bundle = officialDocBundles.find(
+                  (b) => b.procedureKey === selectedProcedureKey && b.vehicleCategory === selectedVehicleCategory,
+                );
+
+                if (!bundle) {
+                  return (
+                    <div className="veh text-sm text-[var(--muted)]">
+                      この組み合わせの書類一式は現在ご用意していません。
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="veh">
+                    <div className="font-semibold">🖨 {bundle.label}</div>
+                    <div className="text-xs text-[var(--muted)] mt-1">{bundle.description}</div>
+                    <div className="text-xs text-[var(--muted)] mt-1">
+                      {bundle.documents.map((d) => d.label).join('・')}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openOfficialDocumentBundle(bundle.id, bundle.label)}
+                      className="btn btn-blue btn-sm mt-2"
+                    >
+                      🖨 この車両の情報で一括印刷
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

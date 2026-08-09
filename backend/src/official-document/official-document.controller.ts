@@ -20,6 +20,12 @@ export class OfficialDocumentController {
     return this.officialDocumentService.listBundles();
   }
 
+  /** ウィザードのStep1(手続きの種類)で使う選択肢一覧 */
+  @Get('official-documents/procedures')
+  async listProcedures() {
+    return this.officialDocumentService.listProcedures();
+  }
+
   /** 白紙の様式をそのままダウンロード */
   @Get('official-documents/:id/blank')
   async getBlank(@Param('id') id: string, @Res() res: Response) {

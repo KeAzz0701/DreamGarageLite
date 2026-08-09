@@ -21,8 +21,17 @@ export type OfficialDocument = {
   fields?: OverlayField[];
 };
 
+export type VehicleCategory = 'ordinary' | 'kei';
+
+export type Procedure = {
+  key: string;
+  label: string;
+};
+
 export type ProcedureBundle = {
   id: string;
+  procedureKey: string;
+  vehicleCategory: VehicleCategory;
   label: string;
   description: string;
   documentIds: string[];
@@ -443,17 +452,36 @@ export const OFFICIAL_DOCUMENTS: OfficialDocument[] = [
   ),
 ];
 
+/** ウィザードのStep1(手続きの種類)で表示する選択肢 */
+export const PROCEDURES: Procedure[] = [
+  { key: 'continuation-inspection', label: '継続検査(車検)' },
+  { key: 'transfer-registration', label: '名義変更(移転登録)' },
+  { key: 'new-car-registration', label: '新車新規登録' },
+];
+
 export const PROCEDURE_BUNDLES: ProcedureBundle[] = [
   {
-    id: 'continuation-inspection',
-    label: '継続検査(車検)一式',
+    id: 'continuation-inspection-ordinary',
+    procedureKey: 'continuation-inspection',
+    vehicleCategory: 'ordinary',
+    label: '継続検査(車検)一式(普通車)',
     description: '専用第3号様式・重量税納付書・手数料納付書をまとめて印刷します',
     documentIds: ['ordinary-dedicated3-continuation', 'ordinary-weight-tax', 'ordinary-fee'],
   },
   {
-    id: 'transfer-registration',
-    label: '名義変更(移転登録)一式',
-    description: 'OCR第1号様式・譲渡証明書・委任状・手数料納付書をまとめて印刷します',
+    id: 'continuation-inspection-kei',
+    procedureKey: 'continuation-inspection',
+    vehicleCategory: 'kei',
+    label: '継続検査(車検)一式(軽自動車)',
+    description: '軽第3号様式を印刷します',
+    documentIds: ['kei-3'],
+  },
+  {
+    id: 'transfer-registration-ordinary',
+    procedureKey: 'transfer-registration',
+    vehicleCategory: 'ordinary',
+    label: '名義変更(移転登録)一式(普通車)',
+    description: 'OCR第1号様式・譲渡証明書・委任状・手数料納付書をまとめて印刷します。中古車販売時の移転登録にも使用できます',
     documentIds: [
       'ordinary-ocr1-new-transfer',
       'ordinary-transfer-certificate',
@@ -462,19 +490,18 @@ export const PROCEDURE_BUNDLES: ProcedureBundle[] = [
     ],
   },
   {
-    id: 'used-car-sale',
-    label: '中古車販売(移転登録)一式',
-    description: '中古車販売時の移転登録に必要な書類一式です。古物商許可は営業開始前に別途ご用意ください',
-    documentIds: [
-      'ordinary-ocr1-new-transfer',
-      'ordinary-transfer-certificate',
-      'ordinary-power-of-attorney',
-      'ordinary-fee',
-    ],
+    id: 'transfer-registration-kei',
+    procedureKey: 'transfer-registration',
+    vehicleCategory: 'kei',
+    label: '名義変更(移転登録)一式(軽自動車)',
+    description: '軽第1号様式を印刷します',
+    documentIds: ['kei-1'],
   },
   {
-    id: 'new-car-registration',
-    label: '新車新規登録一式',
+    id: 'new-car-registration-ordinary',
+    procedureKey: 'new-car-registration',
+    vehicleCategory: 'ordinary',
+    label: '新車新規登録一式(普通車)',
     description: 'OCR第1号様式・重量税納付書・手数料納付書・委任状・車庫証明申請書をまとめて印刷します',
     documentIds: [
       'ordinary-ocr1-new-transfer',
@@ -483,6 +510,14 @@ export const PROCEDURE_BUNDLES: ProcedureBundle[] = [
       'ordinary-power-of-attorney',
       'garage-certificate-application',
     ],
+  },
+  {
+    id: 'new-car-registration-kei',
+    procedureKey: 'new-car-registration',
+    vehicleCategory: 'kei',
+    label: '新車新規登録一式(軽自動車)',
+    description: '軽第1号様式を印刷します(車庫証明・保管場所届出が必要な地域では別途ご用意ください)',
+    documentIds: ['kei-1'],
   },
 ];
 
