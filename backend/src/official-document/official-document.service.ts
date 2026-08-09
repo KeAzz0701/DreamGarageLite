@@ -1,7 +1,7 @@
 // backend/src/official-document/official-document.service.ts
 
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { PDFDocument, PDFFont, degrees, rgb } from 'pdf-lib';
+import { PDFDocument, PDFFont, PDFPage, degrees, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
@@ -87,11 +87,10 @@ export class OfficialDocumentService {
     return { bytes, label: doc.label };
   }
 
-  /** 書類1件に、指定した車両の情報を上書き印字したPDFバイト列を返す(自動入力未対応の書類は白紙のまま返す) */
-  async renderDocument(pdfDoc: PDFDocument, doc: OfficialDocument, vehicle: any, font: PDFFont) {
+  /** 指定したページに、車両情報を上書き印字する(自動入力未対応の書類は何もしない) */
+  async renderDocument(page: PDFPage, doc: OfficialDocument, vehicle: any, font: PDFFont) {
     if (!doc.fields || doc.fields.length === 0) return;
 
-    const page = pdfDoc.getPage(0);
     const rotation = page.getRotation().angle;
     const H = page.getHeight();
 
@@ -143,7 +142,7 @@ export class OfficialDocumentService {
       pdfDoc.registerFontkit(fontkit);
       const fontBytes = await this.loadFont();
       const font = await pdfDoc.embedFont(fontBytes, { subset: false });
-      await this.renderDocument(pdfDoc, doc, vehicle, font);
+      await this.renderDocument(pdfDoc.getPage(0), doc, vehicle, font);
     }
 
     const bytes = await pdfDoc.save();
@@ -160,7 +159,12 @@ export class OfficialDocumentService {
 
     const vehicle = await this.getVehicle(vehicleId);
     const merged = await PDFDocument.create();
+
+    // フォントは結合後のmergedに1回だけ埋め込む(書類ごとに埋め込むと、結合書類数に
+    // 比例してPDFサイズが膨れ上がり、プレビューが極端に重くなっていたため)
+    merged.registerFontkit(fontkit);
     const fontBytes = await this.loadFont();
+    const sharedFont = await merged.embedFont(fontBytes, { subset: false });
 
     for (const documentId of bundle.documentIds) {
       const doc = getDocumentById(documentId);
@@ -169,17 +173,12 @@ export class OfficialDocumentService {
       try {
         const blankBytes = await this.loadBlankBytes(doc);
         const srcDoc = await PDFDocument.load(blankBytes, { ignoreEncryption: true });
-
-        if (doc.fields && doc.fields.length > 0) {
-          // フィールドの上書きはコピー元(srcDoc)に対して行い、その後mergedへページをコピーする
-          // (embedFontはPDFDocumentごとに必要なため、srcDoc自身にフォントを埋め込む)
-          srcDoc.registerFontkit(fontkit);
-          const srcFont = await srcDoc.embedFont(fontBytes, { subset: false });
-          await this.renderDocument(srcDoc, doc, vehicle, srcFont);
-        }
-
         const [copiedPage] = await merged.copyPages(srcDoc, [0]);
         merged.addPage(copiedPage);
+
+        if (doc.fields && doc.fields.length > 0) {
+          await this.renderDocument(copiedPage, doc, vehicle, sharedFont);
+        }
       } catch (err) {
         this.logger.warn(`書類の結合に失敗しました(${doc.id}): ${err}`);
       }
