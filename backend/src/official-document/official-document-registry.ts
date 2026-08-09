@@ -190,6 +190,28 @@ const transferCertificateFields: OverlayField[] = [
   },
 ];
 
+/** 自動車重量税納付書(検査対象軽自動車)。回転なし・A4横向き様式。軽自動車検査協会様式 */
+const keiWeightTaxFields: OverlayField[] = [
+  {
+    visualX: 195,
+    visualY: 155,
+    size: 9,
+    text: (v) => v.registrationNumber || v.vin || '',
+  },
+  {
+    visualX: 465,
+    visualY: 118,
+    size: 9,
+    text: (v) => v.userName || v.ownerName || '',
+  },
+  {
+    visualX: 465,
+    visualY: 152,
+    size: 8,
+    text: (v) => v.userAddress || v.ownerAddress || '',
+  },
+];
+
 /** 自動車保管場所証明申請書(北海道)。回転なし・A4横向き様式。車両情報・使用の本拠の位置・申請者の住所氏名を自動入力対応 */
 const garageCertificateFields: OverlayField[] = [
   {
@@ -376,6 +398,14 @@ export const OFFICIAL_DOCUMENTS: OfficialDocument[] = [
     kei3Fields,
   ),
   D(
+    'kei-weight-tax',
+    '02_軽自動車_検査・名義変更',
+    '自動車重量税納付書(検査対象軽自動車)',
+    '継続検査(車検)の重量税納付に使用します(軽自動車検査協会様式)。車両番号・使用者の氏名住所を自動入力できます',
+    '02_軽自動車_検査・名義変更/軽自動車_自動車重量税納付書.pdf',
+    keiWeightTaxFields,
+  ),
+  D(
     'kei-dedicated-1',
     '02_軽自動車_検査・名義変更',
     '軽専用第1号様式',
@@ -473,8 +503,8 @@ export const PROCEDURE_BUNDLES: ProcedureBundle[] = [
     procedureKey: 'continuation-inspection',
     vehicleCategory: 'kei',
     label: '継続検査(車検)一式(軽自動車)',
-    description: '軽第3号様式を印刷します',
-    documentIds: ['kei-3'],
+    description: '軽第3号様式・自動車重量税納付書をまとめて印刷します',
+    documentIds: ['kei-3', 'kei-weight-tax'],
   },
   {
     id: 'transfer-registration-ordinary',
@@ -516,8 +546,8 @@ export const PROCEDURE_BUNDLES: ProcedureBundle[] = [
     procedureKey: 'new-car-registration',
     vehicleCategory: 'kei',
     label: '新車新規登録一式(軽自動車)',
-    description: '軽第1号様式を印刷します(車庫証明・保管場所届出が必要な地域では別途ご用意ください)',
-    documentIds: ['kei-1'],
+    description: '軽第1号様式・自動車重量税納付書をまとめて印刷します(車庫証明・保管場所届出が必要な地域では別途ご用意ください)',
+    documentIds: ['kei-1', 'kei-weight-tax'],
   },
 ];
 
