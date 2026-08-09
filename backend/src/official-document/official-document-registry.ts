@@ -90,14 +90,14 @@ const weightTaxFields: OverlayField[] = [
 /** 手数料納付書。回転なし・A4横向き様式 */
 const feeFields: OverlayField[] = [
   {
-    visualX: 100,
-    visualY: 195,
+    visualX: 200,
+    visualY: 90,
     size: 9,
     text: (v) => v.registrationNumber || v.vin || '',
   },
   {
-    visualX: 380,
-    visualY: 195,
+    visualX: 480,
+    visualY: 90,
     size: 9,
     text: (v) => v.userName || v.ownerName || '',
   },
@@ -146,7 +146,7 @@ const powerOfAttorneyFields: OverlayField[] = [
     text: (v) => v.userAddress || v.ownerAddress || '',
   },
   {
-    visualX: 250,
+    visualX: 430,
     visualY: 290,
     size: 9,
     text: (v) => v.registrationNumber || v.vin || '',
