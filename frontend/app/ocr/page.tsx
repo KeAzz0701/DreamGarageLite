@@ -16,6 +16,7 @@ type CompetitorMatch = {
 
 type CompetitorLookup = {
   extracted: {
+    documentType?: 'estimate' | 'shaken_certificate' | 'other';
     shopName?: string;
     estimateDate?: string;
     registrationNumber?: string;
@@ -329,7 +330,13 @@ export default function OcrPage() {
 
           <button
             onClick={saveEstimate}
-            disabled={!estimateLookup || !selectedVehicleId || estimateSaving}
+            disabled={
+              !estimateLookup ||
+              !selectedVehicleId ||
+              estimateSaving ||
+              (estimateLookup.extracted.documentType != null &&
+                estimateLookup.extracted.documentType !== 'estimate')
+            }
             className="btn btn-dark"
           >
             {estimateSaving ? '保存中...' : 'この車両に紐付けて保存'}
@@ -337,7 +344,22 @@ export default function OcrPage() {
         </div>
       </div>
 
-      {estimateLookup && (
+      {estimateLookup && estimateLookup.extracted.documentType === 'shaken_certificate' && (
+        <div className="panel mt-4">
+          <div className="empty">
+            この画像は見積書ではなく車検証のようです。上の「車検証OCR」をご利用ください。
+          </div>
+        </div>
+      )}
+
+      {estimateLookup && estimateLookup.extracted.documentType === 'other' && (
+        <div className="panel mt-4">
+          <div className="empty">見積書として読み取れませんでした。別の画像をお試しください。</div>
+        </div>
+      )}
+
+      {estimateLookup &&
+        (!estimateLookup.extracted.documentType || estimateLookup.extracted.documentType === 'estimate') && (
         <div className="panel mt-4">
           <h2 className="disp text-xl mb-3">解析結果</h2>
 

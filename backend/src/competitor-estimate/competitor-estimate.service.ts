@@ -44,8 +44,23 @@ export class CompetitorEstimateService {
     apiKey?: string,
   ) {
     const extracted = await this.analyze(file, apiKey);
+    this.assertIsEstimate(extracted.documentType);
 
     return this.persist(vehicleId, customerId, vehicleCategory, file, extracted, createdBy, sharedWithShop);
+  }
+
+  /** documentTypeが判定できていて、かつ見積書ではないと分かっている場合のみ弾く
+   *  (AI解析自体に失敗してdocumentTypeが無いケースは、これまで通り画像だけ保存できるよう許容する) */
+  private assertIsEstimate(documentType: string | undefined) {
+    if (documentType === 'shaken_certificate') {
+      throw new BadRequestException(
+        'この画像は見積書ではなく車検証のようです。車検証OCRをご利用ください。',
+      );
+    }
+
+    if (documentType === 'other') {
+      throw new BadRequestException('見積書として読み取れませんでした。別の画像をお試しください。');
+    }
   }
 
   /** 写真をAIで解析するだけ(保存はしない)。まだ対象車両が定まっていない入り口(車検証OCRの下の
@@ -92,11 +107,19 @@ export class CompetitorEstimateService {
   /** analyzeOnlyで抽出済みのデータを使って、選ばれた車両に紐づけて保存する(AI解析はやり直さない) */
   async createFromExtracted(
     vehicleId: number,
-    extracted: { shopName?: string; estimateDate?: string; items?: unknown; totalAmount?: number },
+    extracted: {
+      documentType?: string;
+      shopName?: string;
+      estimateDate?: string;
+      items?: unknown;
+      totalAmount?: number;
+    },
     file: { buffer: Buffer; mimetype: string },
     createdBy: 'STAFF' | 'CUSTOMER',
     sharedWithShop: boolean,
   ) {
+    this.assertIsEstimate(extracted.documentType);
+
     const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
 
     if (!vehicle?.customerId) {
@@ -118,6 +141,7 @@ export class CompetitorEstimateService {
     file: { buffer: Buffer; mimetype: string },
     apiKey?: string,
   ): Promise<{
+    documentType?: string;
     shopName?: string;
     estimateDate?: string;
     registrationNumber?: string;
