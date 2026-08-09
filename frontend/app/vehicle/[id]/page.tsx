@@ -1301,10 +1301,7 @@ export default function VehicleDetailPage() {
                   <button
                     key={p.key}
                     type="button"
-                    onClick={() => {
-                      setSelectedProcedureKey(p.key);
-                      setSelectedVehicleCategory(null);
-                    }}
+                    onClick={() => setSelectedProcedureKey(p.key)}
                     className={`btn btn-sm ${selectedProcedureKey === p.key ? 'btn-blue' : 'btn-ghost'}`}
                   >
                     {p.label}
@@ -1312,30 +1309,42 @@ export default function VehicleDetailPage() {
                 ))}
               </div>
 
-              {selectedProcedureKey && (
-                <>
-                  <div className="text-sm text-[var(--muted)] mb-2">② 車両区分は？</div>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {([
-                      ['ordinary', '🚗 普通車'],
-                      ['kei', '🚙 軽自動車'],
-                    ] as const).map(([cat, label]) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setSelectedVehicleCategory(cat)}
-                        className={`btn btn-sm ${selectedVehicleCategory === cat ? 'btn-blue' : 'btn-ghost'}`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+              {selectedProcedureKey && (() => {
+                // この車両の排気量等から軽自動車/普通車を推測し、初期選択にする(スタッフが誤りに気づいたら②のボタンで手動修正できる)
+                const inferredVehicleCategory: 'ordinary' | 'kei' =
+                  inferVehicleCategory(vehicle) === 'KEI' ? 'kei' : 'ordinary';
+                const effectiveVehicleCategory = selectedVehicleCategory ?? inferredVehicleCategory;
 
-              {selectedProcedureKey && selectedVehicleCategory && (() => {
+                return (
+                  <>
+                    <div className="text-sm text-[var(--muted)] mb-2">
+                      ② 車両区分は？<span className="text-xs">(この車両の情報から自動選択しています。違う場合は選び直してください)</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {([
+                        ['ordinary', '🚗 普通車'],
+                        ['kei', '🚙 軽自動車'],
+                      ] as const).map(([cat, label]) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setSelectedVehicleCategory(cat)}
+                          className={`btn btn-sm ${effectiveVehicleCategory === cat ? 'btn-blue' : 'btn-ghost'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
+
+              {selectedProcedureKey && (() => {
+                const inferredVehicleCategory: 'ordinary' | 'kei' =
+                  inferVehicleCategory(vehicle) === 'KEI' ? 'kei' : 'ordinary';
+                const effectiveVehicleCategory = selectedVehicleCategory ?? inferredVehicleCategory;
                 const bundle = officialDocBundles.find(
-                  (b) => b.procedureKey === selectedProcedureKey && b.vehicleCategory === selectedVehicleCategory,
+                  (b) => b.procedureKey === selectedProcedureKey && b.vehicleCategory === effectiveVehicleCategory,
                 );
 
                 if (!bundle) {
