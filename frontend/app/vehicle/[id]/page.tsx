@@ -3,7 +3,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, apiBaseUrl, extractErrorMessage, upload } from '@/lib/api';
 import {
@@ -235,6 +235,8 @@ export default function VehicleDetailPage() {
   const [estimateVehicleCategory, setEstimateVehicleCategory] = useState('REGULAR');
   const [suggesting, setSuggesting] = useState(false);
   const [laborRatePerHour, setLaborRatePerHour] = useState<number | null>(null);
+  const [justCreatedShakenEstimate, setJustCreatedShakenEstimate] = useState(false);
+  const officialDocsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     load();
@@ -500,6 +502,8 @@ export default function VehicleDetailPage() {
   }
 
   async function saveEstimate() {
+    const wasShaken = estimateCategory === 'SHAKEN';
+
     try {
       await api(`/vehicle/${params.id}/estimates`, {
         method: 'POST',
@@ -524,10 +528,17 @@ export default function VehicleDetailPage() {
       setEstimateStaffName('');
       setEstimateCategory('GENERAL');
       setEstimateItems([emptyEstimateItem()]);
+      setJustCreatedShakenEstimate(wasShaken);
       await loadEstimates();
     } catch (e: any) {
       alert(extractErrorMessage(e));
     }
+  }
+
+  function goToShakenOfficialDocuments() {
+    setJustCreatedShakenEstimate(false);
+    setSelectedProcedureKey('continuation-inspection');
+    officialDocsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function suggestShakenItems() {
@@ -1271,7 +1282,7 @@ export default function VehicleDetailPage() {
       </div>
 
       {officialDocCategories.length > 0 && (
-        <div className="panel mt-4">
+        <div className="panel mt-4" ref={officialDocsRef}>
           <h2 className="disp text-xl mb-1">公的書類</h2>
           <p className="note mb-3">
             車検・登録・車庫証明などの公的様式です。対応している書類は氏名・住所等をこの車両の情報で自動入力して印刷できます。
@@ -1437,6 +1448,24 @@ export default function VehicleDetailPage() {
             </button>
           )}
         </div>
+
+        {justCreatedShakenEstimate && !showEstimateForm && (
+          <div className="veh mb-3 flex justify-between items-center flex-wrap gap-2">
+            <div className="text-sm">🚗 車検の見積を作成しました。続けて公的書類を作成しますか？</div>
+            <div className="flex gap-2">
+              <button type="button" onClick={goToShakenOfficialDocuments} className="btn btn-blue btn-sm">
+                📋 継続検査の公的書類を作る
+              </button>
+              <button
+                type="button"
+                onClick={() => setJustCreatedShakenEstimate(false)}
+                className="btn btn-ghost btn-sm"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        )}
 
         {showEstimateForm && (
           <div className="veh mb-3">

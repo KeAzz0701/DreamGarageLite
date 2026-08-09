@@ -62,10 +62,24 @@ export default function EstimatePrintPage() {
   return (
     <div className="print-sheet">
       <style>{`
+        @page {
+          size: A4;
+          margin: 12mm;
+        }
         @media print {
           header, .no-print { display: none !important; }
           body { background: white !important; }
           main { max-width: none !important; padding: 0 !important; }
+          .print-sheet { padding: 0 !important; }
+          .print-vehicle-info,
+          .print-legalfee-box,
+          .print-grandtotal-box,
+          .print-total-box,
+          .print-terms,
+          .print-table tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
         }
         .print-sheet {
           background: white;
@@ -291,7 +305,7 @@ export default function EstimatePrintPage() {
       />
 
       {settings.estimateTerms && (
-        <div className="mt-6 text-xs text-[var(--muted)] whitespace-pre-wrap">
+        <div className="print-terms mt-6 text-xs text-[var(--muted)] whitespace-pre-wrap">
           {settings.estimateTerms}
         </div>
       )}
