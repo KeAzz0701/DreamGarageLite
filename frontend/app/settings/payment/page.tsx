@@ -23,6 +23,7 @@ export default function PaymentMethodPage() {
   const [settings, setSettings] = useState<any>(null);
   const [planInfo, setPlanInfo] = useState<any>(null);
   const [selected, setSelected] = useState('');
+  const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -37,7 +38,7 @@ export default function PaymentMethodPage() {
   const targetPlanInfo = planInfo?.plans?.[targetPlan];
 
   async function submit() {
-    if (!companyId || !selected) return;
+    if (!companyId || !selected || !agreed) return;
 
     setSubmitting(true);
 
@@ -187,10 +188,30 @@ export default function PaymentMethodPage() {
           </div>
         )}
 
+        <label className="flex items-start gap-2 mt-5 text-sm" style={{ cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <a
+              href="https://dreamgaragelite.com/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--blue)] underline"
+            >
+              利用規約・プライバシーポリシー・特定商取引法に基づく表記
+            </a>
+            の内容（上記のご契約内容を含みます）に同意して申請します。
+          </span>
+        </label>
+
         <button
           onClick={submit}
-          disabled={!selected || submitting}
-          className="btn btn-primary w-full justify-center mt-5"
+          disabled={!selected || !agreed || submitting}
+          className="btn btn-primary w-full justify-center mt-3"
         >
           {submitting ? '申請中...' : 'この内容で申請する'}
         </button>

@@ -1,14 +1,22 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { PageHero } from '@/components/page-hero'
 import { siteConfig } from '@/lib/site'
 
 export const metadata: Metadata = {
-  title: '利用規約',
-  description: `${siteConfig.productName}の利用条件を定める利用規約です。`,
+  title: '利用規約・プライバシーポリシー・特定商取引法に基づく表記',
+  description: `${siteConfig.productName}の利用条件、個人情報の取り扱い、特定商取引法に基づく表記をまとめたページです。`,
 }
 
-const sections = [
+type LegalItem = { label: string; value: string }
+
+type Section = {
+  title: string
+  paragraphs?: string[]
+  items?: LegalItem[]
+  note?: string
+}
+
+const sections: Section[] = [
   {
     title: '第1条（適用）',
     paragraphs: [
@@ -41,8 +49,8 @@ const sections = [
   {
     title: '第5条（料金および支払い）',
     paragraphs: [
-      'FREEプランおよび先行導入モニターは、各案内または個別合意に示す範囲で無償です。有料プランの料金、税、支払方法、請求時期、自動更新、解約時期および返金条件は、有料申込みを開始する前に申込画面または利用申込書へ表示し、利用者の同意を得ます。',
-      '有料プランの条件が確定していない期間、提供者は有料申込みおよび支払いを受け付けません。',
+      'FREEプランおよび先行導入モニターは、各案内または個別合意に示す範囲で無償です。有料プランの料金、税、支払方法、請求時期、自動更新、解約時期および返金条件は、有料申込みを開始する前に申込画面へ表示し、利用者の同意を得ます。',
+      '有料プランの申込画面に表示する条件と、第20条（特定商取引法に基づく表示）の内容が異なる場合は、申込時点で表示された条件を優先します。',
     ],
   },
   {
@@ -82,7 +90,7 @@ const sections = [
     title: '第11条（利用停止・契約終了）',
     paragraphs: [
       '利用者が本規約に重大に違反した場合、虚偽の申込みをした場合、支払義務を履行しない場合、または本サービスの運営に重大な支障を与えた場合、提供者は相当期間を定めて是正を求めたうえで利用を停止し、または契約を終了できます。ただし、緊急性が高い場合は直ちに停止できます。',
-      '契約終了後の利用可能期間およびデータの取扱いは、申込時に提示する個別条件およびプライバシーポリシーに従います。',
+      '契約終了後の利用可能期間およびデータの取扱いは、申込時に提示する個別条件および第12条〜第17条（個人情報の取扱い）に従います。',
     ],
   },
   {
@@ -99,21 +107,131 @@ const sections = [
     ],
   },
   {
-    title: '第14条（規約の変更）',
+    title: '第14条（取得する情報）',
     paragraphs: [
-      '提供者は、法令の変更、本サービス内容の変更その他合理的な必要がある場合、本規約を変更できます。利用者に重大な不利益を与える変更は、効力発生日と変更内容を合理的な予告期間を設けて通知します。変更後の規約は、掲載した効力発生日から適用します。',
+      `${siteConfig.companyName}は、本サービスの提供にあたりお預かりする個人情報を適切に取り扱うことが社会的責務であると認識し、以下の方針に基づき個人情報の保護に努めます。`,
+      '本サービスのご利用にあたり、店舗ご担当者様の情報、サービス利用情報、顧客・車両・整備履歴、予約情報、OCRにアップロードいただいた画像と抽出結果、他店舗見積の画像と抽出結果、タイヤ計測値等の記録、LINE連携情報、お問い合わせ内容および操作ログを取得・保存します。',
     ],
   },
   {
-    title: '第15条（連絡・問い合わせ）',
+    title: '第15条（利用目的）',
     paragraphs: [
-      '本サービスに関する連絡または問い合わせは、お問い合わせフォームから受け付けます。提供者から利用者への通知は、本サービス上の表示、登録メールアドレスへの送信その他合理的な方法で行います。',
+      'サービスの提供、本人確認、お問い合わせ対応、障害対応、安全管理、機能改善、利用状況の分析および必要なご通知のために利用します。広告配信や、本サービスの提供と無関係な第三者への提供のためには利用しません。',
     ],
   },
   {
-    title: '第16条（協議・準拠法・合意管轄）',
+    title: '第16条（委託・外部サービス）',
     paragraphs: [
-      '本規約に定めのない事項または解釈上の疑義については、提供者と利用者が誠実に協議します。本規約は日本法に準拠し、本サービスに関する紛争については、利用申込書または個別契約で定める日本国内の裁判所を第一審の専属的合意管轄裁判所とします。',
+      '本サービスの提供のため、以下の外部サービスを利用しています。',
+    ],
+    items: [
+      {
+        label: 'LINEヤフー（LINE Messaging API・LINEログイン）',
+        value:
+          '送信する情報: 顧客・スタッフ様のLINEユーザーID、送受信メッセージ本文、送信画像、顧客ポータルのログイン認証情報\n利用目的: LINEを通じた予約・整備履歴のご案内、リマインド通知、顧客ポータルへのログイン',
+      },
+      {
+        label: 'Google（Gemini API）',
+        value:
+          '送信する情報: 車検証・他店見積書等のアップロード画像、AIチャットに入力された業務データ（予約・顧客・車両情報を含む）\n利用目的: 車検証OCRの読み取り、AIチャットの応答、車検法定費用の概算算出',
+      },
+      {
+        label: 'Google（Google Calendar API）',
+        value: '送信する情報: 予約日時等の予約情報\n利用目的: ご利用店舗様が連携を設定された場合の、予約情報のGoogleカレンダー同期',
+      },
+      {
+        label: 'OpenRouter（AI応答生成）',
+        value: '送信する情報: AIチャットの会話履歴・業務データ\n利用目的: Gemini APIの代替経路としてのAIチャット応答生成',
+      },
+    ],
+    note: 'ホスティングはさくらインターネット株式会社のVPS上で自社運用しており、上記以外の外部クラウド基盤へのデータ送信は行っておりません。決済代行サービスは現時点では利用していません。今後、決済・メール送信等の外部サービスを追加導入する場合は、本ページを更新のうえご案内します。',
+  },
+  {
+    title: '第17条（第三者提供・保存期間・安全管理）',
+    paragraphs: [
+      '取得した個人情報は、法令に基づく場合を除き、ご本人の同意なく第三者に提供することはありません。',
+      '取得した情報は、サービス提供に必要な期間保存します。ご利用契約が終了（解約）した場合、法令上保存が必要な情報を除き、解約日から30日以内に削除します。',
+      'アクセス権限の管理、通信の保護、ログ管理その他、取り扱う情報の性質に応じた安全管理措置を講じます。',
+      'ご本人からの保有個人データに関する開示、訂正、利用停止、削除および苦情については、第22条の窓口にて対応いたします。',
+    ],
+  },
+  {
+    title: '第18条（他店舗見積のオイル情報の取扱い）',
+    paragraphs: [
+      '他店舗見積の解析機能では、画像に記載されたオイル交換の油種・数量・単価・工賃を、他の利用店舗との比較（相場表示）のために統計的に集計することがあります。集計結果には、個々の見積を投稿した店舗名・車両情報等の個人を特定できる情報を含みません。',
+    ],
+  },
+  {
+    title: '第19条（先行導入モニター）',
+    paragraphs: [
+      '先行導入モニターとしてのご利用は無償とし、提供者と利用者の個別合意またはモニター案内に示す範囲・期間で提供します。',
+      '提供者は、モニター提供を終了または変更する場合、原則として30日前までに通知します。モニター終了後は、利用者の別段の申込みがない限りFREEプランへ移行し、自動的に有料課金は発生しません。',
+      'モニター期間中に先行的に提供する機能は、正式提供までに内容が変更される場合があります。',
+    ],
+  },
+  {
+    title: '第20条（特定商取引法に基づく表示）',
+    paragraphs: [
+      '有料プランのお申込みにあたり、特定商取引法に基づき以下のとおり表示します。',
+    ],
+    items: [
+      {
+        label: '販売価格',
+        value: '各プランの月額料金（税込）は、サービス内の料金プランページに表示のとおりです。送料等の付随費用はありません。',
+      },
+      {
+        label: '商品代金以外の必要料金',
+        value: 'お振込みでお支払いの場合の振込手数料は、お客様のご負担となります。',
+      },
+      {
+        label: 'お支払い方法',
+        value: '現金、銀行振込。クレジットカード等のオンライン決済は、決済代行サービスとの契約完了後にご案内いたします。',
+      },
+      {
+        label: 'お支払い時期',
+        value: 'お支払い方法選択後、店舗にて入金確認および運営による承認が完了した時点でプランが切り替わります。以降は月単位でのご請求となります。',
+      },
+      {
+        label: 'サービス提供時期',
+        value: '入金確認・運営承認後、直ちにご利用いただけます。',
+      },
+      {
+        label: '契約期間・自動更新',
+        value: '月額課金制で、期間の定めなく自動更新されます。都度のお申込みは不要です。',
+      },
+      {
+        label: '返品・キャンセル・解約について',
+        value:
+          'いつでも解約をお申し出いただけます。解約された月のご利用料金について、日割り・月割りいずれの返金も行いません。解約は、お申し出いただいた翌月以降のご請求から反映されます。デジタルサービスの性質上、提供済みの役務についての返品はお受けできません。',
+      },
+      {
+        label: '動作環境',
+        value: 'スマートフォン・タブレット・パソコンの主要ブラウザ最新版でのご利用を推奨します。',
+      },
+      {
+        label: 'お問い合わせ',
+        value: 'info@dreamgaragelite.com',
+      },
+    ],
+    note: '事業者の名称・運営統括責任者・所在地・電話番号は確定次第、本ページに追記します。確定までの間、お問い合わせはメールにて承ります。',
+  },
+  {
+    title: '第21条（規約等の変更）',
+    paragraphs: [
+      '提供者は、法令の変更、本サービス内容の変更その他合理的な必要がある場合、本ページの内容を変更できます。利用者に重大な不利益を与える変更は、効力発生日と変更内容を合理的な予告期間を設けて通知します。変更後の内容は、掲載した効力発生日から適用します。',
+    ],
+  },
+  {
+    title: '第22条（連絡・お問い合わせ）',
+    paragraphs: [
+      `本サービスおよび個人情報の取扱いに関する連絡または問い合わせは、下記まで受け付けます。提供者から利用者への通知は、本サービス上の表示、登録メールアドレスへの送信その他合理的な方法で行います。`,
+      `${siteConfig.companyName}\nEmail: info@dreamgaragelite.com`,
+    ],
+  },
+  {
+    title: '第23条（協議・準拠法・合意管轄）',
+    paragraphs: [
+      '本ページに定めのない事項または解釈上の疑義については、提供者と利用者が誠実に協議します。本ページは日本法に準拠し、本サービスに関する紛争については、利用申込書または個別契約で定める日本国内の裁判所を第一審の専属的合意管轄裁判所とします。',
     ],
   },
 ]
@@ -123,38 +241,50 @@ export default function TermsPage() {
     <main>
       <PageHero
         eyebrow="TERMS"
-        title="利用規約"
-        description={`${siteConfig.productName}をご利用いただく際の条件です。`}
+        title="利用規約・プライバシーポリシー・特定商取引法に基づく表記"
+        description={`${siteConfig.productName}をご利用いただく際の条件、個人情報の取り扱い、特定商取引法に基づく表記を1ページにまとめています。`}
       />
 
       <section className="bg-background py-16 md:py-24">
         <div className="mx-auto max-w-3xl px-4 md:px-6">
           <div className="rounded-xl border border-border bg-muted/40 p-5 text-sm leading-relaxed text-muted-foreground">
-            本規約は先行導入モニターおよびFREEプランに対応した公開前版です。有料プランは、料金・支払・解約条件を確定して申込画面へ表示するまで受け付けません。
+            本ページは先行導入モニターおよびFREEプラン、現金・銀行振込によるお支払いに対応した公開版です。クレジットカード等のオンライン決済は、決済代行サービスとの契約完了後にあらためてご案内します。
           </div>
 
           <div className="mt-10 flex flex-col gap-10">
             {sections.map((section) => (
-              <section key={section.title}>
+              <section key={section.title} id={section.title}>
                 <h2 className="text-lg font-black tracking-tight">{section.title}</h2>
-                <div className="mt-3 space-y-3 text-sm leading-relaxed text-muted-foreground">
-                  {section.paragraphs.map((paragraph) => (
-                    <p key={paragraph}>{paragraph}</p>
-                  ))}
-                </div>
+                {section.paragraphs && (
+                  <div className="mt-3 space-y-3 text-sm leading-relaxed text-muted-foreground">
+                    {section.paragraphs.map((paragraph) => (
+                      <p key={paragraph} className="whitespace-pre-line">
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {section.items && (
+                  <dl className="mt-4 divide-y divide-border border-y border-border">
+                    {section.items.map((item) => (
+                      <div key={item.label} className="grid gap-1 py-4 md:grid-cols-[13rem_1fr] md:gap-6">
+                        <dt className="text-sm font-bold text-foreground">{item.label}</dt>
+                        <dd className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                          {item.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {section.note && (
+                  <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{section.note}</p>
+                )}
               </section>
             ))}
           </div>
 
           <div className="mt-14 border-t border-border pt-6 text-sm text-muted-foreground">
-            <p>
-              個人情報の取扱いは
-              <Link href="/privacy" className="font-medium text-foreground underline underline-offset-4">
-                プライバシーポリシー
-              </Link>
-              をご確認ください。
-            </p>
-            <p className="mt-6 text-right text-xs">制定日：2026年8月10日</p>
+            <p className="text-right text-xs">制定日：2026年8月10日</p>
           </div>
         </div>
       </section>
