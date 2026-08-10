@@ -20,7 +20,15 @@ type CompetitorLookup = {
     shopName?: string;
     estimateDate?: string;
     registrationNumber?: string;
-    items?: { name: string; cost: number; category: string }[];
+    items?: {
+      name: string;
+      cost: number;
+      category: string;
+      quantity?: number | null;
+      unitPrice?: number | null;
+      laborCost?: number | null;
+      oilGrade?: string | null;
+    }[];
     totalAmount?: number;
   };
   matches: CompetitorMatch[];
@@ -380,6 +388,14 @@ export default function OcrPage() {
                   <span>
                     {it.name}
                     <span className="ml-2 text-[var(--muted)]">{it.category}</span>
+                    {it.oilGrade && <span className="ml-2 text-[var(--muted)]">{it.oilGrade}</span>}
+                    {it.quantity != null && <span className="ml-2 text-[var(--muted)]">{it.quantity}L</span>}
+                    {it.unitPrice != null && (
+                      <span className="ml-2 text-[var(--muted)]">単価¥{Number(it.unitPrice).toLocaleString()}/L</span>
+                    )}
+                    {it.laborCost != null && (
+                      <span className="ml-2 text-[var(--muted)]">工賃¥{Number(it.laborCost).toLocaleString()}</span>
+                    )}
                   </span>
                   <span className="mono font-semibold">¥{Number(it.cost).toLocaleString()}</span>
                 </div>

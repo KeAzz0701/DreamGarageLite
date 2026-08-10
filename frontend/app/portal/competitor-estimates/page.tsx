@@ -14,7 +14,16 @@ type CompetitorEstimateRow = {
   vehicleId: number;
   shopName: string | null;
   estimateDate: string | null;
-  items: { name: string; cost?: number }[] | null;
+  items:
+    | {
+        name: string;
+        cost?: number;
+        quantity?: number | null;
+        unitPrice?: number | null;
+        laborCost?: number | null;
+        oilGrade?: string | null;
+      }[]
+    | null;
   totalAmount: number | null;
   createdBy: 'STAFF' | 'CUSTOMER';
   sharedWithShop: boolean;
@@ -144,7 +153,17 @@ export default function PortalCompetitorEstimatesPage() {
                 <div className="mt-2 text-xs text-[var(--muted)] space-y-1">
                   {c.items.map((it, i) => (
                     <div key={i} className="flex justify-between">
-                      <span>{it.name}</span>
+                      <span>
+                        {it.name}
+                        {it.oilGrade && <span className="ml-2">{it.oilGrade}</span>}
+                        {it.quantity != null && <span className="ml-2">{it.quantity}L</span>}
+                        {it.unitPrice != null && (
+                          <span className="ml-2">単価¥{Number(it.unitPrice).toLocaleString()}/L</span>
+                        )}
+                        {it.laborCost != null && (
+                          <span className="ml-2">工賃¥{Number(it.laborCost).toLocaleString()}</span>
+                        )}
+                      </span>
                       {it.cost != null && <span className="mono">¥{Number(it.cost).toLocaleString()}</span>}
                     </div>
                   ))}
