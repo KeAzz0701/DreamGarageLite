@@ -5,6 +5,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MasterPrismaService } from '../prisma/master-prisma.service';
 import { getEffectivePlanLimits } from '../common/plans';
 import { LineService } from '../line/line.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
@@ -26,6 +27,7 @@ const STAFF_TAKEOVER_PAUSE_MINUTES = 30;
 export class CustomerService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly masterPrisma: MasterPrismaService,
     @Inject(forwardRef(() => LineService))
     private readonly lineService: LineService,
     private readonly tenantContext: TenantContextService,
@@ -128,11 +130,27 @@ export class CustomerService {
   }
 
   async delete(id: number) {
-    return this.prisma.customer.delete({
+    const deleted = await this.prisma.customer.delete({
       where: {
         id,
       },
     });
+
+    // LineCompanyLink(顧客のLINE連携)はマスターDB側にあり、テナントDBのCustomerとは
+    // 物理的に別データベースのためON DELETE CASCADEが効かない。ここで明示的に消さないと、
+    // 削除済みの顧客IDを参照したまま残り、以後そのLINEユーザーがメッセージを送るたびに
+    // LineMessage作成が外部キー違反で失敗し続ける(ただし返信自体は妨げない)
+    const company = this.tenantContext.current()?.company;
+
+    if (company) {
+      await this.masterPrisma.lineCompanyLink
+        .deleteMany({
+          where: { companyAccountId: company.id, tenantCustomerId: id },
+        })
+        .catch(() => {});
+    }
+
+    return deleted;
   }
 
   /**
