@@ -61,6 +61,12 @@ const EMERGENCY_KEYWORDS = [
 ];
 // 日本自動車連盟(JAF)ロードサービス要請用の全国共通番号。会社ごとの設定は不要
 const JAF_PHONE = '#8139(携帯) / 0570-00-8139';
+
+// まだどの店舗とも連携していないLINEユーザー(公式アカウントを友だち追加しただけの人)に
+// 表示する案内文。今は運営が別途運用している楽天Roomの車関連ページへのリンクだが、
+// 将来的に企業広告等へ差し替えられるよう、文言とリンクをこの定数1箇所にまとめている
+const NEARBY_SHOP_INVITE_MESSAGE =
+  '🚗 カー用品・カーケア用品はこちらもチェック\nhttps://room.rakuten.co.jp/room_0c1e9d21b8/1700388861567128';
 const RESERVATION_ACTION_PICK_COMPANY = 'reserve_pick_company';
 const RESERVATION_ACTION_PICK_CATEGORY = 'reserve_pick_category';
 const RESERVATION_ACTION_PICK_DATE = 'reserve_pick_date';
@@ -321,7 +327,8 @@ export class LineService {
           text:
             'ガレージ・カルテの公式アカウントを友だち追加いただきありがとうございます。\n' +
             'お店で発行された連携コード(GK-から始まる文字列)をこのトークに送信すると、お車の情報と連携されます。\n' +
-            '複数の店舗をご利用の場合、それぞれのお店の連携コードを送ることで、1つのLINEで両方とやり取りできます。',
+            '複数の店舗をご利用の場合、それぞれのお店の連携コードを送ることで、1つのLINEで両方とやり取りできます。\n\n' +
+            NEARBY_SHOP_INVITE_MESSAGE,
         },
       ]);
     }
@@ -480,6 +487,7 @@ export class LineService {
           type: 'text',
           text: 'まだ連携が完了していません。お店で発行された連携コードを送信してください。',
         },
+        { type: 'text', text: NEARBY_SHOP_INVITE_MESSAGE },
       ]);
       return;
     }
