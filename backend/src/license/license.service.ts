@@ -25,9 +25,14 @@ function currentMonthKey() {
 
 type KeyTier = 'FREE' | 'PAID';
 
-/** 有料プランに切り替わったら、上位(PAID)のAPIキーを優先して割り当てる */
+/**
+ * 有料プランに切り替わったら、上位(PAID)のAPIキーを優先して割り当てる。
+ * 先行導入モニター(DEMO)は無償だが、AIに顧客情報を送る以上、無料枠キー(Googleの
+ * 学習利用対象になりうる)ではなく有料枠キーを割り当てる。既存のDEMOアカウントは
+ * この関数を経由する処理(プラン変更等)を再実行しない限り遡って切り替わらない。
+ */
 function tierForPlan(plan: Plan): KeyTier {
-  return plan === 'FREE' || plan === 'DEMO' ? 'FREE' : 'PAID';
+  return plan === 'FREE' ? 'FREE' : 'PAID';
 }
 
 @Injectable()

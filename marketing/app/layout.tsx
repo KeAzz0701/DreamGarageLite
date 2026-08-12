@@ -42,7 +42,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja" className={`${notoSansJP.variable} ${notoSansMono.variable} bg-background`}>
-      <body className="antialiased font-sans">
+      <body className="overflow-x-hidden antialiased font-sans">
         <SiteHeader />
         {children}
         <SiteFooter />

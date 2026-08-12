@@ -19,6 +19,7 @@ export type PlanLimits = {
 /** 現在ログイン中の会社の実効プラン制限を取得する。取得できるまではnull(呼び出し側は許可扱いで良い)。 */
 export function usePlanLimits() {
   const [limits, setLimits] = useState<PlanLimits | null>(null);
+  const [plan, setPlan] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -27,11 +28,12 @@ export function usePlanLimits() {
         if (!company) return;
         return api<any>(`/license/company/${company.id}/plans`).then((planInfo) => {
           setLimits(planInfo?.current?.limits ?? null);
+          setPlan(planInfo?.current?.plan ?? null);
         });
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
 
-  return { limits, loaded };
+  return { limits, plan, loaded };
 }

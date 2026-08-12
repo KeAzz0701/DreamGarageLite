@@ -701,11 +701,22 @@ export class AdminService {
     });
 
     // APIキーは会社ごとにDBが分かれるため、マスターDBの共有プールから割り当てる
-    // (在庫が無ければ割り当てずスキップし、GeminiService側の共通フォールバックキーを使う)
-    const unassignedKey = await this.masterPrisma.apiKeyPool.findFirst({
-      where: { companyAccountId: null, tier: 'FREE' },
-      orderBy: { createdAt: 'asc' },
-    });
+    // (在庫が無ければ割り当てずスキップし、GeminiService側の共通フォールバックキーを使う)。
+    // 先行導入モニター(DEMO)は無償だが顧客情報をAIに送るため、無料枠(Googleの学習利用対象に
+    // なりうる)ではなく有料枠キーを優先する。在庫が無ければ無料枠にフォールバックする
+    const unassignedKey = activateDemoPlan
+      ? ((await this.masterPrisma.apiKeyPool.findFirst({
+          where: { companyAccountId: null, tier: 'PAID' },
+          orderBy: { createdAt: 'asc' },
+        })) ??
+        (await this.masterPrisma.apiKeyPool.findFirst({
+          where: { companyAccountId: null, tier: 'FREE' },
+          orderBy: { createdAt: 'asc' },
+        })))
+      : await this.masterPrisma.apiKeyPool.findFirst({
+          where: { companyAccountId: null, tier: 'FREE' },
+          orderBy: { createdAt: 'asc' },
+        });
 
     if (unassignedKey) {
       await this.masterPrisma.apiKeyPool.update({

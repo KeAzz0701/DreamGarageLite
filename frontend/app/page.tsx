@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { formatFlexibleDate } from '@/lib/japaneseDate';
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
 import { useCompany } from '@/hooks/useCompany';
+import { usePlanLimits } from '@/lib/usePlanLimits';
 
 type HomeSummary = {
   customers: number;
@@ -69,6 +70,7 @@ function fmt(iso: string) {
 
 export default function Home() {
   const { company } = useCompany();
+  const { plan } = usePlanLimits();
   const [recentCustomers, setRecentCustomers] = useState<Customer[]>([]);
   const [upcomingReservations, setUpcomingReservations] = useState<Reservation[]>([]);
   const [shakenReminders, setShakenReminders] = useState<ShakenReminder[]>([]);
@@ -152,6 +154,23 @@ export default function Home() {
         <h1>おはようございます、{company?.companyName ?? ''}様</h1>
         <p>{todayLabel()}</p>
       </div>
+
+      {plan === 'DEMO' && (
+        <a
+          href="https://room.rakuten.co.jp/room_0c1e9d21b8/1700388861567128"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="demo-ad-banner"
+        >
+          <span className="demo-ad-icon" aria-hidden>
+            🚗
+          </span>
+          <span className="demo-ad-body">
+            <span className="demo-ad-title">カー用品・カーケア用品はこちらもチェック</span>
+            <span className="demo-ad-sub">先行導入モニター特典としてご紹介しています</span>
+          </span>
+        </a>
+      )}
 
       {summary && (
         <div className="dash-kpi-row">
