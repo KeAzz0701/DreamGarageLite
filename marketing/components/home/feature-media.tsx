@@ -5,8 +5,8 @@ import type { Feature } from '@/lib/features'
 /**
  * 機能紹介の各項目に添える画像/動画。実機のスマートフォン本体のような縦長フレーム
  * (ベゼル・ノッチ・ホームインジケーター)の中に、実際のアプリ画面のスクリーンショットを収める。
- * mediaSrcはPCスクリーンショットからサイドバー・上部ナビを除いて縦長(概ね9:10)に
- * 切り出し済みの画像を指しているため、object-containでも余白がほぼ出ず全体を大きく表示できる。
+ * mediaSrcは実機のスマホ幅ブラウザで撮影した本物のスクリーンショット(概ね0.57〜0.72の
+ * 縦長比率)を指しているため、object-containでも余白がほぼ出ず全体を大きく表示できる。
  * mediaSrcが未設定の間はプレースホルダー枠を表示し、動画(mediaType:'video')は
  * 自動再生・ループ・ミュートで、実際に操作しているような短い動きを見せる想定。
  */
@@ -78,7 +78,7 @@ function PhoneFrame({ children }: { children: React.ReactNode }) {
             <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 h-5 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black" aria-hidden="true" />
           </div>
 
-          <div className="relative aspect-[3/4] w-full overflow-hidden bg-neutral-100">{children}</div>
+          <div className="relative aspect-[5/8] w-full overflow-hidden bg-neutral-100">{children}</div>
 
           {/* ホームインジケーター(専用の帯) */}
           <div className="flex h-6 shrink-0 items-center justify-center rounded-b-[2.4rem] bg-neutral-100">
