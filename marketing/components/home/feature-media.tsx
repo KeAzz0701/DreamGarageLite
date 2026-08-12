@@ -61,7 +61,7 @@ function PhoneFrame({ children }: { children: React.ReactNode }) {
         <div className="absolute -left-[3px] top-36 h-14 w-[3px] rounded-l bg-neutral-800" aria-hidden="true" />
         <div className="absolute -right-[3px] top-32 h-16 w-[3px] rounded-r bg-neutral-800" aria-hidden="true" />
 
-        <div className="relative aspect-[9/10] w-full overflow-hidden rounded-[2rem] bg-neutral-100">
+        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[2rem] bg-neutral-100">
           {/* ノッチ */}
           <div className="absolute left-1/2 top-0 z-10 h-6 w-28 -translate-x-1/2 rounded-b-2xl bg-neutral-900" aria-hidden="true" />
           <div className="absolute inset-0 flex items-center justify-center">{children}</div>
