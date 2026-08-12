@@ -1635,12 +1635,17 @@ button.minirow:hover {
   flex-shrink: 0;
 }
 
-/* LINEやり取り画面: 社内AIチャットと骨格は共有しつつ、見た目だけLINEアプリ風にする */
+/* LINEやり取り画面: 社内AIチャットと骨格は共有しつつ、見た目だけLINEアプリ風にする
+   (LINE純正の空+薄い雲の背景を模した淡い水色グラデーション) */
 .chat-shell.line-style {
-  background: #92c890;
-  background-image:
-    radial-gradient(rgba(255, 255, 255, 0.10) 1px, transparent 1px);
-  background-size: 14px 14px;
+  background:
+    radial-gradient(120px 55px at 12% 10%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(160px 65px at 48% 22%, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(140px 55px at 82% 14%, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(180px 75px at 22% 52%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(150px 60px at 72% 62%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(170px 70px at 38% 84%, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, #bfe3f4 0%, #d7edf8 50%, #e9f5fb 100%);
   border-radius: 12px;
   padding: 14px 10px;
 }
