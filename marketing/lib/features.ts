@@ -35,7 +35,7 @@ export const features: Feature[] = [
       '面倒だったハガキや電話でのご案内を、LINEで自動送信。車検や定期点検のタイミングをお客様にお知らせし、再来店につなげます。',
     points: ['車検・点検時期に合わせて自動配信', 'テンプレートで文面を簡単作成', '開封・予約状況をダッシュボードで確認'],
     mediaType: 'image',
-    mediaSrc: '/manual/01-home-mobile.png',
+    mediaSrc: '/manual/08-line-chat.png',
   },
   {
     id: 'reservation',
