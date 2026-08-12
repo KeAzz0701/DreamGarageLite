@@ -51,22 +51,35 @@ export function FeatureMedia({ feature }: { feature: Feature }) {
   )
 }
 
-/** 実機のスマートフォンのような縦長の外枠(ベゼル・ノッチ・ホームインジケーター)。中身はabsolute埋めで渡す */
+/** 実機のスマートフォンのような縦長の外枠(金属エッジ・ダイナミックアイランド・ステータスバー・ホームインジケーター)。中身はabsolute埋めで渡す */
 function PhoneFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex justify-center py-2">
-      <div className="relative w-full max-w-[300px] rounded-[2.75rem] bg-neutral-900 p-3 shadow-2xl ring-1 ring-black/10">
-        {/* 側面ボタン風の飾り */}
-        <div className="absolute -left-[3px] top-24 h-8 w-[3px] rounded-l bg-neutral-800" aria-hidden="true" />
-        <div className="absolute -left-[3px] top-36 h-14 w-[3px] rounded-l bg-neutral-800" aria-hidden="true" />
-        <div className="absolute -right-[3px] top-32 h-16 w-[3px] rounded-r bg-neutral-800" aria-hidden="true" />
+      <div className="relative w-full max-w-[280px] rounded-[3rem] bg-gradient-to-b from-neutral-700 to-neutral-900 p-[3px] shadow-2xl">
+        {/* 側面ボタン */}
+        <div className="absolute -left-[2px] top-20 h-6 w-[2px] rounded-l bg-neutral-600" aria-hidden="true" />
+        <div className="absolute -left-[2px] top-28 h-10 w-[2px] rounded-l bg-neutral-600" aria-hidden="true" />
+        <div className="absolute -left-[2px] top-40 h-10 w-[2px] rounded-l bg-neutral-600" aria-hidden="true" />
+        <div className="absolute -right-[2px] top-32 h-14 w-[2px] rounded-r bg-neutral-600" aria-hidden="true" />
 
-        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[2rem] bg-neutral-100">
-          {/* ノッチ */}
-          <div className="absolute left-1/2 top-0 z-10 h-6 w-28 -translate-x-1/2 rounded-b-2xl bg-neutral-900" aria-hidden="true" />
-          <div className="absolute inset-0 flex items-center justify-center">{children}</div>
-          {/* ホームインジケーター */}
-          <div className="absolute bottom-1.5 left-1/2 z-10 h-1 w-24 -translate-x-1/2 rounded-full bg-neutral-400/70" aria-hidden="true" />
+        <div className="rounded-[2.85rem] bg-black p-2">
+          <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[2.4rem] bg-neutral-100">
+            {children}
+
+            {/* ステータスバー(画像の上に重ねる) */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex h-9 items-center justify-between bg-gradient-to-b from-white/90 to-white/0 px-6 text-[11px] font-semibold text-neutral-900">
+              <span>9:41</span>
+              <div className="flex items-center gap-1 text-[10px]">
+                <span aria-hidden="true">📶</span>
+                <span aria-hidden="true">🔋</span>
+              </div>
+            </div>
+            {/* ダイナミックアイランド */}
+            <div className="pointer-events-none absolute left-1/2 top-2 z-20 h-6 w-24 -translate-x-1/2 rounded-full bg-black" aria-hidden="true" />
+
+            {/* ホームインジケーター */}
+            <div className="pointer-events-none absolute bottom-1.5 left-1/2 z-10 h-1 w-28 -translate-x-1/2 rounded-full bg-neutral-900/60" aria-hidden="true" />
+          </div>
         </div>
       </div>
     </div>
