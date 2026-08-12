@@ -78,7 +78,7 @@ function PhoneFrame({ children }: { children: React.ReactNode }) {
             <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 h-5 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black" aria-hidden="true" />
           </div>
 
-          <div className="relative aspect-[5/8] w-full overflow-hidden bg-neutral-100">{children}</div>
+          <div className="relative aspect-[1/2] w-full overflow-hidden bg-neutral-100">{children}</div>
 
           {/* ホームインジケーター(専用の帯) */}
           <div className="flex h-6 shrink-0 items-center justify-center rounded-b-[2.4rem] bg-neutral-100">
