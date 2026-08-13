@@ -1369,8 +1369,11 @@ button.minirow:hover {
     gap: 10px;
   }
 
-  /* 予約管理画面: 右側に月間カレンダーを固定し、左側の予約リストをスクロールしながら
-     常に予約登録カレンダーが見える2カラム構成にする */
+  /* 予約管理画面: 右側に月間カレンダーを固定し、左側の「予約待ち・確定済み」を
+     スクロールしながら常に予約登録カレンダーが見える2カラム構成にする。
+     行番号を明示しているのは、予約待ちが0件だと非表示になり暗黙の行位置がずれるため。
+     カレンダーの固定(sticky)範囲を予約待ち・確定済みの行だけに限定し、履歴や
+     営業時間・定休日の設定欄にカレンダーが被って押しにくくなるのを防いでいる */
   main:has(.reservations-shell) {
     max-width: 1180px;
   }
@@ -1382,24 +1385,29 @@ button.minirow:hover {
   }
   .reservations-shell > .res-header {
     grid-column: 1 / -1;
+    grid-row: 1;
   }
   .reservations-shell .res-pending {
     grid-column: 1;
+    grid-row: 2;
   }
   .reservations-shell .res-confirmed {
     grid-column: 1;
+    grid-row: 3;
   }
   .reservations-shell .res-history {
     grid-column: 1;
+    grid-row: 4;
   }
   .reservations-shell .res-calendar {
     grid-column: 2;
-    grid-row: span 3;
+    grid-row: 2 / 4;
     position: sticky;
     top: 20px;
   }
   .reservations-shell .res-hours {
     grid-column: 1 / -1;
+    grid-row: 5;
   }
 
   /* 車両詳細: 横幅を活かして基本情報の入力欄を3列にし、縦スクロールを減らす */
