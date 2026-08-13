@@ -282,82 +282,84 @@ export default function ReservationsPage() {
         <h1 className="disp text-3xl">予約管理</h1>
       </div>
 
-      {pending.length > 0 && (
-      <div className="panel mb-4 res-pending">
-        <h2 className="disp text-xl mb-3">予約待ち（{pending.length}）</h2>
+      <div className="res-top-grid">
+        {pending.length > 0 && (
+        <div className="panel mb-4 res-pending">
+          <h2 className="disp text-xl mb-3">予約待ち（{pending.length}）</h2>
 
-        {pending.map((r) => (
-            <div key={r.id} className="veh mb-2">
-              <div className="flex justify-between items-center">
-                <div>
-                  <span className="mono text-xs text-[var(--muted)]">{fmt(r.scheduledStart)}</span>{' '}
-                  {r.category && <span className="expbadge exp-warn mr-2">{r.category}</span>}
-                  {r.needsLoanerCar === true && (
-                    <span className="expbadge exp-danger mr-2">🚗 代車必要</span>
-                  )}
-                  <span className="font-semibold">{r.customer?.customerName ?? '不明な顧客'}</span>
-                  {r.vehicle && (
-                    <span className="ml-2 text-xs text-[var(--muted)]">
-                      {vehicleLabel(r.vehicle)}（{r.vehicle.registrationNumber ?? '登録番号未登録'}）
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => confirm(r.id)} className="btn btn-blue btn-sm">
-                    ✅ 確定
-                  </button>
-                  <button onClick={() => decline(r.id)} className="btn btn-ghost btn-sm">
-                    ✕ 却下
-                  </button>
-                </div>
-              </div>
-            </div>
-        ))}
-      </div>
-      )}
-
-      <div className="panel mb-4 res-calendar">
-        <h2 className="disp text-xl mb-3">月間カレンダー（電話予約用）</h2>
-        <MonthlyCalendarPanel />
-      </div>
-
-      <div className="panel mb-4 res-confirmed">
-        <h2 className="disp text-xl mb-3">確定済み（{confirmed.length}）</h2>
-
-        {confirmed.length === 0 ? (
-          <div className="empty">確定した予約はまだありません。</div>
-        ) : (
-          confirmed.map((r) => (
-            <div key={r.id} className="veh mb-2">
-              <div className="flex justify-between items-center">
-                <div>
-                  <span className="mono text-xs text-[var(--muted)]">{fmt(r.scheduledStart)}</span>{' '}
-                  {r.category && <span className="expbadge exp-warn mr-2">{r.category}</span>}
-                  {r.needsLoanerCar === true && (
-                    <span className="expbadge exp-danger mr-2">🚗 代車必要</span>
-                  )}
-                  <span className="font-semibold">{r.customer?.customerName ?? '不明な顧客'}</span>
-                  {r.vehicle && (
-                    <span className="ml-2 text-xs text-[var(--muted)]">
-                      {vehicleLabel(r.vehicle)}（{r.vehicle.registrationNumber ?? '登録番号未登録'}）
-                    </span>
-                  )}
-                  {r.googleEventId && (
-                    <span className="expbadge exp-warn ml-2">📅 Google同期済</span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => reschedule(r)} className="btn btn-ghost btn-sm">
-                    🕓 変更
-                  </button>
-                  <button onClick={() => cancel(r.id)} className="btn btn-ghost btn-sm">
-                    キャンセル
-                  </button>
+          {pending.map((r) => (
+              <div key={r.id} className="veh mb-2">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="mono text-xs text-[var(--muted)]">{fmt(r.scheduledStart)}</span>{' '}
+                    {r.category && <span className="expbadge exp-warn mr-2">{r.category}</span>}
+                    {r.needsLoanerCar === true && (
+                      <span className="expbadge exp-danger mr-2">🚗 代車必要</span>
+                    )}
+                    <span className="font-semibold">{r.customer?.customerName ?? '不明な顧客'}</span>
+                    {r.vehicle && (
+                      <span className="ml-2 text-xs text-[var(--muted)]">
+                        {vehicleLabel(r.vehicle)}（{r.vehicle.registrationNumber ?? '登録番号未登録'}）
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => confirm(r.id)} className="btn btn-blue btn-sm">
+                      ✅ 確定
+                    </button>
+                    <button onClick={() => decline(r.id)} className="btn btn-ghost btn-sm">
+                      ✕ 却下
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+          ))}
+        </div>
         )}
+
+        <div className="panel mb-4 res-calendar">
+          <h2 className="disp text-xl mb-3">月間カレンダー（電話予約用）</h2>
+          <MonthlyCalendarPanel />
+        </div>
+
+        <div className="panel mb-4 res-confirmed">
+          <h2 className="disp text-xl mb-3">確定済み（{confirmed.length}）</h2>
+
+          {confirmed.length === 0 ? (
+            <div className="empty">確定した予約はまだありません。</div>
+          ) : (
+            confirmed.map((r) => (
+              <div key={r.id} className="veh mb-2">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="mono text-xs text-[var(--muted)]">{fmt(r.scheduledStart)}</span>{' '}
+                    {r.category && <span className="expbadge exp-warn mr-2">{r.category}</span>}
+                    {r.needsLoanerCar === true && (
+                      <span className="expbadge exp-danger mr-2">🚗 代車必要</span>
+                    )}
+                    <span className="font-semibold">{r.customer?.customerName ?? '不明な顧客'}</span>
+                    {r.vehicle && (
+                      <span className="ml-2 text-xs text-[var(--muted)]">
+                        {vehicleLabel(r.vehicle)}（{r.vehicle.registrationNumber ?? '登録番号未登録'}）
+                      </span>
+                    )}
+                    {r.googleEventId && (
+                      <span className="expbadge exp-warn ml-2">📅 Google同期済</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => reschedule(r)} className="btn btn-ghost btn-sm">
+                      🕓 変更
+                    </button>
+                    <button onClick={() => cancel(r.id)} className="btn btn-ghost btn-sm">
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       <div className="panel mb-4 res-history">

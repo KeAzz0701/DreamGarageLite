@@ -1371,43 +1371,32 @@ button.minirow:hover {
 
   /* 予約管理画面: 右側に月間カレンダーを固定し、左側の「予約待ち・確定済み」を
      スクロールしながら常に予約登録カレンダーが見える2カラム構成にする。
-     行番号を明示しているのは、予約待ちが0件だと非表示になり暗黙の行位置がずれるため。
-     カレンダーの固定(sticky)範囲を予約待ち・確定済みの行だけに限定し、履歴や
-     営業時間・定休日の設定欄にカレンダーが被って押しにくくなるのを防いでいる */
+     res-top-gridという専用のサブグリッドに予約待ち・カレンダー・確定済みだけを
+     閉じ込めることで、カレンダーのsticky固定範囲(containing block)がその3つの
+     高さだけに確定し、履歴や営業時間・定休日の設定欄(サブグリッドの外側、
+     通常のブロック要素)にはカレンダーが絶対に被らないようにしている
+     (以前は1つの巨大なgridの行番号指定だけで区切っていたが、離れた兄弟要素との
+     行トラックの高さ計算が絡んで意図通りに固定範囲が区切られないことがあった) */
   main:has(.reservations-shell) {
     max-width: 1180px;
   }
-  .reservations-shell {
+  .res-top-grid {
     display: grid;
     grid-template-columns: 1fr 400px;
     gap: 20px;
     align-items: start;
   }
-  .reservations-shell > .res-header {
-    grid-column: 1 / -1;
-    grid-row: 1;
-  }
-  .reservations-shell .res-pending {
+  .res-top-grid .res-pending {
     grid-column: 1;
-    grid-row: 2;
   }
-  .reservations-shell .res-confirmed {
+  .res-top-grid .res-confirmed {
     grid-column: 1;
-    grid-row: 3;
   }
-  .reservations-shell .res-history {
-    grid-column: 1;
-    grid-row: 4;
-  }
-  .reservations-shell .res-calendar {
+  .res-top-grid .res-calendar {
     grid-column: 2;
-    grid-row: 2 / 4;
+    grid-row: 1 / span 2;
     position: sticky;
     top: 20px;
-  }
-  .reservations-shell .res-hours {
-    grid-column: 1 / -1;
-    grid-row: 5;
   }
 
   /* 車両詳細: 横幅を活かして基本情報の入力欄を3列にし、縦スクロールを減らす */
