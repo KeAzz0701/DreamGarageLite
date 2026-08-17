@@ -45,8 +45,9 @@ export const features: Feature[] = [
     description:
       '入庫予約をカレンダーで管理。作業内容や担当者、ピットの空き状況を見ながら、電話やLINEからの予約をその場で登録できます。',
     points: ['カレンダーで一日の入庫予定を把握', 'ダブルブッキングを防止', 'スマホからいつでも予約を確認・変更'],
-    mediaType: 'image',
-    mediaSrc: '/manual/reservation-portrait.png',
+    // mediaSrc temporarily removed: the screenshot contained a real customer name not
+    // present in the demo seed data (2026-08-18 incident). Falls back to placeholder
+    // until a clean re-capture from the demo0001 account replaces it.
   },
   {
     id: 'estimate',
@@ -56,7 +57,8 @@ export const features: Feature[] = [
     description:
       'よく使う整備メニューや部品を登録しておけば、選ぶだけで見積書を作成。そのまま作業指示や請求へ連携でき、転記の手間を減らします。',
     points: ['整備メニュー・部品の登録で入力を効率化', '見積から請求書までワンストップ', 'PDFで発行してそのまま送付'],
-    mediaType: 'image',
-    mediaSrc: '/manual/estimate-portrait.png',
+    // mediaSrc temporarily removed: the screenshot contained real customer names not
+    // present in the demo seed data (2026-08-18 incident). Falls back to placeholder
+    // until a clean re-capture from the demo0001 account replaces it.
   },
 ]
