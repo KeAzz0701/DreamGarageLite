@@ -66,7 +66,7 @@ const sections: Section[] = [
     id: 'reservation',
     icon: CalendarCheck,
     title: '予約管理',
-    image: '/manual/05-reservations.png',
+    image: '/manual/05-reservations-mobile.png',
     points: [
       'カレンダー形式で入庫予定を管理し、作業内容や担当者、ピットの空き状況をひと目で確認できます。',
       '曜日ごとの営業時間・休憩時間・定休日を設定でき、休憩時間は予約枠から自動的に除外されます。',
@@ -89,7 +89,7 @@ const sections: Section[] = [
     id: 'line',
     icon: MessageCircle,
     title: 'LINEでのお客様対応',
-    image: '/manual/01-home.png',
+    image: '/manual/01-home-mobile.png',
     points: [
       '車検満了の2ヶ月前・1ヶ月前、2週間前からは毎日、LINEで自動的にリマインドをお送りします。メッセージには「予約する」「通知を止める」ボタンが付いています。',
       'オイル交換・タイヤ交換の時期も、過去の整備履歴から目安を計算してLINEでお知らせします。',
