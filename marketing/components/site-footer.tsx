@@ -1,12 +1,12 @@
 import Link from 'next/link'
 import { Wrench } from 'lucide-react'
-import { navItems, siteConfig } from '@/lib/site'
+import { navItems, siteConfig, socialLinks } from '@/lib/site'
 
 export function SiteFooter() {
   return (
     <footer className="bg-secondary text-secondary-foreground">
       <div className="mx-auto max-w-6xl px-4 py-14 md:px-6">
-        <div className="grid gap-10 md:grid-cols-3">
+        <div className="grid gap-10 md:grid-cols-4">
           <div className="md:col-span-1">
             <div className="flex items-center gap-2.5">
               <span className="flex size-9 items-center justify-center rounded-lg bg-background/10">
@@ -46,6 +46,24 @@ export function SiteFooter() {
                 </a>
               </p>
             </address>
+          </div>
+
+          <div>
+            <h2 className="text-sm font-bold text-secondary-foreground">フォロー・関連リンク</h2>
+            <ul className="mt-4 space-y-3">
+              {socialLinks.map((item) => (
+                <li key={item.href}>
+                  <a
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-secondary-foreground/70 transition-colors hover:text-primary"
+                  >
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 
