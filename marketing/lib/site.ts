@@ -13,6 +13,7 @@ export const navItems = [
 
 export const socialLinks = [
   { label: 'X', href: 'https://x.com/garagekarte' },
+  { label: 'Facebook', href: 'https://www.facebook.com/profile.php?id=61593186309985' },
   { label: 'Instagram', href: 'https://www.instagram.com/garagekarte' },
   { label: 'Threads', href: 'https://www.threads.net/@garagekarte' },
   { label: 'TikTok', href: 'https://www.tiktok.com/@garagekarte' },
